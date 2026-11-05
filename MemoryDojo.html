@@ -1,0 +1,3096 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Interactive C pointer and memory whiteboard: trace code line by line and see the stack, heap, and static memory.">
+<title>Memory Whiteboard</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* Layout: code + step history on the left, the drawing canvas in the middle, inspector / memory map on the right.
+   Below 1080px the canvas comes first and the two panels stack under it.
+   Color carries meaning: orange = an address stored in a pointer, ink on blue-grey = plain data,
+   amber hatch = uninitialized, yellow ring = changed in this step, red dashes = dangling. */
+:root {
+  --bg: #e7ebf0; --panel: #f6f8fa; --surface: #ffffff; --ink: #16202a; --muted: #5a6876; --line: #d2dae2;
+  --canvas: #f2f5f8; --grid: #c9d3dd; --accent: #1f5fd1; --accent-ink: #ffffff; --accent-soft: #dfe9fb;
+  --addr: #c2410c; --addr-bg: #fff0e5; --data-bg: #edf2f8; --uninit: #b7791f; --uninit-bg: #fdf3dc;
+  --chg: #e0a100; --bad: #c92a2a; --bad-bg: #fde8e8; --good: #2b8a3e;
+  --r-stack: #2563eb; --r-stack-bg: #e1eafc; --r-heap: #7c3aed; --r-heap-bg: #eee6fd;
+  --r-global: #0f8a6c; --r-global-bg: #dbf2ea; --r-rodata: #64748b; --r-rodata-bg: #e6eaef;
+  --r-code: #b45309; --r-code-bg: #fbeedd;
+  --note-bg: #fff4c4; --note-line: #dcbc4e; --grp: #8095aa; --shadow: rgba(22, 32, 42, .10);
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1318; --panel: #121a21; --surface: #18222c; --ink: #e2e9f0; --muted: #93a3b2; --line: #2a3743;
+    --canvas: #0f161c; --grid: #24313d; --accent: #6aa5ff; --accent-ink: #08172b; --accent-soft: #17283f;
+    --addr: #ff9a5c; --addr-bg: #3a2416; --data-bg: #1d2935; --uninit: #f0b75a; --uninit-bg: #392c14;
+    --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3d1b1b; --good: #6fd38a;
+    --r-stack: #6ea2ff; --r-stack-bg: #172a46; --r-heap: #b493ff; --r-heap-bg: #2a1f45;
+    --r-global: #4fd1a8; --r-global-bg: #123a30; --r-rodata: #9fb0c3; --r-rodata-bg: #222c37;
+    --r-code: #f2a55a; --r-code-bg: #3a2814;
+    --note-bg: #3b3216; --note-line: #8c7729; --grp: #60758a; --shadow: rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1318; --panel: #121a21; --surface: #18222c; --ink: #e2e9f0; --muted: #93a3b2; --line: #2a3743;
+  --canvas: #0f161c; --grid: #24313d; --accent: #6aa5ff; --accent-ink: #08172b; --accent-soft: #17283f;
+  --addr: #ff9a5c; --addr-bg: #3a2416; --data-bg: #1d2935; --uninit: #f0b75a; --uninit-bg: #392c14;
+  --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3d1b1b; --good: #6fd38a;
+  --r-stack: #6ea2ff; --r-stack-bg: #172a46; --r-heap: #b493ff; --r-heap-bg: #2a1f45;
+  --r-global: #4fd1a8; --r-global-bg: #123a30; --r-rodata: #9fb0c3; --r-rodata-bg: #222c37;
+  --r-code: #f2a55a; --r-code-bg: #3a2814;
+  --note-bg: #3b3216; --note-line: #8c7729; --grp: #60758a; --shadow: rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font-body); }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, .mono { font-family: var(--font-mono); }
+
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-block: 9px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--panel); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; min-width: 0; }
+.brand h1 { margin: 0; font: 700 21px/1.1 var(--font-display); letter-spacing: -0.01em; white-space: nowrap; }
+.brand span { color: var(--muted); font-size: 13px; }
+.bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 5px 11px; font-size: 13px; line-height: 1.3; white-space: nowrap; }
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.danger { color: var(--bad); }
+.btn.armed { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn.sm { padding: 3px 8px; font-size: 12px; }
+select.btn { padding-right: 6px; }
+
+.main { display: grid; grid-template-columns: 310px 8px minmax(0, 1fr) 8px 330px; min-height: 0; }
+#leftPanel { grid-column: 1; grid-row: 1; } #rzL { grid-column: 2; grid-row: 1; } .center { grid-column: 3; grid-row: 1; } #rzR { grid-column: 4; grid-row: 1; } #rightPanel { grid-column: 5; grid-row: 1; }
+.resizer { position: relative; background: var(--panel); cursor: col-resize; touch-action: none; border-inline: 1px solid var(--line); }
+.resizer::after { content: ""; position: absolute; top: 0; bottom: 0; left: 2px; right: 2px; border-radius: 2px; }
+.resizer:hover::after, .resizer.dragging::after, .resizer:focus-visible::after { background: var(--accent); opacity: .45; }
+.resizer:focus-visible { outline: none; }
+.rail-btn { display: none; }
+.resizer.off { cursor: pointer; background: var(--panel); }
+.resizer.off::after { display: none; }
+.resizer.off .rail-btn { display: grid; place-items: center; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 18px; height: 56px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--muted); font-size: 16px; line-height: 1; }
+.resizer.off:hover .rail-btn, .resizer.off:focus-visible .rail-btn { color: var(--accent); border-color: var(--accent); }
+.hide-btn { margin-left: auto; align-self: center; border: 1px solid transparent; background: none; color: var(--muted); border-radius: 6px; padding: 2px 8px; font-size: 15px; line-height: 1.2; }
+.hide-btn:hover { border-color: var(--line); color: var(--ink); }
+.seg.panels button[aria-pressed="false"] { background: var(--surface); color: var(--muted); font-weight: 400; }
+.grip { height: 12px; margin: 2px 0 -4px; cursor: row-resize; touch-action: none; display: grid; place-items: center; border-radius: 4px; }
+.grip::before { content: ""; width: 36px; height: 4px; border-radius: 2px; background: var(--line); }
+.grip:hover::before, .grip.dragging::before, .grip:focus-visible::before { background: var(--accent); }
+.grip:focus-visible { outline: none; }
+.left.wide .code { font-size: 13.5px; }
+.side { background: var(--panel); min-height: 0; overflow: auto; }
+.right { display: flex; flex-direction: column; }
+.sec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.sec h2 { margin: 0; font: 600 12px/1.2 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.sec-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+
+/* code */
+.code { font: 12.5px/1.6 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 38vh; padding: 4px 0; }
+.cl { display: grid; grid-template-columns: 14px 2.4em minmax(0, 1fr) auto; align-items: center; padding: 0 8px 0 4px; cursor: pointer; white-space: pre; }
+.cl:hover { background: var(--data-bg); }
+.cl .ln { color: var(--muted); text-align: right; padding-right: 8px; user-select: none; }
+.cl .mk { color: var(--accent); font-size: 10px; }
+.cl .tx { overflow: hidden; text-overflow: ellipsis; }
+.cl .ns { font-size: 10.5px; color: var(--muted); padding-left: 6px; }
+.cl.cur { background: var(--accent-soft); }
+.cl.pend .mk::before { content: "\25B6"; }
+.cl.skipl .tx { color: var(--muted); }
+textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5px/1.6 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px; tab-size: 4; }
+.runbar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+.result { margin-top: 8px; font-size: 12.5px; border-radius: 6px; padding: 6px 9px; }
+.result.err { background: var(--bad-bg); color: var(--bad); }
+.result.inf { background: var(--data-bg); color: var(--muted); }
+
+/* steps */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.step { min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 7px 9px; cursor: pointer; }
+.step.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.st-h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.st-n { font: 600 11px var(--font-mono); background: var(--data-bg); border-radius: 4px; padding: 1px 6px; flex: none; }
+.step.on .st-n { background: var(--accent); color: var(--accent-ink); }
+.st-c { font: 12px var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.st-x { border: 0; background: none; color: var(--muted); padding: 0 4px; font-size: 15px; line-height: 1; }
+.chg { margin: 5px 0 0; padding: 0; list-style: none; font: 11.5px/1.5 var(--font-mono); color: var(--muted); }
+.chg li { overflow-wrap: anywhere; }
+.chg li::before { content: "\2022  "; }
+.chg li.add { color: var(--good); } .chg li.free, .chg li.del { color: var(--bad); }
+.msg { font-size: 11.5px; margin-top: 4px; color: var(--uninit); }
+
+/* canvas */
+.center { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
+.cv-wrap { position: relative; min-height: 0; overflow: hidden; background: var(--canvas); }
+#cv { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
+.tools { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+.tools .btn { pointer-events: auto; box-shadow: 0 1px 3px var(--shadow); }
+.tools .lbl { pointer-events: none; align-self: center; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.zoom { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; }
+.zoom .btn { min-width: 32px; box-shadow: 0 1px 3px var(--shadow); }
+.legend { position: absolute; left: 10px; bottom: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-size: 11.5px; display: grid; gap: 3px; box-shadow: 0 1px 3px var(--shadow); max-width: calc(100% - 180px); }
+.lg-t { border: 0; background: none; padding: 0; font: 600 11px var(--font-body); letter-spacing: .07em; text-transform: uppercase; color: var(--muted); text-align: left; display: flex; justify-content: space-between; gap: 10px; }
+.legend.mini .row { display: none; }
+.legend .row { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.sw { width: 18px; height: 11px; border-radius: 3px; border: 1.5px solid; flex: none; }
+.sw.p { border-color: var(--addr); background: var(--addr-bg); }
+.sw.d { border-color: var(--line); background: var(--data-bg); }
+.sw.u { border-color: var(--uninit); background: var(--uninit-bg); }
+.sw.c { border-color: var(--chg); border-width: 2.5px; background: transparent; }
+.sw.x { border-color: var(--bad); border-style: dashed; background: transparent; }
+.toast { position: absolute; top: 54px; left: 50%; transform: translateX(-50%); max-width: min(560px, calc(100% - 32px)); background: var(--ink); color: var(--surface); border-radius: 8px; padding: 8px 14px; font-size: 13px; box-shadow: 0 4px 14px var(--shadow); z-index: 5; }
+.toast.err { background: var(--bad); color: #fff; }
+.inline-ed { position: absolute; z-index: 6; font: 13px var(--font-mono); padding: 2px 6px; border: 2px solid var(--accent); border-radius: 5px; background: var(--surface); color: var(--ink); }
+
+.stepbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding-block: 8px; padding-inline: 12px; background: var(--panel); border-top: 1px solid var(--line); }
+.stepbar .where { font-size: 13px; min-width: 0; flex: 1 1 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stepbar .where b { font-weight: 600; }
+.stepbar code { background: var(--data-bg); border-radius: 4px; padding: 1px 5px; font-size: 12px; }
+
+/* svg */
+#cv text { font-family: var(--font-mono); fill: var(--ink); }
+.card { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; filter: drop-shadow(0 1px 2px var(--shadow)); }
+.blk.sel .card { stroke: var(--accent); stroke-width: 2.2; }
+.blk.isnew .card { stroke: var(--chg); stroke-width: 2.2; }
+.blk.sel.isnew .card { stroke: var(--accent); }
+.blk { cursor: grab; }
+.hd { fill: var(--r-stack-bg); }
+.r-heap .hd { fill: var(--r-heap-bg); } .r-global .hd { fill: var(--r-global-bg); } .r-rodata .hd { fill: var(--r-rodata-bg); }
+#cv .nm { font: 700 13px var(--font-mono); }
+#cv .ty, #cv .ft, #cv .lb, #cv .ix { fill: var(--muted); font-size: 11px; }
+#cv .ix { font-size: 9px; }
+#cv .ad { fill: var(--muted); font-size: 9.5px; }
+#cv .ad.v { font-size: 11px; }
+#cv .rg { font: 600 9.5px var(--font-body); letter-spacing: .08em; fill: var(--r-stack); }
+.r-heap .rg { fill: var(--r-heap) !important; } .r-global .rg { fill: var(--r-global) !important; } .r-rodata .rg { fill: var(--r-rodata) !important; }
+.slot { fill: var(--data-bg); stroke: var(--line); stroke-width: 1; }
+.slot.ptr { fill: var(--addr-bg); stroke: var(--addr); stroke-opacity: .55; }
+.slot.uninit { fill: url(#hatch); stroke: var(--uninit); stroke-opacity: .8; }
+.slot.chg { stroke: var(--chg); stroke-width: 2.6; stroke-opacity: 1; }
+.slot.ssel { stroke: var(--accent); stroke-width: 2.4; stroke-opacity: 1; }
+.slot.drop { stroke: var(--accent); stroke-width: 3; }
+#cv .vt { font-size: 13px; font-weight: 500; text-anchor: middle; dominant-baseline: central; }
+#cv .vt.p { fill: var(--addr); font-weight: 700; }
+#cv .vt.n { fill: var(--muted); }
+#cv .vt.u { fill: var(--uninit); font-weight: 700; }
+.blk.freed, .lbl-g.freed { opacity: .55; }
+.blk.ghost { opacity: .32; }
+.blk.ghost .card { stroke-dasharray: 4 4; stroke: var(--muted); filter: none; }
+#cv .blk.ghost .rg { fill: var(--muted) !important; }
+.blk.leak .card { stroke: var(--bad); stroke-width: 2.2; }
+#cv .blk.leak .rg { fill: var(--bad) !important; }
+.endban { position: absolute; top: 54px; left: 10px; right: 10px; max-width: 640px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 9px 12px; font-size: 13px; line-height: 1.45; box-shadow: 0 2px 8px var(--shadow); z-index: 3; }
+.endban b { font-weight: 600; }
+.endnote { flex: 1 1 100%; font-size: 12.5px; line-height: 1.45; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; padding: 6px 10px; }
+.endnote b { font-weight: 600; }
+.lbl-g { cursor: grab; }
+.lbl-g text { paint-order: stroke; stroke: var(--r-stack-bg); stroke-width: 6px; stroke-linejoin: round; }
+.lbl-g.r-heap text { stroke: var(--r-heap-bg); } .lbl-g.r-global text { stroke: var(--r-global-bg); } .lbl-g.r-rodata text { stroke: var(--r-rodata-bg); }
+.blk.freed .card { stroke-dasharray: 5 4; stroke: var(--bad); }
+#cv .blk.freed .rg { fill: var(--bad) !important; }
+.arrow { fill: none; stroke: var(--addr); stroke-width: 2; }
+.arrow.hot { stroke-width: 3.2; }
+.arrow.bad { stroke: var(--bad); stroke-dasharray: 6 4; }
+.ground { stroke: var(--muted); stroke-width: 2; fill: none; }
+.ahead { fill: var(--addr); } .ahead.bad { fill: var(--bad); }
+.port { fill: var(--addr); stroke: var(--surface); stroke-width: 2; cursor: crosshair; }
+.port-hit { fill: transparent; cursor: crosshair; }
+.port-g:hover .port { r: 6.5; }
+#cv .wild { fill: var(--bad); font-size: 10.5px; }
+.linkline { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 5 4; fill: none; pointer-events: none; }
+.dropbox { fill: none; stroke: var(--accent); stroke-width: 3; pointer-events: none; }
+.gbox { fill: var(--grp); fill-opacity: .07; stroke: var(--grp); stroke-width: 1.5; stroke-dasharray: 7 5; pointer-events: none; }
+.ghead { fill: transparent; cursor: grab; }
+.grp.sel .gbox { stroke: var(--accent); stroke-dasharray: none; }
+#cv .gl { font: 600 12px var(--font-body); fill: var(--grp); }
+.grp.sel .gl { fill: var(--accent) !important; }
+.nbox { fill: var(--note-bg); stroke: var(--note-line); stroke-width: 1.2; cursor: grab; }
+.note.sel .nbox { stroke: var(--accent); stroke-width: 2.2; }
+#cv .nt { font: 12.5px var(--font-body); }
+.rz { fill: var(--surface); stroke: var(--muted); stroke-width: 1.2; cursor: nwse-resize; }
+.gridbg { fill: url(#dots); }
+#dots circle { fill: var(--grid); }
+.hatchbg { fill: var(--uninit-bg); } .hatchln { stroke: var(--uninit); stroke-opacity: .35; stroke-width: 1.5; }
+
+/* inspector + map */
+.tabs { display: flex; gap: 4px; padding: 10px 16px 0; border-bottom: 1px solid var(--line); }
+.tab { border: 0; background: none; padding: 7px 10px; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 500; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.pane { padding: 14px 16px; overflow: auto; min-height: 0; flex: 1; }
+.field { display: grid; gap: 4px; margin-bottom: 10px; }
+.field > span { font-size: 11.5px; color: var(--muted); font-weight: 500; letter-spacing: .02em; }
+.field input, .field select, .field textarea, .vin { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 5px 8px; }
+.field textarea { font: 12.5px/1.5 var(--font-mono); min-height: 64px; resize: vertical; }
+.row2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.inl { display: flex; gap: 6px; } .inl input { flex: 1; }
+.mono-in { font-family: var(--font-mono); }
+.slots { width: 100%; border-collapse: collapse; margin: 4px 0 12px; font-size: 12.5px; }
+.slots th { text-align: left; font: 500 11px var(--font-body); color: var(--muted); padding: 4px 4px; border-bottom: 1px solid var(--line); }
+.slots td { padding: 4px; vertical-align: top; border-bottom: 1px solid var(--line); }
+.slots td.l { font-family: var(--font-mono); white-space: nowrap; }
+.slots tr.on td { background: var(--accent-soft); }
+.vin { font-family: var(--font-mono); padding: 3px 6px; }
+.tgt { font-size: 11px; color: var(--addr); margin-top: 3px; }
+.tgt.bad { color: var(--bad); }
+.tgt.mut { color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.kv { font-size: 12px; color: var(--muted); margin: 0 0 12px; }
+.kv b { color: var(--ink); font-family: var(--font-mono); font-weight: 500; }
+.empty h3 { margin: 0 0 6px; font: 600 15px var(--font-body); }
+.empty ul { padding-left: 18px; margin: 6px 0; color: var(--muted); font-size: 13px; }
+.empty li { margin: 3px 0; }
+.kbd { font: 11px var(--font-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface); }
+.mm-wrap { overflow-x: auto; }
+.mm { width: 100%; border-collapse: collapse; font: 12px var(--font-mono); font-variant-numeric: tabular-nums; }
+.mm th { text-align: left; font: 500 11px var(--font-body); color: var(--muted); padding: 4px 6px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel); }
+.mm td { padding: 3px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.mm tr.rg td { font: 600 10.5px var(--font-body); letter-spacing: .08em; text-transform: uppercase; padding-top: 10px; border-bottom: 2px solid currentColor; }
+.mm tr.rg.stack td { color: var(--r-stack); } .mm tr.rg.heap td { color: var(--r-heap); } .mm tr.rg.global td { color: var(--r-global); } .mm tr.rg.rodata td { color: var(--r-rodata); }
+.mm tr.gap td { color: var(--muted); text-align: center; }
+.mm tr.blk1 td { border-top: 1.5px solid var(--muted); }
+.mm tr[data-b] { cursor: pointer; }
+.mm tr[data-b]:hover td { background: var(--data-bg); }
+.mm tr.on td { background: var(--accent-soft); }
+.mm .a { color: var(--muted); }
+.mm .pv { color: var(--addr); font-weight: 700; }
+.mm .fr { color: var(--bad); }
+.mm td.br { border-left: 3px solid var(--muted); white-space: normal; vertical-align: middle; font-family: var(--font-body); }
+.mm-tools { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12.5px; color: var(--muted); }
+
+/* memory layout */
+.mo-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+.mo-head h3 { margin: 0; font: 700 16px var(--font-display); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 4px 9px; font-size: 12px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.mo-col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.mo-col.with-axis { grid-template-columns: 22px minmax(0, 1fr); }
+.axis { display: flex; flex-direction: column; align-items: center; gap: 4px; font: 600 9.5px var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.axis i { flex: 1; width: 0; border-left: 2px solid var(--muted); position: relative; }
+.axis i::before { content: ""; position: absolute; top: -2px; left: -6px; border: 5px solid transparent; border-bottom: 7px solid var(--muted); border-top: 0; }
+.bands { display: grid; border: 2px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.band { --rc: var(--r-stack); --rb: var(--r-stack-bg); display: grid; gap: 3px; width: 100%; min-height: 84px; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-left: 5px solid var(--rc); background: var(--rb); color: var(--ink); padding: 10px 12px; }
+.band:last-child { border-bottom: 0; }
+.band:hover { box-shadow: inset 0 0 0 2px var(--rc); }
+.b-heap { --rc: var(--r-heap); --rb: var(--r-heap-bg); }
+.b-global { --rc: var(--r-global); --rb: var(--r-global-bg); }
+.b-code { --rc: var(--r-code); --rb: var(--r-code-bg); }
+.band-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.band-h b, .sv-t h3 { font: 700 15px var(--font-display); color: var(--rc); }
+.grow { font: 600 11px var(--font-body); color: var(--rc); white-space: nowrap; }
+.band-r { font: 11.5px var(--font-mono); color: var(--muted); }
+.mini { list-style: none; margin: 3px 0 0; padding: 0; display: grid; gap: 2px; font: 12px var(--font-mono); }
+.mini li { display: flex; justify-content: space-between; gap: 10px; background: var(--surface); border-radius: 4px; padding: 2px 7px; min-width: 0; }
+.mini li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini li .v { color: var(--muted); }
+.mini li.fr { opacity: .6; text-decoration: line-through; }
+.mini li.more { color: var(--muted); justify-content: center; background: none; }
+.band-f { font-size: 11.5px; color: var(--muted); }
+.gapband { display: flex; justify-content: space-between; gap: 6px; padding: 9px 12px; font: 11px var(--font-mono); color: var(--muted); border-bottom: 1px solid var(--line);
+  background: repeating-linear-gradient(-45deg, transparent 0 7px, var(--line) 7px 8px); }
+.gapband span:nth-child(2) { background: var(--surface); padding: 0 6px; border-radius: 4px; }
+.sv-back { margin-bottom: 10px; }
+.sv-t { --rc: var(--r-stack); --rb: var(--r-stack-bg); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 10px; border-left: 5px solid var(--rc); background: var(--rb); border-radius: 8px; padding: 10px 12px; }
+.sv-t h3 { margin: 0; font-size: 18px; }
+.stats { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; margin: 10px 0 12px; }
+.stats div { min-width: 0; }
+.stats dt { font-size: 11px; color: var(--muted); }
+.stats dd { margin: 0; font: 12.5px var(--font-mono); overflow-wrap: anywhere; }
+.mm tr.bh td { background: var(--data-bg); font: 12px var(--font-body); padding-top: 6px; white-space: normal; border-top: 1.5px solid var(--muted); }
+.mm tr.bh td b { font-family: var(--font-mono); }
+.mm tr.fh td { font: 600 11px var(--font-body); letter-spacing: .05em; text-transform: uppercase; color: var(--r-stack); border-bottom: 2px solid currentColor; padding-top: 12px; }
+.mm tr.on td { background: var(--accent-soft); }
+.tag-leak { color: var(--bad); font-weight: 600; }
+.mm-tools label { white-space: nowrap; }
+.mm tr.gap td { white-space: normal; font-size: 11.5px; }
+.sec-global tr.fh td { color: var(--r-global); } .sec-heap tr.fh td { color: var(--r-heap); }
+
+.modal { position: fixed; inset: 0; background: rgba(10, 16, 22, .45); display: grid; place-items: center; z-index: 20; padding: 16px; }
+.dlg { background: var(--surface); border-radius: 12px; padding: 18px; width: min(640px, 100%); display: grid; gap: 10px; box-shadow: 0 10px 30px var(--shadow); }
+.dlg h2 { margin: 0; font: 700 18px var(--font-display); }
+.dlg textarea { width: 100%; min-height: 260px; font: 12px/1.5 var(--font-mono); border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--panel); }
+
+@media (max-width: 1080px) {
+  .app { height: auto; min-height: 100%; }
+  .main { grid-template-columns: minmax(0, 1fr) !important; }
+  .resizer { display: none; }
+  #leftPanel, .center, #rightPanel { grid-column: 1; grid-row: auto; }
+  .hide-btn { display: none; }
+  .center { order: -1; height: 68vh; min-height: 420px; }
+  .side { overflow: visible; }
+  .left, .right { border: 0; border-top: 1px solid var(--line); }
+  .sec, .pane { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .code { max-height: 300px; }
+  .grip { display: none; }
+  .legend { display: none; }
+  .tools { flex-wrap: nowrap; overflow-x: auto; pointer-events: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .tools .lbl { display: none; }
+  .toast { top: 58px; }
+}
+@media (prefers-reduced-motion: no-preference) { .toast { animation: tin .18s ease-out; } @keyframes tin { from { opacity: 0; transform: translate(-50%, -6px); } } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand"><h1>Memory Whiteboard</h1><span>draw pointers and memory as you trace code</span></div>
+    <div class="bar">
+      <label class="sr" for="examples" style="font-size:12px;color:var(--muted)">Example</label>
+      <select id="examples" class="btn"></select>
+      <span class="seg panels" role="group" aria-label="Panels">
+        <button type="button" id="togL" data-panel="l" aria-pressed="true" title="Show or hide the code panel ( [ )">Code</button>
+        <button type="button" id="togR" data-panel="r" aria-pressed="true" title="Show or hide the details panel ( ] )">Details</button>
+      </span>
+      <button class="btn" id="undo" type="button" title="Undo (Ctrl+Z)">Undo</button>
+      <button class="btn" id="redo" type="button" title="Redo (Ctrl+Shift+Z)">Redo</button>
+      <button class="btn" id="saveload" type="button">Save / load</button>
+      <button class="btn danger" id="clear" type="button">Clear</button>
+    </div>
+  </header>
+  <div class="main" id="main">
+    <aside class="side left" id="leftPanel" aria-label="Code and steps">
+      <section class="sec" id="codeSec"></section>
+      <section class="sec" id="stepSec"></section>
+    </aside>
+    <div class="resizer" id="rzL" role="separator" aria-orientation="vertical" aria-controls="leftPanel" aria-label="Resize the code panel. Arrow keys resize, Enter hides or shows." tabindex="0"><button class="rail-btn" type="button" aria-label="Show the code panel" tabindex="-1">&rsaquo;</button></div>
+    <section class="center" aria-label="Canvas">
+      <div class="cv-wrap" id="wrap">
+        <svg id="cv" role="application" aria-label="Memory diagram canvas">
+          <defs>
+            <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r="1.3"/></pattern>
+            <pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect class="hatchbg" width="8" height="8"/><line class="hatchln" x1="0" y1="0" x2="0" y2="8"/></pattern>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahead" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahead bad" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <rect class="gridbg" id="gridbg" x="0" y="0" width="100%" height="100%"/>
+          <g id="world"></g>
+        </svg>
+        <div class="tools" role="toolbar" aria-label="Add to canvas">
+          <span class="lbl">Add</span>
+          <button class="btn" type="button" data-add="var">Variable</button>
+          <button class="btn" type="button" data-add="ptr">Pointer</button>
+          <button class="btn" type="button" data-add="arr">Array</button>
+          <button class="btn" type="button" data-add="struct">Struct</button>
+          <button class="btn" type="button" data-add="heap">Heap block</button>
+          <button class="btn" type="button" data-add="note">Note</button>
+          <button class="btn" type="button" data-add="group">Group</button>
+        </div>
+        <div class="legend" id="legend">
+          <button class="lg-t" type="button" id="legendBtn" aria-expanded="true">Key <span aria-hidden="true">&times;</span></button>
+          <div class="row"><span class="sw p"></span>address stored in a pointer</div>
+          <div class="row"><span class="sw d"></span>plain data</div>
+          <div class="row"><span class="mono" style="font-size:10px;color:var(--muted);width:18px;text-align:center">0x</span>a cell's own address (outside it)</div>
+          <div class="row"><span class="sw u"></span>uninitialized (?)</div>
+          <div class="row"><span class="sw c"></span>changed in this step</div>
+          <div class="row"><span class="sw x"></span>dangling or freed</div>
+          <div class="row"><span class="sw" style="border-color:var(--muted);border-style:dashed;opacity:.5"></span>just went out of scope</div>
+        </div>
+        <div class="zoom">
+          <button class="btn" type="button" id="zout" aria-label="Zoom out">&minus;</button>
+          <button class="btn" type="button" id="zfit">Fit</button>
+          <button class="btn" type="button" id="zin" aria-label="Zoom in">+</button>
+        </div>
+        <div class="endban" id="endban" role="status" hidden></div>
+        <div class="toast" id="toast" hidden></div>
+      </div>
+      <div class="stepbar" id="stepbar"></div>
+    </section>
+    <div class="resizer" id="rzR" role="separator" aria-orientation="vertical" aria-controls="rightPanel" aria-label="Resize the details panel. Arrow keys resize, Enter hides or shows." tabindex="0"><button class="rail-btn" type="button" aria-label="Show the details panel" tabindex="-1">&lsaquo;</button></div>
+    <aside class="side right" id="rightPanel" aria-label="Details">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" id="tabInspect" type="button" aria-selected="true">Inspector</button>
+        <button class="tab" role="tab" id="tabMap" type="button" aria-selected="false">Memory map</button>
+        <button class="hide-btn" type="button" data-panel="r" title="Hide this panel ( ] )" aria-label="Hide the details panel">&raquo;</button>
+      </div>
+      <div class="pane" id="pane"></div>
+    </aside>
+  </div>
+</div>
+<div class="modal" id="modal" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+    <h2 id="dlgTitle">Save or load a whiteboard</h2>
+    <p class="hint" style="margin:0">This is everything on the board: the code, every step, and every box. Copy it somewhere safe, or paste a saved copy here and load it. Your board is also kept in this browser automatically.</p>
+    <textarea id="dlgText" spellcheck="false" aria-label="Whiteboard data"></textarea>
+    <div class="bar" style="justify-content:flex-end">
+      <span id="dlgMsg" class="hint" style="margin:0 auto 0 0"></span>
+      <button class="btn" type="button" id="dlgCopy">Copy</button>
+      <button class="btn primary" type="button" id="dlgLoad">Load pasted board</button>
+      <button class="btn" type="button" id="dlgClose">Close</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+'use strict';
+/* ================= core: types, layout, memory ================= */
+var CODE_BASE = 0x1000;
+var BASES = { rodata: 0x2000, global: 0x3000, heap: 0x5000, stack: 0x7000 };
+var REGION_ORDER = ['rodata', 'global', 'heap', 'stack'];
+var REGION_LABEL = { stack: 'Stack', heap: 'Heap', global: 'Globals', rodata: 'Read-only' };
+var BASE_SIZES = { char: 1, bool: 1, short: 2, int: 4, float: 4, long: 8, double: 8, void: 1 };
+var ALIASES = {
+  size_t: 'unsigned long', ssize_t: 'long', ptrdiff_t: 'long', intptr_t: 'long', uintptr_t: 'unsigned long',
+  int8_t: 'char', uint8_t: 'unsigned char', int16_t: 'short', uint16_t: 'unsigned short',
+  int32_t: 'int', uint32_t: 'unsigned int', int64_t: 'long', uint64_t: 'unsigned long', _Bool: 'bool'
+};
+var TYPE_WORDS = { unsigned: 1, signed: 1, long: 1, short: 1, int: 1, char: 1, float: 1, double: 1, void: 1, bool: 1,
+  _Bool: 1, const: 1, volatile: 1, static: 1, register: 1, extern: 1, struct: 1 };
+var STRUCTS = {};   // 'struct Node' -> [{name, type}]
+var CODE_STRUCTS = {}; // 'struct Node' -> line where the code defines it
+var TYPEDEFS = {};  // 'Node' -> 'struct Node'
+var TI_CACHE = {};
+var NEXT_ID = 1;
+
+function uid(p) { return (p || 'b') + (NEXT_ID++); }
+function hex(n) { return '0x' + Number(n).toString(16); }
+
+function mkType(base, ptr, uns) {
+  var o = { base: base, ptr: ptr, unsigned: !!uns, struct: /^struct /.test(base) };
+  o.str = (o.unsigned ? 'unsigned ' : '') + base + new Array(ptr + 1).join('*');
+  return o;
+}
+function typeInfo(str) {
+  var key = String(str == null ? 'int' : str);
+  if (TI_CACHE[key]) return TI_CACHE[key];
+  var s = key.replace(/\b(const|volatile|static|register|extern|restrict)\b/g, ' ');
+  var ptr = (s.match(/\*/g) || []).length;
+  s = s.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim();
+  var uns = /\bunsigned\b/.test(s);
+  s = s.replace(/\b(unsigned|signed)\b/g, ' ').replace(/\s+/g, ' ').trim();
+  s = s.replace(/\blong long( int)?\b/, 'long').replace(/\blong int\b/, 'long').replace(/\bshort int\b/, 'short').trim();
+  if (s === '') s = 'int';
+  var out;
+  var alias = TYPEDEFS[s] || ALIASES[s];
+  if (alias) {
+    var t = typeInfo(alias);
+    out = mkType(t.base, t.ptr + ptr, t.unsigned || uns);
+  } else {
+    if (!/^struct \w+$/.test(s) && BASE_SIZES[s] === undefined) throw new Error('unknown type "' + s + '"');
+    out = mkType(s, ptr, uns);
+  }
+  TI_CACHE[key] = out;
+  return out;
+}
+function ptrTo(t) { return mkType(t.base, t.ptr + 1, t.unsigned); }
+function pointee(t) { return mkType(t.base, t.ptr - 1, t.unsigned); }
+function structLayout(name) {
+  var f = STRUCTS[name];
+  if (!f) throw new Error(name + ' is not defined. Put its definition in the code, or create it with the Struct tool.');
+  var off = 0, al = 1;
+  f.forEach(function (fd) {
+    var t = typeInfo(fd.type);
+    if (t.struct && t.ptr === 0) throw new Error('a struct inside a struct is not supported (field ' + fd.name + ')');
+    var sz = sizeOfInfo(t), a = alignOfInfo(t);
+    off = Math.ceil(off / a) * a + sz;
+    if (a > al) al = a;
+  });
+  return { size: Math.ceil(off / al) * al || al, align: al };
+}
+function sizeOfInfo(t) {
+  if (t.ptr > 0) return 8;
+  if (t.struct) return structLayout(t.base).size;
+  return BASE_SIZES[t.base];
+}
+function alignOfInfo(t) {
+  if (t.ptr > 0) return 8;
+  if (t.struct) return structLayout(t.base).align;
+  return Math.min(8, BASE_SIZES[t.base]);
+}
+function isPtrType(str) { try { return typeInfo(str).ptr > 0; } catch (e) { return false; } }
+
+function coerce(v, t) {
+  if (v === null || v === undefined) return null;
+  if (typeof v !== 'number' || !isFinite(v)) v = 0;
+  if (t.ptr > 0) return Math.max(0, Math.trunc(v));
+  if (t.base === 'float') return Math.fround(v);
+  if (t.base === 'double') return v;
+  if (t.base === 'bool') return v ? 1 : 0;
+  var bits = (BASE_SIZES[t.base] || 4) * 8;
+  var big = BigInt(Math.trunc(v));
+  return Number(t.unsigned ? BigInt.asUintN(bits, big) : BigInt.asIntN(bits, big));
+}
+
+/* ---------- blocks ---------- */
+function newState() {
+  return { blocks: [], notes: [], groups: [],
+    alloc: { stack: BASES.stack, heap: BASES.heap + 0x10, global: BASES.global, rodata: BASES.rodata } };
+}
+function cloneState(s) { return JSON.parse(JSON.stringify(s)); }
+
+function layout(b) {
+  var off = 0, maxA = 1;
+  b.slots.forEach(function (sl) {
+    var t = typeInfo(sl.type), sz = sizeOfInfo(t), a = alignOfInfo(t);
+    off = Math.ceil(off / a) * a;
+    sl.off = off; sl.size = sz; off += sz;
+    if (a > maxA) maxA = a;
+  });
+  b.size = Math.max(1, Math.ceil(off / maxA) * maxA);
+  b.align = maxA;
+}
+function blockType(b) {
+  if (b.kind === 'array') return b.slots[0].type + '[' + b.slots.length + ']';
+  if (b.kind === 'struct') return b.typeName;
+  return b.slots[0].type;
+}
+function blockTitle(b) {
+  if (b.name) return b.name;
+  if (b.region === 'heap') return 'malloc(' + (b.allocSize || b.size) + ')';
+  return '(unnamed)';
+}
+function slotName(b, i) {
+  var base = b.name || ('heap ' + hex(b.addr));
+  if (b.kind === 'array') return base + '[' + i + ']';
+  if (b.kind === 'struct') return (b.name ? base + '.' : '(' + base + ').') + b.slots[i].label;
+  return b.name ? base : '*(' + base + ')';
+}
+function allocAddr(state, region, size, align, allocSize) {
+  var a;
+  align = align || 1;
+  if (region === 'stack') {
+    a = Math.floor((state.alloc.stack - size) / align) * align;
+    state.alloc.stack = a;
+  } else if (region === 'heap') {
+    a = Math.ceil(state.alloc.heap / 16) * 16;
+    state.alloc.heap = a + Math.ceil(((allocSize || size) + 8) / 16) * 16;
+  } else {
+    a = Math.ceil(state.alloc[region] / align) * align;
+    state.alloc[region] = a + size;
+  }
+  return a;
+}
+
+/* geometry (world units) */
+var GEO = { PAD: 10, HEAD: 30, FOOT: 22, SW: 124, SH: 34, AW: 62, CW: 46, CH: 34, ALAB: 16, VAW: 70, VW: 122, VRH: 30,
+  LW: 72, RW: 118, RH: 30, COLS: 8, MINW: 168 };
+function geom(b) {
+  var g = { slots: [] }, P = GEO.PAD, y0 = GEO.HEAD + 6, bw, bh;
+  if (b.kind === 'array') {
+    var n = b.slots.length, et = null;
+    try { et = typeInfo(b.slots[0].type); } catch (e) { et = null; }
+    if (et && et.ptr > 0) {
+      /* arrays of pointers (argv): one cell per row, the cell's own address on its left */
+      bw = GEO.VAW + GEO.VW; bh = n * GEO.VRH;
+      b.slots.forEach(function (s, i) {
+        g.slots.push({ x: P + GEO.VAW, y: y0 + i * GEO.VRH, w: GEO.VW, h: GEO.VRH, port: 'right', lay: 'v' });
+      });
+    } else {
+      /* char arrays, buffers, string literals, other arrays: a row of adjacent cells, address under each */
+      var cw = et && et.ptr === 0 && et.base === 'char' ? GEO.CW : GEO.AW;
+      var cols = Math.max(1, Math.min(n, GEO.COLS)), rows = Math.max(1, Math.ceil(n / cols)), rh = GEO.CH + GEO.ALAB;
+      bw = cols * cw; bh = rows * rh;
+      b.slots.forEach(function (s, i) {
+        g.slots.push({ x: P + (i % cols) * cw, y: y0 + Math.floor(i / cols) * rh, w: cw, h: GEO.CH, port: 'bottom', lay: 'h' });
+      });
+    }
+  } else if (b.kind === 'struct') {
+    bw = GEO.LW + GEO.RW; bh = b.slots.length * GEO.RH;
+    b.slots.forEach(function (s, i) {
+      g.slots.push({ x: P + GEO.LW, y: y0 + i * GEO.RH, w: GEO.RW, h: GEO.RH, lx: P, port: 'right' });
+    });
+  } else {
+    bw = GEO.SW; bh = GEO.SH;
+    g.slots.push({ x: P, y: y0, w: GEO.SW, h: GEO.SH, port: 'right' });
+  }
+  g.w = Math.max(GEO.MINW, bw + 2 * P);
+  if (b.kind !== 'array') g.slots.forEach(function (s) { s.w = g.w - 2 * P - (b.kind === 'struct' ? GEO.LW : 0); });
+  else g.slots.forEach(function (s) { if (s.lay === 'v') s.w = g.w - 2 * P - GEO.VAW; });
+  g.h = y0 + bh + 6 + GEO.FOOT;
+  g.bodyY = y0; g.bodyH = bh;
+  return g;
+}
+
+function autoPlace(state, b) {
+  var col = (b.region === 'heap' || b.region === 'rodata') ? 1 : 0;
+  var x = col ? 430 : 60, y = 60;
+  state.blocks.forEach(function (o) {
+    if (o === b) return;
+    var oc = (o.region === 'heap' || o.region === 'rodata') ? 1 : 0;
+    if (oc !== col) return;
+    var gy = o.y + geom(o).h + 26;
+    if (gy > y) y = gy;
+  });
+  b.x = x; b.y = y;
+}
+
+function makeBlock(state, o) {
+  var b = {
+    id: o.id || uid('b'), name: o.name || '', kind: o.kind || 'scalar', region: o.region || 'stack',
+    typeName: o.typeName || '', slots: o.slots, freed: !!o.freed, allocSize: o.allocSize || 0, frame: o.frame || '', scope: o.scope || 0
+  };
+  layout(b);
+  b.addr = o.addr != null ? o.addr : allocAddr(state, b.region, b.size, b.align, b.allocSize);
+  state.blocks.push(b);
+  if (o.x == null) autoPlace(state, b); else { b.x = o.x; b.y = o.y; }
+  return b;
+}
+function structSlots(typeName, value) {
+  var f = STRUCTS[typeName];
+  if (!f) structLayout(typeName); // throws a helpful error
+  return f.map(function (fd) { return { label: fd.name, type: fd.type, value: value === undefined ? null : value }; });
+}
+function lookupVar(state, name) {
+  for (var k = state.blocks.length - 1; k >= 0; k--) {
+    var b = state.blocks[k];
+    if (b.name === name && b.region !== 'heap' && b.region !== 'rodata') return b;
+  }
+  return null;
+}
+function findBlock(state, id) {
+  for (var k = 0; k < state.blocks.length; k++) if (state.blocks[k].id === id) return state.blocks[k];
+  return null;
+}
+function findAt(state, addr) {
+  var best = null;
+  for (var k = 0; k < state.blocks.length; k++) {
+    var b = state.blocks[k];
+    if (addr >= b.addr && addr < b.addr + b.size) {
+      var rel = addr - b.addr, idx = -1;
+      for (var i = 0; i < b.slots.length; i++) {
+        var sl = b.slots[i];
+        if (rel >= sl.off && rel < sl.off + sl.size) { idx = i; break; }
+      }
+      var r = { b: b, i: idx };
+      if (!b.freed) return r;
+      if (!best) best = r;
+    }
+  }
+  return best;
+}
+function slotAddr(b, i) { return b.addr + b.slots[i].off; }
+
+/* ---------- formatting ---------- */
+function charText(c) {
+  var esc = { 0: '\\0', 9: '\\t', 10: '\\n', 13: '\\r', 39: "\\'", 92: '\\\\' };
+  if (esc[c] !== undefined) return "'" + esc[c] + "'";
+  if (c >= 32 && c < 127) return "'" + String.fromCharCode(c) + "'";
+  return null;
+}
+function fmtVal(sl, compact) {
+  if (sl.value === null || sl.value === undefined) return '?';
+  var t;
+  try { t = typeInfo(sl.type); } catch (e) { return String(sl.value); }
+  if (t.ptr > 0) return sl.value === 0 ? 'NULL' : hex(sl.value);
+  if (t.base === 'char') {
+    var ct = charText(sl.value);
+    if (!ct) return String(sl.value);
+    return compact ? ct : ct + ' ' + sl.value;
+  }
+  if (t.base === 'float' || t.base === 'double') {
+    var s = String(Number(sl.value.toPrecision(7)));
+    return /[.e]/.test(s) ? s : s + '.0';
+  }
+  return String(sl.value);
+}
+function targetOf(state, v) {
+  if (v === null || v === undefined) return { kind: 'uninit' };
+  if (v === 0) return { kind: 'null' };
+  var r = findAt(state, v);
+  if (!r) return { kind: 'wild' };
+  if (r.b.freed) return { kind: 'freed', r: r };
+  return { kind: 'ok', r: r };
+}
+function targetText(state, v) {
+  var t = targetOf(state, v);
+  if (t.kind === 'uninit') return 'uninitialized: points somewhere unpredictable';
+  if (t.kind === 'null') return 'NULL: points at nothing';
+  if (t.kind === 'wild') return 'dangling: no memory at ' + hex(v);
+  var b = t.r.b, rel = v - b.addr, what;
+  if (b.kind === 'struct' && rel === 0) what = blockTitle(b);
+  else if (t.r.i >= 0 && b.slots[t.r.i].off === rel) what = slotName(b, t.r.i);
+  else what = blockTitle(b) + ' + ' + rel;
+  return (t.kind === 'freed' ? 'dangling: ' + what + ' was freed' : 'points to ' + what);
+}
+
+/* ---------- bytes (little endian) ---------- */
+function bytesOf(sl) {
+  if (sl.value === null || sl.value === undefined) return null;
+  var t = typeInfo(sl.type), n = sl.size, out = [];
+  if (t.ptr === 0 && (t.base === 'float' || t.base === 'double')) {
+    var dv = new DataView(new ArrayBuffer(8));
+    if (t.base === 'float') dv.setFloat32(0, sl.value, true); else dv.setFloat64(0, sl.value, true);
+    for (var k = 0; k < n; k++) out.push(dv.getUint8(k));
+    return out;
+  }
+  var big = BigInt.asUintN(n * 8, BigInt(Math.trunc(sl.value)));
+  for (var j = 0; j < n; j++) { out.push(Number(big & 255n)); big >>= 8n; }
+  return out;
+}
+
+/* ---------- diff between two step states ---------- */
+function diffStates(prev, cur) {
+  var res = { lines: [], chg: {} };
+  if (!prev) return res;
+  var pm = {};
+  prev.blocks.forEach(function (b) { pm[b.id] = b; });
+  cur.blocks.forEach(function (b) {
+    var p = pm[b.id];
+    if (!p) {
+      res.chg[b.id] = { _new: true };
+      res.lines.push({ k: 'add', t: 'created ' + blockTitle(b) + ' (' + blockType(b) + ') at ' + hex(b.addr) });
+      return;
+    }
+    delete pm[b.id];
+    var c = {};
+    if (b.freed && !p.freed) { c._freed = true; res.lines.push({ k: 'free', t: 'freed ' + blockTitle(b) + ' at ' + hex(b.addr) }); }
+    if (b.addr !== p.addr) res.lines.push({ k: 'mod', t: blockTitle(b) + ' moved to ' + hex(b.addr) });
+    b.slots.forEach(function (sl, i) {
+      var ps = p.slots[i];
+      if (!ps || ps.value !== sl.value || ps.type !== sl.type) {
+        c[i] = true;
+        res.lines.push({ k: 'mod', t: slotName(b, i) + ': ' + (ps ? fmtVal(ps, true) : '?') + ' \u2192 ' + fmtVal(sl, true) });
+      }
+    });
+    if (Object.keys(c).length) res.chg[b.id] = c;
+  });
+  Object.keys(pm).forEach(function (id) {
+    var o = pm[id];
+    res.lines.push({ k: 'del', t: o.region === 'stack' ? blockTitle(o) + ' went out of scope' : o.region === 'heap' ? 'released ' + blockTitle(o) + ' at ' + hex(o.addr) : 'removed ' + blockTitle(o) });
+  });
+  return res;
+}
+
+/* ---------- definitions from source code ---------- */
+function blankComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, function (m) { return m.replace(/[^\n]/g, ' '); })
+            .replace(/\/\/[^\n]*/g, function (m) { return m.replace(/./g, ' '); });
+}
+function parseFields(body) {
+  var out = [];
+  body.split(';').forEach(function (part) {
+    part = part.trim();
+    if (!part) return;
+    var segs = part.split(',');
+    var first = /^(.*?)([A-Za-z_]\w*)\s*$/.exec(segs[0].trim());
+    if (!first) return;
+    var baseType = first[1].replace(/\*/g, '').trim();
+    out.push({ name: first[2], type: (baseType + ' ' + first[1].replace(/[^*]/g, '')).trim().replace(/ \*/, '*') });
+    segs.slice(1).forEach(function (s) {
+      var m2 = /^(\**)\s*([A-Za-z_]\w*)\s*$/.exec(s.trim());
+      if (m2) out.push({ name: m2[2], type: baseType + m2[1] });
+    });
+  });
+  return out;
+}
+var EXTRA_STRUCTS = {};
+function setDefs(code) {
+  STRUCTS = {}; TYPEDEFS = {}; TI_CACHE = {}; CODE_STRUCTS = {};
+  var src = blankComments(code || ''), m;
+  var skip = {};
+  function lineOf(idx) { return src.slice(0, idx).split('\n').length; }
+  var re = /(typedef\s+)?struct\s*(\w+)?\s*\{([^}]*)\}\s*(\w+)?\s*;/g;
+  while ((m = re.exec(src))) {
+    var tag = m[2] || m[4];
+    if (!tag) continue;
+    STRUCTS['struct ' + tag] = parseFields(m[3]);
+    CODE_STRUCTS['struct ' + tag] = lineOf(m.index);
+    if (m[1] && m[4]) TYPEDEFS[m[4]] = 'struct ' + tag;
+    for (var L = lineOf(m.index); L <= lineOf(m.index + m[0].length - 1); L++) skip[L] = true;
+  }
+  var re2 = /typedef\s+struct\s+(\w+)\s+(\w+)\s*;/g;
+  while ((m = re2.exec(src))) TYPEDEFS[m[2]] = 'struct ' + m[1];
+  var re3 = /typedef\s+([A-Za-z_][\w ]*?\**)\s*(\w+)\s*;/g;
+  while ((m = re3.exec(src))) if (!/^struct\b/.test(m[1])) TYPEDEFS[m[2]] = m[1];
+  Object.keys(EXTRA_STRUCTS).forEach(function (k) { if (!STRUCTS[k]) STRUCTS[k] = EXTRA_STRUCTS[k]; });
+  /* brace depth before each line (1-based) */
+  /* braces inside string and character literals do not open or close anything */
+  var plain = src.replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, function (m) { return m.replace(/./g, ' '); });
+  var depth = [0], d = 0, lines = plain.split('\n'), fnAt = [], funcs = [], curFn = '', minDepth = [0];
+  lines.forEach(function (ln, i) {
+    depth[i + 1] = d;
+    if (d === 0) {
+      var fm = /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;]*$/.exec(ln);
+      if (fm && !/^\s*(struct|typedef|if|while|for|switch)\b/.test(ln)) { curFn = fm[1]; funcs.push({ name: fm[1], line: i + 1 }); }
+    }
+    fnAt[i + 1] = d > 0 ? curFn : '';
+    var lo = d;
+    for (var c = 0; c < ln.length; c++) { if (ln[c] === '{') d++; else if (ln[c] === '}') { d = Math.max(0, d - 1); if (d < lo) lo = d; } }
+    minDepth[i + 1] = lo;
+  });
+  return { skip: skip, depth: depth, fnAt: fnAt, funcs: funcs, minDepth: minDepth };
+}
+function registerStruct(name, fields) {
+  EXTRA_STRUCTS[name] = fields;
+  STRUCTS[name] = fields;
+  TI_CACHE = {};
+}
+
+/* ================= interpreter ================= */
+var ASSIGN_OPS = ['=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>='];
+var LEVELS = [['||'], ['&&'], ['|'], ['^'], ['&'], ['==', '!='], ['<', '>', '<=', '>='], ['<<', '>>'], ['+', '-'], ['*', '/', '%']];
+var NOOP_FUNCS = { printf: 1, puts: 1, putchar: 1, fprintf: 1, scanf: 1, fflush: 1, perror: 1, assert: 1, exit: 1 };
+
+function unescapeC(s) {
+  return s.replace(/\\(x[0-9a-fA-F]+|[0-7]{1,3}|.)/g, function (m, e) {
+    var map = { n: '\n', t: '\t', r: '\r', '0': '\0', '\\': '\\', "'": "'", '"': '"', a: '\x07', b: '\b', f: '\f', v: '\v' };
+    if (map[e] !== undefined) return map[e];
+    if (e[0] === 'x') return String.fromCharCode(parseInt(e.slice(1), 16));
+    if (/^[0-7]+$/.test(e)) return String.fromCharCode(parseInt(e, 8));
+    return e;
+  });
+}
+function tokenize(src) {
+  var toks = [], pos = 0, m;
+  var re = /\s*(?:(0[xX][0-9a-fA-F]+[uUlL]*|(?:\d+\.\d*|\.\d+)(?:[eE][-+]?\d+)?[fF]?|\d+[eE][-+]?\d+[fF]?|\d+[uUlL]*)|('(?:\\.|[^'\\])+')|("(?:\\.|[^"\\])*")|([A-Za-z_]\w*)|(->|\+\+|--|<<=|>>=|<<|>>|<=|>=|==|!=|&&|\|\||[-+*\/%&|^]=|[-+*\/%&|^~!<>=?:;,.(){}\[\]]))/y;
+  src = src.replace(/\s+$/, '');
+  while (pos < src.length) {
+    re.lastIndex = pos;
+    m = re.exec(src);
+    if (!m) throw new Error('cannot read "' + src.slice(pos).trim().charAt(0) + '"');
+    pos = re.lastIndex;
+    if (m[1] !== undefined) {
+      var txt = m[1];
+      if (!/^0[xX]/.test(txt) && /[.eE]/.test(txt)) toks.push({ k: 'num', s: txt, v: parseFloat(txt), t: 'double' });
+      else {
+        var v = Number(txt.replace(/[uUlL]+$/, ''));
+        toks.push({ k: 'num', s: txt, v: v, t: (/[lL]/.test(txt) || v > 2147483647) ? 'long' : 'int' });
+      }
+    } else if (m[2] !== undefined) {
+      var cs = unescapeC(m[2].slice(1, -1));
+      toks.push({ k: 'num', s: m[2], v: cs.charCodeAt(0) || 0, t: 'int', chr: true });
+    } else if (m[3] !== undefined) toks.push({ k: 'str', s: m[3], v: unescapeC(m[3].slice(1, -1)) });
+    else if (m[4] !== undefined) toks.push({ k: 'id', s: m[4] });
+    else toks.push({ k: 'op', s: m[5] });
+  }
+  return toks;
+}
+
+function makeCtx(state, region, frame, depth) { return { state: state, msgs: [], pend: [], region: region || 'stack', frame: frame || '', depth: depth || 1, warned: {} }; }
+function warn(ctx, text) { if (!ctx.warned[text]) { ctx.warned[text] = 1; ctx.msgs.push({ level: 'warn', text: text }); } }
+function note(ctx, text) { ctx.msgs.push({ level: 'info', text: text }); }
+
+function strLiteralBlock(ctx, text) {
+  var st = ctx.state, name = '"' + (text.length > 12 ? text.slice(0, 11) + '\u2026' : text) + '"';
+  for (var k = 0; k < st.blocks.length; k++) {
+    var b = st.blocks[k];
+    if (b.region === 'rodata' && b.strText === text) return b;
+  }
+  var slots = [];
+  for (var c = 0; c <= text.length; c++) slots.push({ label: '[' + c + ']', type: 'char', value: c < text.length ? text.charCodeAt(c) & 255 : 0 });
+  var nb = makeBlock(st, { name: name, region: 'rodata', kind: 'array', slots: slots });
+  nb.strText = text;
+  return nb;
+}
+function materialize(ctx, size, pt, zero) {
+  var st = ctx.state, elem = pt;
+  if (!elem || (elem.ptr === 0 && elem.base === 'void')) elem = typeInfo('char');
+  var es = sizeOfInfo(elem), count = Math.max(1, Math.floor(size / es)), init = zero ? 0 : null, b;
+  if (size < es) warn(ctx, 'malloc(' + size + ') is smaller than one ' + elem.str + ' (' + es + ' bytes)');
+  if (elem.ptr === 0 && elem.struct) {
+    if (count > 1) warn(ctx, 'an array of structs is drawn as a single struct block here');
+    b = makeBlock(st, { region: 'heap', kind: 'struct', typeName: elem.base, slots: structSlots(elem.base, init), allocSize: size });
+  } else if (count === 1) {
+    b = makeBlock(st, { region: 'heap', kind: 'scalar', slots: [{ label: '', type: elem.str, value: init }], allocSize: size });
+  } else {
+    var sl = [];
+    for (var k = 0; k < count; k++) sl.push({ label: '[' + k + ']', type: elem.str, value: init });
+    b = makeBlock(st, { region: 'heap', kind: 'array', slots: sl, allocSize: size });
+  }
+  return b;
+}
+function doFree(ctx, addr, how) {
+  if (addr === 0) { note(ctx, how + '(NULL) does nothing'); return; }
+  var st = ctx.state, b = null;
+  for (var k = 0; k < st.blocks.length; k++) if (st.blocks[k].addr === addr && st.blocks[k].region === 'heap') b = st.blocks[k];
+  if (!b) {
+    var r = findAt(st, addr);
+    if (r && r.b.region !== 'heap') throw new Error(how + '(): ' + hex(addr) + ' is ' + REGION_LABEL[r.b.region].toLowerCase() + ' memory, not something malloc returned');
+    throw new Error(how + '(): invalid pointer ' + hex(addr) + ' (not the start of a heap block)');
+  }
+  if (b.freed) throw new Error('double free: the block at ' + hex(addr) + ' was already freed');
+  b.freed = true;
+}
+
+/* Parse and run one statement (or one expression when mode === 'expr'). */
+function runTokens(ctx, toks, mode, destType) {
+  var i = 0, st = ctx.state, NE = 0;
+  function peek(k) { return toks[i + (k || 0)]; }
+  function isOp(s, k) { var t = peek(k); return !!t && t.k === 'op' && t.s === s; }
+  function isId(s, k) { var t = peek(k); return !!t && t.k === 'id' && t.s === s; }
+  function next() { var t = toks[i++]; if (!t) throw new Error('the statement ends too early'); return t; }
+  function expectOp(s) { if (!isOp(s)) throw new Error('expected "' + s + '"' + (peek() ? ' before "' + peek().s + '"' : ' at the end')); i++; }
+  function isTypeStart(t) {
+    return !!t && t.k === 'id' && !!(TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s]) && !lookupVar(st, t.s);
+  }
+  function num(v, ts) { var t = typeInfo(ts); return { t: t, v: coerce(v, t) }; }
+  function slotOf(V) { return V.lv.b.slots[V.lv.i]; }
+  function val(V) {
+    if (V.v !== undefined) return V.v;
+    if (V.lv) {
+      var b = V.lv.b, sl = slotOf(V);
+      if (!NE && b.freed) warn(ctx, 'use after free: reading ' + slotName(b, V.lv.i) + ' after its block was freed');
+      if (sl.value === null) {
+        if (!NE) warn(ctx, slotName(b, V.lv.i) + ' is uninitialized, so its value is unpredictable (treated as 0 here)');
+        V.v = 0;
+      } else V.v = sl.value;
+      return V.v;
+    }
+    if (V.pending) return 0;
+    if (V.blk) throw new Error('a whole struct cannot be used as a number here');
+    return 0;
+  }
+  function psize(t) {
+    var p = pointee(t);
+    if (p.ptr === 0 && p.base === 'void') return 1;
+    return sizeOfInfo(p);
+  }
+  function fin(V, dt) {
+    if (!V.pending) return V;
+    V.pending.done = true;
+    var pt = dt && dt.ptr > 0 ? pointee(dt) : null;
+    var b = materialize(ctx, V.pending.size, pt, V.pending.zero);
+    return { t: dt && dt.ptr > 0 ? dt : typeInfo('void*'), v: b.addr };
+  }
+  function store(L, value, srcV) {
+    if (!L.lv) throw new Error('the left side of the assignment is not something you can assign to');
+    var b = L.lv.b, sl = slotOf(L), t = typeInfo(sl.type);
+    if (b.region === 'rodata') throw new Error('Segmentation fault: ' + slotName(b, L.lv.i) + ' is in read-only memory (a string literal)');
+    if (b.freed) warn(ctx, 'use after free: writing to ' + slotName(b, L.lv.i) + ' after its block was freed');
+    if (srcV && t.ptr > 0 && srcV.t.ptr === 0 && value !== 0) warn(ctx, 'assigning a plain number to the pointer ' + slotName(b, L.lv.i));
+    sl.value = coerce(value, t);
+    return sl.value;
+  }
+  function fieldOf(V, name) {
+    if (V.ne && V.t.struct && V.t.ptr === 0) {
+      var fs = STRUCTS[V.t.base] || [];
+      for (var q = 0; q < fs.length; q++) if (fs[q].name === name) return { t: typeInfo(fs[q].type), v: 0, ne: true };
+      throw new Error(V.t.base + ' has no field "' + name + '"');
+    }
+    if (!V.blk) throw new Error('"' + name + '" is a field, but the left side is not a struct (type ' + V.t.str + ')');
+    var b = V.blk;
+    for (var k = 0; k < b.slots.length; k++) if (b.slots[k].label === name) return { t: typeInfo(b.slots[k].type), lv: { b: b, i: k } };
+    throw new Error(blockType(b) + ' has no field "' + name + '"');
+  }
+  function derefV(a) {
+    var t = a.t;
+    if (t.ptr <= 0) throw new Error('cannot dereference a value of type "' + t.str + '": it is not a pointer');
+    var pt = pointee(t);
+    if (pt.ptr === 0 && pt.base === 'void') throw new Error('cannot dereference a void*: cast it to a real pointer type first');
+    if (NE) return { t: pt, v: 0, ne: true };
+    var addr = val(a);
+    if (addr === 0) throw new Error('Segmentation fault: dereferenced a NULL pointer');
+    var r = findAt(st, addr);
+    if (pt.ptr === 0 && pt.struct) {
+      if (!r || r.b.kind !== 'struct' || r.b.addr !== addr) throw new Error('Segmentation fault: there is no ' + pt.base + ' at ' + hex(addr));
+      return { t: pt, blk: r.b };
+    }
+    if (!r || r.i < 0) throw new Error('Segmentation fault: no memory at ' + hex(addr));
+    if (addr !== slotAddr(r.b, r.i)) throw new Error(hex(addr) + ' is in the middle of ' + slotName(r.b, r.i) + ' (out of bounds or misaligned): this visualizer cannot show a partial overwrite');
+    return { t: pt, lv: { b: r.b, i: r.i } };
+  }
+  function addrOf(a) {
+    if (a.ne) return { t: ptrTo(a.t), v: 0 };
+    if (a.lv) return { t: ptrTo(typeInfo(slotOf(a).type)), v: slotAddr(a.lv.b, a.lv.i) };
+    if (a.blk) return { t: ptrTo(a.t), v: a.blk.addr };
+    if (a.arrBlk) return { t: a.t, v: a.v, arrBlk: a.arrBlk };
+    throw new Error('cannot take the address of a temporary value');
+  }
+  function binop(op, a, b) {
+    var va = val(a), vb = val(b), ta = a.t, tb = b.t, pa = ta.ptr > 0, pb = tb.ptr > 0;
+    if (op === '&&') return num(va && vb ? 1 : 0, 'int');
+    if (op === '||') return num(va || vb ? 1 : 0, 'int');
+    if (['==', '!=', '<', '>', '<=', '>='].indexOf(op) >= 0) {
+      var r = op === '==' ? va === vb : op === '!=' ? va !== vb : op === '<' ? va < vb : op === '>' ? va > vb : op === '<=' ? va <= vb : va >= vb;
+      return num(r ? 1 : 0, 'int');
+    }
+    if (pa || pb) {
+      if (op === '+' && pa && !pb) return { t: ta, v: va + vb * psize(ta), arrBlk: a.arrBlk };
+      if (op === '+' && pb && !pa) return { t: tb, v: vb + va * psize(tb), arrBlk: b.arrBlk };
+      if (op === '-' && pa && !pb) return { t: ta, v: va - vb * psize(ta), arrBlk: a.arrBlk };
+      if (op === '-' && pa && pb) return num(Math.trunc((va - vb) / psize(ta)), 'long');
+      throw new Error('"' + op + '" does not work on pointers here');
+    }
+    var fl = ['float', 'double'].indexOf(ta.base) >= 0 || ['float', 'double'].indexOf(tb.base) >= 0;
+    var rt = fl ? 'double' : (ta.base === 'long' || tb.base === 'long') ? ((ta.unsigned && ta.base === 'long') || (tb.unsigned && tb.base === 'long') ? 'unsigned long' : 'long') : 'int';
+    var v;
+    switch (op) {
+      case '+': v = va + vb; break;
+      case '-': v = va - vb; break;
+      case '*': v = va * vb; break;
+      case '/': if (vb === 0) throw new Error('division by zero'); v = fl ? va / vb : Math.trunc(va / vb); break;
+      case '%': if (fl) throw new Error('% needs integers'); if (vb === 0) throw new Error('division by zero'); v = va % vb; break;
+      default:
+        if (fl) throw new Error('"' + op + '" needs integers');
+        var A = BigInt(Math.trunc(va)), B = BigInt(Math.trunc(vb));
+        v = Number(op === '&' ? A & B : op === '|' ? A | B : op === '^' ? A ^ B : op === '<<' ? A << B : A >> B);
+    }
+    return num(v, rt);
+  }
+  function incdec(a, d, post) {
+    if (!a.lv) throw new Error('++ and -- need a variable');
+    var old = val(a), t = typeInfo(slotOf(a).type), step = t.ptr > 0 ? psize(t) : 1;
+    var nv = store(a, old + d * step);
+    return { t: t, v: post ? old : nv };
+  }
+  function parseTypeName() {
+    var words = [];
+    for (;;) {
+      var t = peek();
+      if (!t) break;
+      if (t.k === 'id') {
+        if (t.s === 'struct') { next(); words.push('struct ' + next().s); continue; }
+        if (TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s]) { words.push(t.s); next(); continue; }
+        break;
+      }
+      if (t.k === 'op' && t.s === '*') { words.push('*'); next(); continue; }
+      break;
+    }
+    if (!words.length) throw new Error('expected a type name');
+    return words.join(' ').replace(/ \*/g, '*');
+  }
+  function parseArgs() {
+    var args = [];
+    expectOp('(');
+    if (!isOp(')')) { do { args.push(parseAssign()); } while (isOp(',') && next()); }
+    expectOp(')');
+    return args;
+  }
+  function call(name) {
+    var args = parseArgs();
+    if (NE) return num(0, 'int');
+    if (name === 'malloc') {
+      if (args.length !== 1) throw new Error('malloc takes one argument');
+      var V = { t: typeInfo('void*'), pending: { size: val(args[0]), zero: false } };
+      ctx.pend.push(V); return V;
+    }
+    if (name === 'calloc') {
+      if (args.length !== 2) throw new Error('calloc takes two arguments');
+      var C = { t: typeInfo('void*'), pending: { size: val(args[0]) * val(args[1]), zero: true } };
+      ctx.pend.push(C); return C;
+    }
+    if (name === 'free') {
+      if (args.length !== 1) throw new Error('free takes one argument');
+      doFree(ctx, val(args[0]), 'free');
+      return num(0, 'int');
+    }
+    if (name === 'strlen') {
+      var addr = val(args[0]), n = 0;
+      for (;;) {
+        var r = findAt(st, addr + n);
+        if (!r || r.i < 0) throw new Error('strlen ran off the end of memory: no terminating \\0');
+        if (r.b.slots[r.i].value === 0) break;
+        n++;
+      }
+      return num(n, 'unsigned long');
+    }
+    if (NOOP_FUNCS[name]) { note(ctx, name + '() does not change memory, so nothing changed'); return num(0, 'int'); }
+    if (name === 'realloc') throw new Error('realloc is not simulated: draw the new block yourself or use malloc and free');
+    throw new Error('the function ' + name + '() is not simulated. Make the change by hand on the canvas.');
+  }
+  function parsePrimary() {
+    var t = next();
+    if (t.k === 'num') return num(t.v, t.t);
+    if (t.k === 'str') {
+      var s = t.v;
+      while (peek() && peek().k === 'str') s += next().v;
+      if (NE) return { t: typeInfo('char*'), v: 0 };
+      var b = strLiteralBlock(ctx, s);
+      return { t: typeInfo('char*'), v: b.addr, arrBlk: b };
+    }
+    if (t.k === 'op' && t.s === '(') { var e = parseAssign(); expectOp(')'); return e; }
+    if (t.k === 'id') {
+      if (isOp('(')) return call(t.s);
+      if (t.s === 'NULL' || t.s === 'nullptr') return { t: typeInfo('void*'), v: 0 };
+      if (t.s === 'true') return num(1, 'int');
+      if (t.s === 'false') return num(0, 'int');
+      var b2 = lookupVar(st, t.s);
+      if (!b2 && NE && ctx.declaring && ctx.declaring.name === t.s) return { t: ctx.declaring.T, v: 0, ne: true };
+      if (!b2) throw new Error('"' + t.s + '" is not declared yet. Run its declaration first, or create it on the canvas.');
+      if (b2.kind === 'array') {
+        var et = typeInfo(b2.slots[0].type);
+        return { t: ptrTo(et), v: b2.addr, arrBlk: b2 };
+      }
+      if (b2.kind === 'struct') return { t: typeInfo(b2.typeName), blk: b2 };
+      return { t: typeInfo(b2.slots[0].type), lv: { b: b2, i: 0 } };
+    }
+    throw new Error('unexpected "' + t.s + '"');
+  }
+  function parsePostfix() {
+    var a = parsePrimary();
+    for (;;) {
+      if (isOp('[')) {
+        next();
+        var idx = parseAssign();
+        expectOp(']');
+        if (a.t.ptr === 0 && idx.t.ptr > 0) { var tmp = a; a = idx; idx = tmp; }
+        if (!NE && a.arrBlk && a.v === a.arrBlk.addr) {
+          var iv = val(idx), n = a.arrBlk.slots.length;
+          if (iv < 0 || iv >= n) warn(ctx, 'index ' + iv + ' is out of bounds for ' + blockTitle(a.arrBlk) + ', which has ' + n + ' elements');
+        }
+        a = derefV(binop('+', a, idx));
+      } else if (isOp('.')) { next(); a = fieldOf(a, next().s); }
+      else if (isOp('->')) { next(); var nm = next().s; a = fieldOf(derefV(a), nm); }
+      else if (isOp('++') || isOp('--')) { var d = next().s === '++' ? 1 : -1; if (NE) return a; a = incdec(a, d, true); }
+      else break;
+    }
+    return a;
+  }
+  function parseUnary() {
+    var t = peek();
+    if (!t) throw new Error('the statement ends too early');
+    if (t.k === 'op') {
+      if (t.s === '-' || t.s === '+') { next(); var a = parseUnary(); if (a.t.ptr > 0) throw new Error('cannot negate a pointer'); return { t: a.t.base === 'double' || a.t.base === 'float' ? typeInfo('double') : a.t, v: t.s === '-' ? -val(a) : val(a) }; }
+      if (t.s === '!') { next(); return num(val(parseUnary()) ? 0 : 1, 'int'); }
+      if (t.s === '~') { next(); var b = parseUnary(); return num(Number(~BigInt(Math.trunc(val(b)))), b.t.str); }
+      if (t.s === '*') { next(); return derefV(parseUnary()); }
+      if (t.s === '&') { next(); return addrOf(parseUnary()); }
+      if (t.s === '++' || t.s === '--') { next(); var c = parseUnary(); if (NE) return c; return incdec(c, t.s === '++' ? 1 : -1, false); }
+      if (t.s === '(' && isTypeStart(peek(1))) {
+        next();
+        var T = typeInfo(parseTypeName());
+        expectOp(')');
+        var o = parseUnary();
+        if (o.pending) return fin(o, T);
+        if (o.blk) throw new Error('cannot cast a whole struct');
+        return { t: T, v: T.ptr > 0 ? val(o) : coerce(val(o), T), arrBlk: o.arrBlk };
+      }
+    }
+    if (t.k === 'id' && t.s === 'sizeof') {
+      next();
+      if (isOp('(') && isTypeStart(peek(1))) {
+        next();
+        var ts = typeInfo(parseTypeName());
+        expectOp(')');
+        return num(sizeOfInfo(ts), 'unsigned long');
+      }
+      NE++;
+      var e;
+      try { e = parseUnary(); } finally { NE--; }
+      var sz = (e.arrBlk && e.v === e.arrBlk.addr && !e.ne) ? e.arrBlk.size : e.blk ? e.blk.size : sizeOfInfo(e.t);
+      return num(sz, 'unsigned long');
+    }
+    if (t.k === 'id' && t.s === 'new') {
+      next();
+      var NT = typeInfo(parseTypeName()), count = 1, initV = null;
+      if (isOp('[')) { next(); count = val(parseAssign()); expectOp(']'); }
+      else if (isOp('(')) { next(); if (!isOp(')')) initV = val(parseAssign()); expectOp(')'); }
+      if (NE) return { t: ptrTo(NT), v: 0 };
+      var nb = materialize(ctx, sizeOfInfo(NT) * count, NT, false);
+      if (initV !== null && nb.kind === 'scalar') nb.slots[0].value = coerce(initV, NT);
+      return { t: ptrTo(NT), v: nb.addr };
+    }
+    return parsePostfix();
+  }
+  function parseLevel(l) {
+    if (l >= LEVELS.length) return parseUnary();
+    var a = parseLevel(l + 1);
+    for (;;) {
+      var t = peek();
+      if (!t || t.k !== 'op' || LEVELS[l].indexOf(t.s) < 0) return a;
+      next();
+      a = binop(t.s, a, parseLevel(l + 1));
+    }
+  }
+  function parseAssign() {
+    var lhs = parseLevel(0), t = peek();
+    if (t && t.k === 'op' && ASSIGN_OPS.indexOf(t.s) >= 0) {
+      next();
+      var rhs = parseAssign();
+      if (NE) return lhs;
+      if (lhs.blk) throw new Error('copying a whole struct is not simulated: assign the fields one at a time');
+      if (!lhs.lv) throw new Error('the left side of "' + t.s + '" is not something you can assign to');
+      var dt = typeInfo(slotOf(lhs).type);
+      if (t.s === '=') rhs = fin(rhs, dt);
+      else rhs = binop(t.s.slice(0, -1), lhs, rhs);
+      if (rhs.blk) throw new Error('cannot assign a whole struct to ' + dt.str);
+      var stored = store(lhs, val(rhs), rhs);
+      return { t: dt, v: stored, lv: lhs.lv };
+    }
+    return lhs;
+  }
+  function finishPending() {
+    ctx.pend.forEach(function (V) {
+      if (!V.pending.done) { V.pending.done = true; materialize(ctx, V.pending.size, null, V.pending.zero); warn(ctx, 'the result of malloc was not stored anywhere, so that block is leaked'); }
+    });
+    ctx.pend = [];
+  }
+
+  /* ----- declarations ----- */
+  function isDeclStart() {
+    var t = peek();
+    if (!t || t.k !== 'id' || t.s === 'sizeof' || t.s === 'new' || t.s === 'delete') return false;
+    if (t.s === 'struct') return peek(1) && peek(1).k === 'id' && !isOp('{', 2);
+    return isTypeStart(t);
+  }
+  function parseBraceList() {
+    expectOp('{');
+    var out = [];
+    while (!isOp('}')) {
+      if (isOp('{')) throw new Error('nested { } initializers are not supported');
+      out.push(parseAssign());
+      if (!isOp(',')) break;
+      next();
+    }
+    expectOp('}');
+    return out;
+  }
+  function parseDecl() {
+    var words = [], isStatic = false;
+    for (;;) {
+      var t = peek();
+      if (!t || t.k !== 'id') break;
+      if (t.s === 'struct') { next(); words.push('struct ' + next().s); continue; }
+      if (t.s === 'static') { isStatic = true; next(); continue; }
+      if (t.s === 'const' || t.s === 'volatile' || t.s === 'register' || t.s === 'extern') { next(); continue; }
+      if (TYPE_WORDS[t.s] || ALIASES[t.s] || (TYPEDEFS[t.s] && !words.length)) { words.push(t.s); next(); continue; }
+      break;
+    }
+    var baseStr = words.join(' ');
+    var region = isStatic ? 'global' : ctx.region;
+    for (;;) {
+      var stars = 0;
+      while (isOp('*')) { next(); stars++; while (isId('const')) next(); }
+      var nt = next();
+      if (nt.k !== 'id') throw new Error('expected a variable name, got "' + nt.s + '"');
+      var tstr = baseStr + new Array(stars + 1).join('*');
+      var T = typeInfo(tstr);
+      var dims = null;
+      if (isOp('[')) { next(); if (isOp(']')) dims = -1; else dims = val(parseAssign()); expectOp(']'); }
+      var init = null;
+      ctx.declaring = { name: nt.s, T: T };
+      if (isOp('=')) {
+        next();
+        if (isOp('{')) init = { list: parseBraceList() };
+        else if (dims !== null && peek() && peek().k === 'str') { var sv = ''; while (peek() && peek().k === 'str') sv += next().v; init = { str: sv }; }
+        else init = { v: fin(parseAssign(), dims === null ? T : null) };
+      }
+      ctx.declaring = null;
+      declare(nt.s, tstr, T, dims, init, region);
+      if (!isOp(',')) break;
+      next();
+    }
+  }
+  function declare(name, tstr, T, dims, init, region) {
+    var zero = region === 'global', kind, slots, typeName = '';
+    var dflt = zero ? 0 : null;
+    if (dims !== null) {
+      var vals = null;
+      if (init && init.list) vals = init.list.map(function (V) { return val(fin(V, T)); });
+      else if (init && init.str !== undefined) { vals = []; for (var c = 0; c < init.str.length; c++) vals.push(init.str.charCodeAt(c) & 255); vals.push(0); }
+      else if (init) throw new Error('an array needs a { } list or a string to initialize it');
+      var n = dims === -1 ? (vals ? vals.length : 0) : dims;
+      if (!(n >= 1)) throw new Error('the array ' + name + ' needs a size');
+      if (n > 64) throw new Error('arrays larger than 64 elements are too big to draw');
+      if (vals && vals.length > n) warn(ctx, 'too many initializers for ' + name + '[' + n + ']');
+      slots = [];
+      for (var k = 0; k < n; k++) slots.push({ label: '[' + k + ']', type: tstr, value: vals ? coerce(k < vals.length ? vals[k] : 0, T) : dflt });
+      kind = 'array';
+    } else if (T.struct && T.ptr === 0) {
+      kind = 'struct'; typeName = T.base;
+      slots = structSlots(T.base, dflt);
+      if (init && init.list) init.list.forEach(function (V, k) { if (slots[k]) slots[k].value = coerce(val(fin(V, typeInfo(slots[k].type))), typeInfo(slots[k].type)); });
+      else if (init) throw new Error('a struct needs a { } list to initialize it');
+    } else {
+      kind = 'scalar';
+      var v = dflt;
+      if (init && init.list) v = init.list.length ? val(init.list[0]) : 0;
+      else if (init) {
+        v = val(init.v);
+        if (T.ptr > 0 && init.v.t.ptr === 0 && v !== 0) warn(ctx, 'assigning a plain number to the pointer ' + name);
+      }
+      slots = [{ label: '', type: tstr, value: v === null ? null : coerce(v, T) }];
+    }
+    var ex = null;
+    for (var q = 0; q < st.blocks.length; q++) {
+      var o = st.blocks[q];
+      if (o.name === name && o.region === region) ex = o;
+    }
+    if (ex) {
+      var oldSize = ex.size;
+      ex.kind = kind; ex.slots = slots; ex.typeName = typeName; ex.freed = false;
+      layout(ex);
+      if (ex.size > oldSize) ex.addr = allocAddr(st, region, ex.size, ex.align);
+      note(ctx, name + ' already existed, so it was reused (as it would be on another pass through a loop)');
+    } else {
+      makeBlock(st, { name: name, region: region, kind: kind, typeName: typeName, slots: slots, frame: region === 'stack' ? ctx.frame : '', scope: region === 'stack' ? ctx.depth : 0 });
+    }
+  }
+
+  /* ----- statement ----- */
+  if (mode === 'expr') {
+    var R = parseAssign();
+    if (i < toks.length) throw new Error('unexpected "' + toks[i].s + '"');
+    if (destType) R = fin(R, destType);
+    finishPending();
+    return R;
+  }
+  if (isId('delete')) {
+    next();
+    if (isOp('[')) { next(); expectOp(']'); }
+    doFree(ctx, val(parseUnary()), 'delete');
+  } else if (isDeclStart()) parseDecl();
+  else { parseAssign(); while (isOp(',')) { next(); parseAssign(); } }
+  if (i < toks.length) throw new Error('unexpected "' + toks[i].s + '"');
+  finishPending();
+  return null;
+}
+
+var CONTROL_RE = /^(if|else|for|while|do|switch|case|default|break|continue|return|goto)\b/;
+function classifyLine(raw) {
+  var t = blankComments(raw).trim();
+  if (!t) return { skip: 'blank line' };
+  if (/^#/.test(t)) return { skip: 'preprocessor line: nothing happens at run time' };
+  if (/^(typedef\s+)?struct\s*\w*\s*\{/.test(t) || /^\}\s*\w*\s*;\s*$/.test(t)) return { skip: 'struct definition: it is registered automatically' };
+  if (/^typedef\b/.test(t)) return { skip: 'typedef: registered automatically' };
+  var core = t.replace(/^[}\s]+/, '').replace(/[{\s]+$/, '');
+  if (!core) return { skip: 'brace only' };
+  if (CONTROL_RE.test(core)) return { skip: 'control flow: choose the next line to run yourself', control: true };
+  if (/^(?:[A-Za-z_]\w*[\s*]+)+[A-Za-z_]\w*\s*\([^=]*\)\s*;?$/.test(core)) return { skip: 'function header: nothing to run on this line' };
+  return { text: core };
+}
+function splitStatements(toks) {
+  var out = [], cur = [], depth = 0;
+  toks.forEach(function (t) {
+    if (t.k === 'op' && (t.s === '(' || t.s === '[')) depth++;
+    if (t.k === 'op' && (t.s === ')' || t.s === ']')) depth--;
+    if (t.k === 'op' && t.s === ';' && depth === 0) { if (cur.length) out.push(cur); cur = []; }
+    else cur.push(t);
+  });
+  if (cur.length) out.push(cur);
+  return out;
+}
+/* Run one source line against a copy of state. */
+function runLine(state, raw, region, frame, depth) {
+  var c = classifyLine(raw);
+  if (c.skip) return { state: null, skipped: c.skip, msgs: [], control: !!c.control };
+  var ns = cloneState(state), ctx = makeCtx(ns, region, frame, depth);
+  try {
+    var stmts = splitStatements(tokenize(c.text));
+    stmts.forEach(function (tk) { runTokens(ctx, tk, 'stmt'); });
+    return { state: ns, msgs: ctx.msgs };
+  } catch (e) {
+    return { state: null, error: e.message, msgs: ctx.msgs };
+  }
+}
+/* Evaluate an expression typed into a value box. Returns {value, state, msgs} or {error}. */
+function evalForSlot(state, text, typeStr) {
+  var ns = cloneState(state), ctx = makeCtx(ns, 'stack');
+  try {
+    var T = typeInfo(typeStr);
+    var V = runTokens(ctx, tokenize(text), 'expr', T.ptr > 0 ? T : null);
+    if (V.blk) throw new Error('that is a whole struct, not a value');
+    var v = V.v !== undefined ? V.v : (function () {
+      if (V.lv) { var s = V.lv.b.slots[V.lv.i]; return s.value; }
+      return 0;
+    })();
+    if (V.pending) v = 0;
+    return { value: v === null ? null : coerce(v, T), state: ns, msgs: ctx.msgs };
+  } catch (e) {
+    return { error: e.message };
+  }
+}
+
+/* ================= scope and program lifetime ================= */
+/* Remove stack variables of `fn` declared deeper than `minDepth` (the end of a { } block). */
+function closeScope(st, fn, minDepth) {
+  var gone = st.blocks.filter(function (b) { return b.region === 'stack' && b.scope > minDepth && (b.frame || '') === (fn || ''); });
+  st.blocks = st.blocks.filter(function (b) { return gone.indexOf(b) < 0; });
+  return gone;
+}
+/* A function returned: its whole stack frame goes away. */
+function leaveFunction(st, fn) {
+  var gone = st.blocks.filter(function (b) { return b.region === 'stack' && (b.frame || '') === fn; });
+  st.blocks = st.blocks.filter(function (b) { return gone.indexOf(b) < 0; });
+  return gone;
+}
+/* The program ended: the stack is gone, freed blocks are released, globals and string literals stay,
+   and heap blocks that were never freed stay too. They are split into "definitely lost" (nothing left
+   points to them) and "still reachable" (a global still points to them), as valgrind reports them. */
+function endProgram(st, why) {
+  var stack = st.blocks.filter(function (b) { return b.region === 'stack'; });
+  st.blocks = st.blocks.filter(function (b) { return b.region !== 'stack' && !(b.region === 'heap' && b.freed); });
+  var reach = {}, queue = st.blocks.filter(function (b) { return b.region === 'global' || b.region === 'rodata'; });
+  while (queue.length) {
+    var b = queue.shift();
+    b.slots.forEach(function (sl) {
+      if (!sl.value || !isPtrType(sl.type)) return;
+      var r = findAt(st, sl.value);
+      if (r && r.b.region === 'heap' && !reach[r.b.id]) { reach[r.b.id] = true; queue.push(r.b); }
+    });
+  }
+  var info = { why: why, stack: stack.length, lost: 0, lostBytes: 0, reachable: 0, reachableBytes: 0 };
+  st.blocks.forEach(function (b) {
+    if (b.region !== 'heap') return;
+    b.leak = reach[b.id] ? 'reachable' : 'lost';
+    if (reach[b.id]) { info.reachable++; info.reachableBytes += b.allocSize || b.size; } else { info.lost++; info.lostBytes += b.allocSize || b.size; }
+  });
+  st.ended = info;
+  return info;
+}
+function endMessage(info) {
+  var t = info.why + ', so the program finished. The stack is gone' + (info.stack ? ' (' + info.stack + (info.stack === 1 ? ' variable' : ' variables') + ')' : '') + '. Globals and string literals stay until the process exits.';
+  if (info.lost) t += ' ' + info.lost + (info.lost === 1 ? ' heap block (' + info.lostBytes + ' bytes) was never freed and nothing points to it: valgrind reports it' : ' heap blocks (' + info.lostBytes + ' bytes) were never freed and nothing points to them: valgrind reports them') + ' as definitely lost.';
+  if (info.reachable) t += ' ' + info.reachable + (info.reachable === 1 ? ' heap block is' : ' heap blocks are') + ' never freed but a global still points there: still reachable.';
+  if (!info.lost && !info.reachable) t += ' Every heap block was freed: no leaks.';
+  return t;
+}
+/* ================= app: state, persistence, canvas rendering ================= */
+var $ = function (id) { return document.getElementById(id); };
+function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function trunc(s, n) { s = String(s); return s.length > n ? s.slice(0, Math.max(1, n - 1)) + '…' : s; }
+
+var EXAMPLES = [
+  { id: 'basics', title: 'Pointer basics', code:
+'int main() {\n    int x = 10;\n    int *ptr = &x;\n    *ptr = 20;\n    int **pp = &ptr;\n    **pp = 30;\n    ptr = NULL;\n    return 0;\n}\n' },
+  { id: 'arrays', title: 'Arrays and pointer arithmetic', code:
+'int main() {\n    int a[4] = {10, 20, 30, 40};\n    int *p = a;          // same as &a[0]\n    p++;                 // moves 4 bytes, to a[1]\n    *p = 99;\n    p = &a[3];\n    long gap = p - a;    // counts elements, not bytes\n    char *s = "hi";      // a string literal lives in read-only memory\n    char t[] = "yo";     // a copy that lives on the stack\n    return 0;\n}\n' },
+  { id: 'heap', title: 'malloc, free and a dangling pointer', code:
+'#include <stdlib.h>\n\nint main() {\n    int *p = malloc(sizeof(int));\n    *p = 7;\n    int *q = p;          // two pointers, one block\n    free(p);             // the block is gone, q still holds its address\n    p = NULL;\n    int *arr = calloc(3, sizeof(int));\n    arr[1] = 5;\n    free(arr);\n    return 0;\n}\n' },
+  { id: 'list', title: 'Linked list (lab 3)', code:
+'#include <stdlib.h>\n\nstruct Node {\n    void *data;\n    struct Node *next;\n};\n\nstruct List {\n    struct Node *head;\n};\n\nint main() {\n    struct List list;\n    list.head = NULL;\n    double a = 1.0;\n    double b = 2.0;\n    struct Node *n = malloc(sizeof(struct Node));   // addFront(&list, &a)\n    n->data = &a;\n    n->next = list.head;\n    list.head = n;\n    n = malloc(sizeof(struct Node));                  // addFront(&list, &b)\n    n->data = &b;\n    n->next = list.head;\n    list.head = n;\n    struct Node *old = list.head;                     // popFront(&list)\n    void *d = old->data;\n    list.head = old->next;\n    free(old);\n    return 0;\n}\n' },
+  { id: 'argv', title: 'argv: a vector of strings', code:
+'int main() {\n    // argv as the OS would build it for: ./a.out hi there\n    char *argv[4] = {"./a.out", "hi", "there", NULL};\n    char **p = argv + 1;\n    char c = **p;        // first char of "hi"\n    p++;\n    char d = (*p)[1];    // second char of "there"\n    return 0;\n}\n' },
+  { id: 'blank', title: 'Blank board', code: '// Paste or type your code here, then pick a line and press Run line.\n// You can also draw everything by hand with the Add buttons.\n' }
+];
+
+var doc = null, defs = { skip: {}, depth: [] };
+var view = { x: 40, y: 20, k: 1 };
+var sel = null;              // {kind:'block'|'note'|'group', id, slot}
+var pendingLine = 1;
+var undoStack = [], redoStack = [];
+var ui = { tab: 'inspect', bytes: false, editingCode: false, lastResult: null, mapView: 'overview', mapOrder: 'lecture' };
+try { if (localStorage.getItem('memory-whiteboard-v1-order') === 'address') ui.mapOrder = 'address'; } catch (e) { /* ignore */ }
+var STORE_KEY = 'memory-whiteboard-v1';
+
+function S() { return doc.steps[doc.cur].state; }
+function prevState() { return doc.cur > 0 ? doc.steps[doc.cur - 1].state : null; }
+function codeLines() { return doc.code.split('\n'); }
+function regionFor(line) { return (defs.depth[line] || 0) > 0 ? 'stack' : 'global'; }
+function frameFor(line) { return (defs.fnAt && defs.fnAt[line]) || ''; }
+function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
+/* ---------- keep struct boxes in line with their struct definitions ---------- */
+function fieldDecl(type, name) { var m = /^(.*?)\s*(\**)$/.exec(type); return m[1] + ' ' + m[2] + name + ';'; }
+function sameFields(b, fields) {
+  if (!fields || fields.length !== b.slots.length) return false;
+  return fields.every(function (f, i) {
+    try { return f.name === b.slots[i].label && typeInfo(f.type).str === typeInfo(b.slots[i].type).str; } catch (e) { return false; }
+  });
+}
+function resyncBlock(st, o, fields) {
+  var old = o.slots, byLabel = {};
+  old.forEach(function (s) { byLabel[s.label] = s; });
+  o.slots = fields.map(function (fd, i) {
+    var t = typeInfo(fd.type), p = byLabel[fd.name];
+    /* a renamed field keeps its value when it sits in the same place and is the same kind (pointer or not) */
+    if (!p && old[i] && !byLabel[fd.name] && isPtrType(old[i].type) === (t.ptr > 0) && !fields.some(function (f) { return f.name === old[i].label; })) p = old[i];
+    return { label: fd.name, type: fd.type, value: p ? coerce(p.value, t) : null };
+  });
+  var oldSize = o.size;
+  layout(o);
+  if (o.size > oldSize) o.addr = allocAddr(st, o.region, o.size, o.align, o.allocSize || o.size);
+}
+function syncAllStructs() {
+  var n = 0;
+  doc.steps.forEach(function (s) {
+    s.state.blocks.forEach(function (o) {
+      var f = o.kind === 'struct' ? STRUCTS[o.typeName] : null;
+      if (f && !sameFields(o, f)) { try { resyncBlock(s.state, o, f); n++; } catch (e) { /* leave it */ } }
+    });
+  });
+  return n;
+}
+function restore(json) {
+  var d = JSON.parse(json);
+  if (!d || !Array.isArray(d.steps) || !d.steps.length) throw new Error('that text is not a saved whiteboard');
+  EXTRA_STRUCTS = d.extra || {};
+  NEXT_ID = d.nextId || 1000;
+  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1) };
+  defs = setDefs(doc.code);
+  syncAllStructs();
+}
+function pushUndo() { undoStack.push(snapshot()); if (undoStack.length > 120) undoStack.shift(); redoStack.length = 0; }
+function undo() { if (!undoStack.length) return; redoStack.push(snapshot()); restore(undoStack.pop()); fixSel(); renderAll(); save(); }
+function redo() { if (!redoStack.length) return; undoStack.push(snapshot()); restore(redoStack.pop()); fixSel(); renderAll(); save(); }
+var saveTimer = null;
+function saveNow() {
+  clearTimeout(saveTimer); saveTimer = null;
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({ doc: snapshot(), view: view, pending: pendingLine })); } catch (e) { /* storage unavailable */ }
+}
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveNow, 300);
+}
+window.addEventListener('pagehide', function () { if (saveTimer && doc) saveNow(); });
+document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && saveTimer && doc) saveNow(); });
+function fixSel() {
+  if (!sel) return;
+  var st = S();
+  var ok = sel.kind === 'block' ? !!findBlock(st, sel.id) : sel.kind === 'note' ? st.notes.some(function (n) { return n.id === sel.id; }) : st.groups.some(function (g) { return g.id === sel.id; });
+  if (!ok) sel = null;
+}
+
+/* ---------- running code ---------- */
+/* true when line L closes a { } block. Braces of an initializer like {10, 20} open and close on the
+   same line, so they never count. */
+function closesScope(L) {
+  return !!defs.minDepth && defs.minDepth[L] < (defs.depth[L] || 0);
+}
+function isQuietLine(L) {
+  var t = codeLines()[L - 1];
+  if (t === undefined) return false;
+  if (defs.skip[L]) return true;
+  if (closesScope(L)) return false;
+  var c = classifyLine(t);
+  return !!c.skip && !c.control && !/function header/.test(c.skip);
+}
+function nextLine(L) {
+  var n = codeLines().length, k = L + 1;
+  while (k <= n && isQuietLine(k)) k++;
+  return k <= n ? k : null;
+}
+function firstLine() { return isQuietLine(1) ? nextLine(1) : 1; }
+function insertStep(step) {
+  doc.steps.splice(doc.cur + 1, 0, step);
+  doc.cur++;
+}
+/* Run code line L on state st. Handles the end of { } blocks, return, exit() and the end of main. */
+function execLineAt(st, L) {
+  var raw = codeLines()[L - 1];
+  if (st.ended) return { error: 'the program already finished on an earlier step. Go back a step to keep tracing.', finished: true };
+  var t = blankComments(raw).trim(), core = t.replace(/^[}\s]+/, ''), fn = frameFor(L);
+  var ns, gone;
+  function names(list) { return list.map(function (b) { return blockTitle(b); }).join(', '); }
+  if (/^return\b/.test(core) || /^exit\s*\(/.test(core)) {
+    ns = cloneState(st);
+    var isExit = /^exit\s*\(/.test(core);
+    if (isExit || fn === 'main' || !fn) {
+      var info = endProgram(ns, isExit ? 'exit() was called' : 'main returned');
+      return { state: ns, msgs: [{ level: 'info', text: endMessage(info) }], ended: true };
+    }
+    gone = leaveFunction(ns, fn);
+    return { state: ns, msgs: [{ level: 'info', text: fn + '() returned' + (gone.length ? ', so its stack frame is gone: ' + names(gone) + '. Pointers to them now dangle.' : '. It had no local variables on the board.') + ' The caller is not simulated.' }] };
+  }
+  if (closesScope(L) && !defs.skip[L]) {
+    var lo = defs.minDepth[L], pre = [];
+    /* run a statement that shares the line with the closing brace first, like "x = 1; }" */
+    var stmt = t.replace(/^[}\s]+/, '').replace(/[{}\s]+$/, '');
+    if (stmt && !CONTROL_RE.test(stmt)) {
+      var r0 = runLine(st, stmt, regionFor(L), fn, defs.depth[L] || 1);
+      if (r0.error) return r0;
+      if (r0.state) { st = r0.state; pre = r0.msgs || []; }
+    }
+    ns = cloneState(st);
+    if (lo === 0 && fn) {
+      if (fn === 'main') {
+        var inf = endProgram(ns, 'main reached its closing brace');
+        return { state: ns, msgs: [{ level: 'info', text: endMessage(inf) }], ended: true };
+      }
+      gone = leaveFunction(ns, fn);
+      if (!gone.length && !pre.length && !stmt) return { skipped: 'end of ' + fn + '(): it had no local variables on the board' };
+      return { state: ns, msgs: pre.concat([{ level: 'info', text: 'end of ' + fn + '(): ' + (gone.length ? 'its stack frame is gone: ' + names(gone) + '.' : 'no local variables to remove.') }]) };
+    }
+    gone = closeScope(ns, fn, lo);
+    if (!gone.length && !stmt) return { skipped: 'end of a block: nothing was declared inside it, so nothing goes out of scope' };
+    return { state: ns, msgs: pre.concat(gone.length ? [{ level: 'info', text: 'end of the block: ' + names(gone) + (gone.length === 1 ? ' goes' : ' go') + ' out of scope and ' + (gone.length === 1 ? 'its' : 'their') + ' stack memory is released.' }] : []) };
+  }
+  return runLine(st, raw, regionFor(L), fn, defs.depth[L] || 1);
+}
+function runPending() {
+  var L = pendingLine;
+  if (S().ended) { toast('The program already finished at this step. Go back a step to keep tracing.'); return; }
+  if (!L) { toast('There is no next line. Click a line in the code to choose one.'); return; }
+  var text = codeLines()[L - 1];
+  if (text === undefined) return;
+  if (defs.skip[L]) { ui.lastResult = { kind: 'inf', text: 'Line ' + L + ' is part of a struct definition. It is registered automatically, so nothing runs.' }; pendingLine = nextLine(L); renderAll(); return; }
+  var r = execLineAt(S(), L);
+  if (r.skipped) {
+    ui.lastResult = { kind: 'inf', text: 'Line ' + L + ': ' + r.skipped + '.' };
+    pendingLine = nextLine(L);
+    renderAll(); save();
+    return;
+  }
+  if (r.error) {
+    ui.lastResult = { kind: 'err', text: 'Line ' + L + ': ' + r.error };
+    toast('Line ' + L + ': ' + r.error, true);
+    renderAll();
+    return;
+  }
+  pushUndo();
+  insertStep({ id: uid('s'), line: L, state: r.state, msgs: r.msgs });
+  ui.lastResult = r.msgs.length ? { kind: 'inf', text: r.msgs.map(function (m) { return m.text; }).join(' · ') } : null;
+  pendingLine = r.ended ? null : nextLine(L);
+  fixSel();
+  renderAll(); keepInView(); save();
+}
+function newManualStep() {
+  pushUndo();
+  var L = pendingLine;
+  insertStep({ id: uid('s'), line: L || null, state: cloneState(S()), msgs: [], manual: true });
+  if (L) pendingLine = nextLine(L);
+  ui.lastResult = { kind: 'inf', text: 'New step' + (L ? ' for line ' + L : '') + '. It starts as a copy of the previous step, so draw the change by hand.' };
+  renderAll(); save();
+}
+function runAllFresh() {
+  var lines = codeLines(), st = newState();
+  doc.steps = [{ id: uid('s'), line: null, state: st, msgs: [] }];
+  doc.cur = 0;
+  for (var L = 1; L <= lines.length; L++) {
+    if (defs.skip[L]) continue;
+    var r = execLineAt(S(), L);
+    if (r.skipped) continue;
+    if (r.finished) break;
+    if (r.error) { doc.steps.push({ id: uid('s'), line: L, state: cloneState(S()), msgs: [{ level: 'err', text: r.error }] }); doc.cur++; continue; }
+    doc.steps.push({ id: uid('s'), line: L, state: r.state, msgs: r.msgs });
+    doc.cur++;
+    if (r.ended) break;
+  }
+}
+function loadExample(id) {
+  var ex = EXAMPLES.filter(function (e) { return e.id === id; })[0] || EXAMPLES[0];
+  EXTRA_STRUCTS = {};
+  doc = { code: ex.code, steps: [], cur: 0 };
+  defs = setDefs(doc.code);
+  runAllFresh();
+  /* open on the last step before the program ends, so the example shows its pointers; the end is one step forward */
+  if (S().ended && doc.cur > 1) doc.cur--;
+  pendingLine = doc.steps.length > 1 ? nextLine(doc.steps[doc.cur].line) : firstLine();
+  sel = null; ui.lastResult = null;
+}
+function goStep(k) {
+  if (k < 0 || k >= doc.steps.length) return;
+  doc.cur = k;
+  var L = doc.steps[k].line;
+  pendingLine = doc.steps[k].state.ended ? null : (L ? nextLine(L) : firstLine());
+  ui.lastResult = null;
+  fixSel();
+  renderAll(); keepInView(); save();
+}
+
+/* ---------- geometry helpers ---------- */
+function blockRect(b) { var g = geom(b); return { x: b.x, y: b.y, w: g.w, h: g.h }; }
+function slotRect(b, i) { var g = geom(b), s = g.slots[i]; return { x: b.x + s.x, y: b.y + s.y, w: s.w, h: s.h }; }
+function portOf(b, i) {
+  var g = geom(b), s = g.slots[i];
+  if (s.port === 'bottom') return { x: b.x + s.x + s.w / 2, y: b.y + g.h, dx: 0, dy: 1 };
+  return { x: b.x + g.w, y: b.y + s.y + s.h / 2, dx: 1, dy: 0 };
+}
+function targetRect(st, addr) {
+  var r = findAt(st, addr);
+  if (!r) return null;
+  /* the cell that holds the byte at this address; arrows end on its top-left corner, the first byte */
+  if (r.i >= 0 && r.b.kind === 'struct') {
+    /* a struct field is a whole row: its field name and value together start at the row's left edge */
+    var gs = geom(r.b).slots[r.i];
+    return { rect: { x: r.b.x + gs.lx, y: r.b.y + gs.y, w: gs.x + gs.w - gs.lx, h: gs.h }, r: r };
+  }
+  return { rect: r.i >= 0 ? slotRect(r.b, r.i) : blockRect(r.b), r: r, rowCell: r.i >= 0 && geom(r.b).slots[r.i].lay === 'v' };
+}
+function anchorOn(rect, p) {
+  var cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+  if (p.x <= rect.x - 6) return { x: rect.x, y: cy, nx: -1, ny: 0 };
+  if (p.x >= rect.x + rect.w + 6) return { x: rect.x + rect.w, y: cy, nx: 1, ny: 0 };
+  if (p.y < rect.y) return { x: cx, y: rect.y, nx: 0, ny: -1 };
+  return { x: cx, y: rect.y + rect.h, nx: 0, ny: 1 };
+}
+/* Freehand arrows that end on the top-left corner of the target cell (its first byte).
+   Most arrows are one smooth curve that arrives from the upper left. When the target sits above the
+   pointer, a plain curve would come up from underneath, so instead the arrow swings out beside the
+   target, over its top, and comes down onto the corner. Rows of a pointer array are entered from the left. */
+function arrowPath(st, p, b, tr, lane, midX) {
+  var card = blockRect(tr.r.b), c = { x: tr.rect.x, y: tr.rect.y }, g = geom(b), self = tr.r.b === b;
+  var leftEdge = { x: b.x, y: p.y, dx: -1, dy: 0 };
+  var around = !self && !tr.rowCell && p.y > c.y - 6 && c.x < b.x + g.w - 12;
+  if (!around) {
+    if (p.dx === 1 && c.x < b.x + g.w - 12 && !self) p = leftEdge;
+    var a = tr.rowCell ? { x: c.x, y: c.y, nx: -1, ny: 0 } : { x: c.x, y: c.y, nx: -0.72, ny: -0.72 };
+    return { d: curve(p, a), start: p };
+  }
+  /* pick the side to swing around: toward the gap when the target is in a column to the left,
+     otherwise the outer side of the target's column, unless a box is in the way there */
+  function busy(x0, x1) {
+    var y0 = card.y - 30, y1 = Math.max(p.y, card.y + card.h);
+    return st.blocks.some(function (o) {
+      if (o === tr.r.b || o === b) return false;
+      var r = blockRect(o);
+      return r.x < x1 && r.x + r.w > x0 && r.y < y1 && r.y + r.h > y0;
+    });
+  }
+  var side, leftCol = card.x + card.w < b.x - 10;
+  if (leftCol) side = 'right';
+  else {
+    var pref = card.x + card.w / 2 >= midX ? 'right' : 'left';
+    var other = pref === 'right' ? 'left' : 'right';
+    var bz = { left: busy(card.x - 60, card.x), right: busy(card.x + card.w, card.x + card.w + 60) };
+    side = bz[pref] && !bz[other] ? other : pref;
+  }
+  var off = (lane % 4) * 7;
+  var W = side === 'left'
+    ? { x: Math.min(card.x, b.x) - 22 - off, y: card.y - 16 - (lane % 3) * 4 }
+    : { x: (leftCol ? card.x + card.w : Math.max(card.x + card.w, b.x + g.w)) + 22 + off, y: card.y - 16 - (lane % 3) * 4 };
+  if ((side === 'left' || leftCol) && p.dx === 1) p = leftEdge;
+  var k1 = Math.max(30, Math.min(70, Math.abs(W.x - p.x)));
+  var d = 'M' + p.x + ' ' + p.y +
+    ' C' + (p.x + p.dx * k1) + ' ' + p.y + ' ' + W.x + ' ' + (W.y + Math.max(30, (p.y - W.y) * 0.5)) + ' ' + W.x + ' ' + W.y +
+    ' C' + W.x + ' ' + (W.y - 26) + ' ' + c.x + ' ' + (c.y - 56) + ' ' + c.x + ' ' + c.y;
+  return { d: d, start: p };
+}
+/* Route an arrow around boxes: out of the port, along a lane beside the boxes, over the top of the
+   target box, then straight down onto the top-left corner of the target cell (its first byte).
+   Rows of a pointer array are reached from the left instead, along the row's top edge. */
+function routeArrow(p, tr, lane) {
+  var card = blockRect(tr.r.b), c = { x: tr.rect.x, y: tr.rect.y };
+  /* every arrow gets its own lane and its own height above the target, so lines never sit on top of each other */
+  var gap = 12 + (lane % 5) * 6, lift = 8 + (lane % 3) * 5;
+  var x1 = p.x + p.dx * gap, y1 = p.y + p.dy * gap;
+  var pts = [{ x: p.x, y: p.y }, { x: x1, y: y1 }];
+  var yTop = card.y - lift;
+  if (tr.rowCell) {
+    var laneX = card.x - 14;
+    if (x1 <= card.x - 6 && !(y1 > card.y - 4 && y1 < card.y + card.h + 4 && x1 > card.x)) {
+      pts.push({ x: laneX < x1 ? laneX : x1, y: y1 });
+    } else {
+      pts.push({ x: x1, y: yTop }, { x: laneX, y: yTop });
+    }
+    var last = pts[pts.length - 1];
+    pts.push({ x: last.x, y: c.y }, c);
+  } else {
+    pts.push({ x: x1, y: yTop }, { x: c.x, y: yTop }, c);
+  }
+  return roundedPath(pts, 10);
+}
+function roundedPath(pts, r) {
+  var q = [pts[0]];
+  pts.slice(1).forEach(function (pt) { var l = q[q.length - 1]; if (Math.abs(pt.x - l.x) + Math.abs(pt.y - l.y) > 0.5) q.push(pt); });
+  /* drop points that sit on a straight line */
+  var s = [q[0]];
+  for (var k = 1; k < q.length - 1; k++) {
+    var a = s[s.length - 1], b = q[k], c = q[k + 1];
+    if (Math.abs((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)) > 0.01) s.push(b);
+  }
+  if (q.length > 1) s.push(q[q.length - 1]);
+  var d = 'M' + s[0].x + ' ' + s[0].y;
+  for (var j = 1; j < s.length - 1; j++) {
+    var A = s[j - 1], B = s[j], C = s[j + 1];
+    var l1 = Math.hypot(A.x - B.x, A.y - B.y), l2 = Math.hypot(C.x - B.x, C.y - B.y), rr = Math.min(r, l1 / 2, l2 / 2);
+    var p1x = B.x + (A.x - B.x) / l1 * rr, p1y = B.y + (A.y - B.y) / l1 * rr, p2x = B.x + (C.x - B.x) / l2 * rr, p2y = B.y + (C.y - B.y) / l2 * rr;
+    d += ' L' + p1x + ' ' + p1y + ' Q' + B.x + ' ' + B.y + ' ' + p2x + ' ' + p2y;
+  }
+  var E = s[s.length - 1];
+  return d + ' L' + E.x + ' ' + E.y;
+}
+function curve(p, a) {
+  var d = Math.hypot(a.x - p.x, a.y - p.y), k = Math.max(34, Math.min(130, d * 0.45));
+  return 'M' + p.x + ' ' + p.y + ' C' + (p.x + p.dx * k) + ' ' + (p.y + p.dy * k) + ' ' + (a.x + a.nx * k) + ' ' + (a.y + a.ny * k) + ' ' + a.x + ' ' + a.y;
+}
+
+/* ---------- canvas ---------- */
+var linking = null; // {bid, si, x, y, hover:{bid, si}}
+function renderCanvas() {
+  var st = S(), df = diffStates(prevState(), st), out = [];
+  var chg = df.chg;
+  st.groups.forEach(function (g) {
+    var on = sel && sel.kind === 'group' && sel.id === g.id;
+    out.push('<g class="grp' + (on ? ' sel' : '') + '" data-g="' + g.id + '"><rect class="gbox" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="' + g.h + '" rx="10"/>' +
+      '<rect class="ghead" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="28" rx="10"/>' +
+      '<text class="gl" x="' + (g.x + 12) + '" y="' + (g.y + 19) + '">' + esc(trunc(g.label || 'Group', Math.floor(g.w / 7.5))) + '</text>' +
+      '<rect class="rz" data-rz="g:' + g.id + '" x="' + (g.x + g.w - 9) + '" y="' + (g.y + g.h - 9) + '" width="12" height="12" rx="2"/></g>');
+  });
+  st.notes.forEach(function (n) {
+    var on = sel && sel.kind === 'note' && sel.id === n.id, lines = wrapText(n.text || '', Math.max(8, Math.floor((n.w - 20) / 7.1)));
+    var maxL = Math.max(1, Math.floor((n.h - 14) / 17));
+    var tx = lines.slice(0, maxL).map(function (l, k) { return '<tspan x="' + (n.x + 10) + '" y="' + (n.y + 22 + k * 17) + '">' + esc(k === maxL - 1 && lines.length > maxL ? trunc(l, l.length) + '…' : l) + '</tspan>'; }).join('');
+    out.push('<g class="note' + (on ? ' sel' : '') + '" data-n="' + n.id + '"><rect class="nbox" x="' + n.x + '" y="' + n.y + '" width="' + n.w + '" height="' + n.h + '" rx="4"/><text class="nt">' + tx + '</text>' +
+      '<rect class="rz" data-rz="n:' + n.id + '" x="' + (n.x + n.w - 9) + '" y="' + (n.y + n.h - 9) + '" width="12" height="12" rx="2"/></g>');
+  });
+  var labels = [];
+  cardLabelSink = labels;
+  var prev = prevState();
+  if (prev) {
+    var alive = {};
+    st.blocks.forEach(function (b) { alive[b.id] = 1; });
+    prev.blocks.forEach(function (b) { if (!alive[b.id] && (b.region === 'stack' || b.region === 'heap')) out.push(cardSvg(prev, b, {}, true)); });
+  }
+  st.blocks.forEach(function (b) { out.push(cardSvg(st, b, chg[b.id] || {})); });
+  var eb = $('endban');
+  if (eb) {
+    eb.hidden = true;
+  }
+  var arrowNo = 0, midX = 0;
+  st.blocks.forEach(function (o) { midX += o.x + geom(o).w / 2; });
+  midX = st.blocks.length ? midX / st.blocks.length : 0;
+  /* arrows */
+  var arrows = [], ports = [];
+  st.blocks.forEach(function (b) {
+    b.slots.forEach(function (sl, i) {
+      if (!isPtrType(sl.type)) return;
+      var p = portOf(b, i), hot = sel && sel.kind === 'block' && (sel.id === b.id);
+      ports.push('<g class="port-g"><circle class="port-hit" data-port="' + b.id + ':' + i + '" cx="' + p.x + '" cy="' + p.y + '" r="11"/><circle class="port" data-port="' + b.id + ':' + i + '" cx="' + p.x + '" cy="' + p.y + '" r="5"/></g>');
+      if (linking && linking.bid === b.id && linking.si === i) return;
+      var v = sl.value;
+      if (v === null) return;
+      if (v === 0) {
+        var gx = p.x + p.dx * 16, gy = p.y + p.dy * 16;
+        var gp = p.dx ? 'M' + p.x + ' ' + p.y + ' L' + gx + ' ' + gy + ' M' + gx + ' ' + (gy - 8) + ' L' + gx + ' ' + (gy + 8) + ' M' + (gx + 4) + ' ' + (gy - 5) + ' L' + (gx + 4) + ' ' + (gy + 5)
+                      : 'M' + p.x + ' ' + p.y + ' L' + gx + ' ' + gy + ' M' + (gx - 8) + ' ' + gy + ' L' + (gx + 8) + ' ' + gy + ' M' + (gx - 5) + ' ' + (gy + 4) + ' L' + (gx + 5) + ' ' + (gy + 4);
+        arrows.push('<path class="ground" d="' + gp + '"/>');
+        return;
+      }
+      var tr = targetRect(st, v);
+      if (!tr) {
+        var ex = p.x + p.dx * 60 + (p.dy ? 22 : 0), ey = p.y + p.dy * 60;
+        arrows.push('<path class="arrow bad" d="M' + p.x + ' ' + p.y + ' L' + ex + ' ' + ey + '"/>' +
+          '<path class="ground" style="stroke:var(--bad)" d="M' + (ex - 5) + ' ' + (ey - 5) + ' L' + (ex + 5) + ' ' + (ey + 5) + ' M' + (ex + 5) + ' ' + (ey - 5) + ' L' + (ex - 5) + ' ' + (ey + 5) + '"/>' +
+          '<text class="wild" x="' + (ex + 9) + '" y="' + (ey + 4) + '">' + hex(v) + '?</text>');
+        return;
+      }
+      var ar;
+      if (tr.r.b.kind === 'array' && tr.r.i >= 0) {
+        /* an element of an array: land on the top-left corner of that element's cell */
+        ar = arrowPath(st, p, b, tr, arrowNo++, midX);
+      } else {
+        /* a whole variable, a struct, or a struct field: the original freehand curve to the nearest side */
+        var orect = (tr.r.i < 0 || tr.r.b.kind === 'scalar' || (tr.r.b.kind === 'struct' && v === tr.r.b.addr)) ? blockRect(tr.r.b) : slotRect(tr.r.b, tr.r.i);
+        if (p.dx === 1 && orect.x + orect.w < b.x - 12 && tr.r.b !== b) p = { x: b.x, y: p.y, dx: -1, dy: 0 };
+        ar = { d: curve(p, anchorOn(orect, p)), start: p };
+      }
+      p = ar.start;
+      var bad = tr.r.b.freed;
+      var isHot = hot || (sel && sel.kind === 'block' && sel.id === tr.r.b.id);
+      arrows.push('<path class="arrow' + (bad ? ' bad' : '') + (isHot ? ' hot' : '') + '" marker-end="url(#' + (bad ? 'ahb' : 'ah') + ')" d="' + ar.d + '"/>');
+      if (p.dx === -1) arrows.push('<circle class="port" cx="' + p.x + '" cy="' + p.y + '" r="3.5" pointer-events="none"/>');
+    });
+  });
+  out.push(arrows.join(''));
+  /* box names sit above the arrows, with a halo, so a line passing through a header never hides the name */
+  out.push(labels.join(''));
+  out.push(ports.join(''));
+  if (linking) {
+    var lb = findBlock(st, linking.bid), lp = portOf(lb, linking.si);
+    if (linking.hover) {
+      var hb = findBlock(st, linking.hover.bid);
+      if (hb) { var hr = linking.hover.si >= 0 ? slotRect(hb, linking.hover.si) : blockRect(hb); out.push('<rect class="dropbox" x="' + (hr.x - 3) + '" y="' + (hr.y - 3) + '" width="' + (hr.w + 6) + '" height="' + (hr.h + 6) + '" rx="6"/>'); }
+    }
+    out.push('<path class="linkline" d="M' + lp.x + ' ' + lp.y + ' L' + linking.x + ' ' + linking.y + '"/>');
+  }
+  var w = $('world');
+  w.innerHTML = out.join('');
+  w.setAttribute('transform', 'translate(' + view.x + ' ' + view.y + ') scale(' + view.k + ')');
+  var dots = $('dots'), sp = 24 * view.k;
+  dots.setAttribute('width', sp); dots.setAttribute('height', sp);
+  dots.setAttribute('x', ((view.x % sp) + sp) % sp); dots.setAttribute('y', ((view.y % sp) + sp) % sp);
+  dots.firstElementChild.setAttribute('r', Math.max(0.6, 1.3 * Math.min(1.4, view.k)));
+}
+function wrapText(text, n) {
+  var out = [];
+  String(text).split('\n').forEach(function (para) {
+    var words = para.split(' '), line = '';
+    words.forEach(function (w) {
+      while (w.length > n) { if (line) { out.push(line); line = ''; } out.push(w.slice(0, n)); w = w.slice(n); }
+      if (!line) line = w; else if ((line + ' ' + w).length <= n) line += ' ' + w; else { out.push(line); line = w; }
+    });
+    out.push(line);
+  });
+  return out;
+}
+var cardLabelSink = null;
+function cardSvg(st, b, c, ghost) {
+  var g = geom(b), on = !ghost && sel && sel.kind === 'block' && sel.id === b.id;
+  var cls = 'blk r-' + b.region + (b.freed ? ' freed' : '') + (on ? ' sel' : '') + (c._new ? ' isnew' : '') + (ghost ? ' ghost' : '') + (b.leak === 'lost' ? ' leak' : '');
+  var h = ['<g class="' + cls + '"' + (ghost ? ' pointer-events="none"' : ' data-b="' + b.id + '"') + ' transform="translate(' + b.x + ' ' + b.y + ')">'];
+  h.push('<title>' + esc(blockTitle(b) + ': ' + blockType(b) + ' at ' + hex(b.addr) + ', ' + b.size + ' bytes, ' + REGION_LABEL[b.region].toLowerCase()) + '</title>');
+  h.push('<rect class="card" width="' + g.w + '" height="' + g.h + '" rx="8"/>');
+  h.push('<path class="hd" d="M0 ' + GEO.HEAD + ' V8 a8 8 0 0 1 8 -8 H' + (g.w - 8) + ' a8 8 0 0 1 8 8 V' + GEO.HEAD + ' Z"/>');
+  var avail = Math.floor((g.w - 22) / 7.4), title = blockTitle(b), ty = blockType(b);
+  if (title.length + ty.length + 2 > avail) {
+    var tyMax = Math.max(4, avail - Math.min(title.length, Math.ceil(avail * 0.55)) - 2);
+    ty = trunc(ty, tyMax);
+    title = trunc(title, avail - ty.length - 2);
+  }
+  if (ghost) h.push('<text class="nm" x="10" y="20">' + esc(title) + '</text>');
+  else if (cardLabelSink) cardLabelSink.push('<g class="lbl-g r-' + b.region + (b.freed ? ' freed' : '') + '" data-b="' + b.id + '" transform="translate(' + b.x + ' ' + b.y + ')"><text class="nm" x="10" y="20" data-hd="1">' + esc(title) + '</text><text class="ty" x="' + (g.w - 10) + '" y="20" text-anchor="end">' + esc(ty) + '</text></g>');
+  b.slots.forEach(function (sl, i) {
+    var s = g.slots[i], isP = isPtrType(sl.type), un = sl.value === null || sl.value === undefined;
+    var ssel = on && sel.slot === i;
+    var scls = 'slot' + (isP ? ' ptr' : '') + (un ? ' uninit' : '') + (c[i] ? ' chg' : '') + (ssel ? ' ssel' : '');
+    var dropOn = linking && linking.hover && linking.hover.bid === b.id && linking.hover.si === i;
+    h.push('<rect class="' + scls + (dropOn ? ' drop' : '') + '" data-s="' + i + '" x="' + s.x + '" y="' + s.y + '" width="' + s.w + '" height="' + s.h + '" rx="' + (b.kind === 'array' ? 1.5 : 4) + '">' +
+      '<title>' + esc(slotName(b, i) + ' (' + sl.type + ') at ' + hex(slotAddr(b, i)) + ' = ' + fmtVal(sl, false) + (isP ? ', ' + targetText(st, sl.value) : '')) + '</title></rect>');
+    var compact = b.kind === 'array', txt = fmtVal(sl, compact);
+    var vcls = 'vt' + (un ? ' u' : isP ? (sl.value === 0 ? ' n' : ' p') : '');
+    var maxc = Math.max(3, Math.floor((s.w - 8) / 7.9));
+    if (b.kind === 'array') {
+      var ad = hex(slotAddr(b, i));
+      if (s.lay === 'v') {
+        h.push('<text class="ad v" x="' + (s.x - 8) + '" y="' + (s.y + s.h / 2 + 4) + '" text-anchor="end" pointer-events="none">' + ad + '</text>');
+        h.push('<text class="ix" x="' + (s.x + 5) + '" y="' + (s.y + 11) + '" pointer-events="none">[' + i + ']</text>');
+        h.push('<text class="' + vcls + '" x="' + (s.x + s.w / 2 + 6) + '" y="' + (s.y + s.h / 2 + 1) + '" pointer-events="none">' + esc(trunc(txt, maxc - 1)) + '</text>');
+      } else {
+        h.push('<text class="ix" x="' + (s.x + 4) + '" y="' + (s.y + 10) + '" pointer-events="none">[' + i + ']</text>');
+        h.push('<text class="' + vcls + '" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h / 2 + 3) + '" pointer-events="none">' + esc(trunc(txt, maxc)) + '</text>');
+        h.push('<text class="ad" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h + 11) + '" text-anchor="middle" pointer-events="none">' + ad + '</text>');
+      }
+    } else {
+      if (b.kind === 'struct') h.push('<text class="lb" x="' + s.lx + '" y="' + (s.y + s.h / 2 + 4) + '" pointer-events="none">' + esc(trunc(sl.label, 9)) + '</text>');
+      h.push('<text class="' + vcls + '" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h / 2 + 1) + '" pointer-events="none">' + esc(trunc(txt, maxc)) + '</text>');
+    }
+  });
+  var fy = g.h - 8;
+  var right = ghost ? (b.region === 'stack' ? 'OUT OF SCOPE' : 'RELEASED') : b.freed ? 'FREED' : b.leak === 'lost' ? 'LEAKED · ' + b.size + ' B' : b.leak === 'reachable' ? 'STILL REACHABLE' : (b.size + ' B · ' + REGION_LABEL[b.region].toUpperCase());
+  h.push('<text class="ft" x="10" y="' + fy + '">@' + hex(b.addr) + '</text><text class="rg" x="' + (g.w - 10) + '" y="' + fy + '" text-anchor="end">' + esc(right) + '</text>');
+  h.push('</g>');
+  return h.join('');
+}
+
+/* view */
+function svgSize() { var r = $('cv').getBoundingClientRect(); return { w: r.width, h: r.height, l: r.left, t: r.top }; }
+function toWorld(cx, cy) { var s = svgSize(); return { x: (cx - s.l - view.x) / view.k, y: (cy - s.t - view.y) / view.k }; }
+function zoomAt(f, cx, cy) {
+  var s = svgSize();
+  if (cx == null) { cx = s.l + s.w / 2; cy = s.t + s.h / 2; }
+  var nk = Math.max(0.25, Math.min(3, view.k * f)), wx = (cx - s.l - view.x) / view.k, wy = (cy - s.t - view.y) / view.k;
+  view.k = nk; view.x = cx - s.l - wx * nk; view.y = cy - s.t - wy * nk;
+  renderCanvas(); save();
+}
+function contentBounds() {
+  var st = S(), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  function add(x, y, w, h) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + w); y1 = Math.max(y1, y + h); }
+  st.blocks.forEach(function (b) { var r = blockRect(b); add(r.x - 70, r.y - 44, r.w + 110, r.h + 74); });
+  st.notes.forEach(function (n) { add(n.x, n.y, n.w, n.h); });
+  st.groups.forEach(function (g) { add(g.x, g.y, g.w, g.h); });
+  return isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
+}
+function fitView() {
+  var s = svgSize(), b = contentBounds();
+  if (!s.w) return;
+  var topPad = 56, pad = 24;
+  if (!b) { view = { x: 40, y: topPad, k: 1 }; renderCanvas(); return; }
+  var lg = $('legend'), bottom = lg && !lg.classList.contains('mini') && lg.offsetParent ? lg.offsetHeight + 24 : 52;
+  var k = Math.min(1.15, (s.w - 2 * pad) / b.w, (s.h - topPad - bottom) / b.h);
+  k = Math.max(0.3, k);
+  view.k = k;
+  view.x = (s.w - b.w * k) / 2 - b.x * k;
+  view.y = topPad + Math.max(0, (s.h - topPad - bottom - b.h * k) / 2) - b.y * k;
+  renderCanvas(); save();
+}
+/* Keep the boxes a step touches on screen. If what changed (or, when nothing changed, anything at all)
+   is completely outside the visible canvas, glide the view over to it; if it would not fit at this zoom, fit. */
+function visibleWorld() {
+  var s = svgSize(), lg = $('legend');
+  var bottom = lg && !lg.classList.contains('mini') && lg.offsetParent ? lg.offsetHeight + 16 : 48;
+  return { x: -view.x / view.k, y: (52 - view.y) / view.k, w: s.w / view.k, h: Math.max(40, s.h - 52 - bottom) / view.k, sw: s.w };
+}
+function overlaps(r, v) { return r.x < v.x + v.w && r.x + r.w > v.x && r.y < v.y + v.h && r.y + r.h > v.y; }
+function keepInView() {
+  if (!doc || !$('cv')) return;
+  var st = S(), v = visibleWorld();
+  if (!v.sw) return;
+  var prev = prevState(), df = diffStates(prev, st), ids = Object.keys(df.chg);
+  var pick = st.blocks.filter(function (b) { return ids.indexOf(b.id) >= 0; });
+  if (!pick.length && prev) {
+    /* nothing changed in a live box: show the boxes that just went away (their ghosts) */
+    var alive = {};
+    st.blocks.forEach(function (b) { alive[b.id] = 1; });
+    pick = prev.blocks.filter(function (b) { return !alive[b.id] && (b.region === 'stack' || b.region === 'heap'); });
+  }
+  if (pick.length && pick.some(function (b) { return overlaps(blockRect(b), v); })) return;
+  if (!pick.length) {
+    if (!st.blocks.length || st.blocks.some(function (b) { return overlaps(blockRect(b), v); })) return;
+    pick = st.blocks;
+  }
+  var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  pick.forEach(function (b) { var r = blockRect(b); x0 = Math.min(x0, r.x - 70); y0 = Math.min(y0, r.y - 30); x1 = Math.max(x1, r.x + r.w + 40); y1 = Math.max(y1, r.y + r.h + 30); });
+  if (x1 - x0 > v.w || y1 - y0 > v.h) { fitView(); return; }
+  /* center the changed boxes, keeping the zoom */
+  var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  view.x = -(cx - v.w / 2) * view.k;
+  view.y = 52 - (cy - v.h / 2) * view.k;
+  renderCanvas(); save();
+}
+/* ================= app: panels ================= */
+function renderAll() {
+  renderCanvas(); renderCode(); renderSteps(); renderStepbar(); renderPane();
+  $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
+}
+function lineSteps() {
+  var m = {};
+  doc.steps.forEach(function (s, k) { if (s.line) (m[s.line] = m[s.line] || []).push(k); });
+  return m;
+}
+function renderCode() {
+  var box = $('codeSec'), lines = codeLines(), curLine = doc.steps[doc.cur].line, ls = lineSteps();
+  var h = ['<div class="sec-h"><h2>Code</h2><div class="bar">' +
+    '<button class="btn sm" type="button" data-a="widecode" aria-pressed="' + !!lay.wide + '" title="Make the code panel wide and tall">' + (lay.wide ? 'Shrink' : 'Expand') + '</button>' +
+    '<button class="btn sm" type="button" data-a="editcode">' + (ui.editingCode ? 'Done' : 'Edit code') + '</button>' +
+    '<button class="hide-btn" type="button" data-panel="l" title="Hide this panel ( [ )" aria-label="Hide the code panel">&laquo;</button></div></div>'];
+  var codeH = codeBoxHeight();
+  if (ui.editingCode) {
+    h.push('<textarea class="codeedit" id="codeText" spellcheck="false" aria-label="Code"' + (codeH ? ' style="height:' + codeH + 'px"' : '') + '>' + esc(doc.code) + '</textarea>');
+    h.push('<p class="hint">Tab indents and Shift+Tab outdents, also across selected lines. Enter keeps the indentation. To leave the editor with the keyboard, press Esc, then Tab. Struct definitions in the code are picked up automatically, and existing steps are kept.</p>');
+  } else {
+    h.push('<div class="code" id="codeList" role="listbox" aria-label="Code lines"' + (codeH ? ' style="height:' + codeH + 'px;max-height:none"' : '') + '>');
+    lines.forEach(function (t, k) {
+      var L = k + 1, cls = 'cl' + (L === curLine ? ' cur' : '') + (L === pendingLine ? ' pend' : '') + (isQuietLine(L) ? ' skipl' : '');
+      var ns = ls[L] ? ls[L].map(function (n) { return n; }).slice(-3).join(',') : '';
+      h.push('<div class="' + cls + '" data-line="' + L + '" role="option" aria-selected="' + (L === pendingLine) + '" title="Click to make this the next line to run"><span class="mk"></span><span class="ln">' + L + '</span><span class="tx">' + (esc(t) || ' ') + '</span><span class="ns">' + (ns ? 's' + ns : '') + '</span></div>');
+    });
+    h.push('</div><div class="grip" id="codeGrip" role="separator" aria-orientation="horizontal" aria-label="Resize the code box. Arrow keys make it taller or shorter, double-click resets." tabindex="0"></div>');
+    var pl = pendingLine ? pendingLine : null;
+    h.push('<div class="runbar"><button class="btn primary" type="button" data-a="run"' + (pl ? '' : ' disabled') + '>Run line ' + (pl || '') + '</button>' +
+      '<button class="btn" type="button" data-a="manual" title="Copy this step so you can draw the change yourself">New step by hand</button></div>');
+    h.push('<p class="hint">Click a line to choose what runs next. <span class="kbd">R</span> runs it, <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> move between steps. Loops and ifs: pick the next line yourself.</p>');
+    if (ui.lastResult) h.push('<div class="result ' + ui.lastResult.kind + '">' + esc(ui.lastResult.text) + '</div>');
+  }
+  box.innerHTML = h.join('');
+  var cur = box.querySelector('.cl.pend') || box.querySelector('.cl.cur'), list = $('codeList');
+  if (cur && list) {
+    var top = cur.offsetTop - list.offsetTop;
+    if (top < list.scrollTop || top > list.scrollTop + list.clientHeight - 24) list.scrollTop = top - list.clientHeight / 3;
+  }
+}
+function renderSteps() {
+  var lines = codeLines(), h = ['<div class="sec-h"><h2>Steps</h2><span class="hint" style="margin:0">' + doc.steps.length + ' total</span></div><ol class="steps">'];
+  doc.steps.forEach(function (s, k) {
+    var d = k > 0 ? diffStates(doc.steps[k - 1].state, s.state) : { lines: [] };
+    var label = k === 0 ? 'Start' : s.line ? blankComments(lines[s.line - 1] || '').trim() : 'Drawn by hand';
+    h.push('<li class="step' + (k === doc.cur ? ' on' : '') + '" data-step="' + k + '"><div class="st-h"><span class="st-n">' + k + '</span>' +
+      '<span class="st-c" title="' + esc(label) + '">' + (s.line ? '<span style="color:var(--muted)">L' + s.line + '</span> ' : '') + esc(label) + '</span>' +
+      (k > 0 ? '<button class="st-x" type="button" data-a="delstep" data-k="' + k + '" aria-label="Delete step ' + k + '">&times;</button>' : '') + '</div>');
+    if (d.lines.length) h.push('<ul class="chg">' + d.lines.slice(0, 6).map(function (l) { return '<li class="' + l.k + '">' + esc(l.t) + '</li>'; }).join('') + (d.lines.length > 6 ? '<li>' + (d.lines.length - 6) + ' more</li>' : '') + '</ul>');
+    else if (k > 0) h.push('<ul class="chg"><li>no change' + (s.manual ? ' yet: edit the canvas while this step is selected' : '') + '</li></ul>');
+    (s.msgs || []).forEach(function (m) { h.push('<div class="msg"' + (m.level === 'err' ? ' style="color:var(--bad)"' : '') + '>' + esc(m.text) + '</div>'); });
+    h.push('</li>');
+  });
+  h.push('</ol>');
+  $('stepSec').innerHTML = h.join('');
+}
+function renderStepbar() {
+  var s = doc.steps[doc.cur], lines = codeLines();
+  var where = doc.cur === 0 ? '<b>Start</b>, before any line runs' : '<b>Step ' + doc.cur + '</b> of ' + (doc.steps.length - 1) + (s.line ? ', after line ' + s.line + ' <code>' + esc(trunc(blankComments(lines[s.line - 1] || '').trim(), 48)) + '</code>' : ', drawn by hand');
+  $('stepbar').innerHTML = '<button class="btn" type="button" data-a="prev"' + (doc.cur ? '' : ' disabled') + '>&larr; Back</button>' +
+    '<button class="btn" type="button" data-a="next"' + (doc.cur < doc.steps.length - 1 ? '' : ' disabled') + '>Forward &rarr;</button>' +
+    '<span class="where">' + where + '</span>' +
+    '<button class="btn primary" type="button" data-a="run"' + (pendingLine && !S().ended ? '' : ' disabled') + '>Run line ' + (pendingLine || '') + '</button>' +
+    (S().ended ? '<div class="endnote" role="status"><b>Program finished.</b> ' + esc(endMessage(S().ended).replace(/^.*?finished\. /, '')) + '</div>' : '');
+}
+
+/* ----- inspector ----- */
+function editText(sl) {
+  if (sl.value === null || sl.value === undefined) return '';
+  var t = typeInfo(sl.type);
+  if (t.ptr > 0) return sl.value === 0 ? 'NULL' : hex(sl.value);
+  if (t.base === 'char') return charText(sl.value) || String(sl.value);
+  return fmtVal(sl, true);
+}
+function renderPane() {
+  $('tabInspect').setAttribute('aria-selected', ui.tab === 'inspect');
+  $('tabMap').setAttribute('aria-selected', ui.tab === 'map');
+  $('pane').innerHTML = ui.tab === 'map' ? mapHtml() : inspectorHtml();
+}
+var TYPE_LIST = ['int', 'char', 'short', 'long', 'float', 'double', 'bool', 'size_t', 'unsigned int', 'int*', 'char*', 'double*', 'void*', 'int**', 'char**'];
+function inspectorHtml() {
+  var st = S();
+  if (!sel) {
+    return '<div class="empty"><h3>Nothing selected</h3><p class="hint" style="margin-top:0">Click a box to edit it. Some things to try:</p><ul>' +
+      '<li>Double-click any value to type a new one. Pointers take <code>&amp;x</code>, <code>NULL</code>, <code>p + 1</code> or an address.</li>' +
+      '<li>Drag from the orange dot on a pointer onto any box to point it there.</li>' +
+      '<li>Double-click a box name to rename it.</li>' +
+      '<li>Drag empty canvas to pan. Pinch, or hold <span class="kbd">Ctrl</span> and scroll, to zoom.</li>' +
+      '<li><span class="kbd">Delete</span> removes the selection, <span class="kbd">Ctrl</span>+<span class="kbd">Z</span> undoes.</li></ul>' +
+      '<p class="hint">Edits apply to the step you are looking at. Use <b>New step by hand</b> first if you want to keep the earlier picture.</p></div>';
+  }
+  if (sel.kind === 'note') {
+    var n = st.notes.filter(function (x) { return x.id === sel.id; })[0];
+    return '<div class="field"><span>Note</span><textarea id="f-ntext" data-f="ntext" rows="5">' + esc(n.text) + '</textarea></div><div class="actions"><button class="btn danger" type="button" data-a="delsel">Delete note</button></div>';
+  }
+  if (sel.kind === 'group') {
+    var g = st.groups.filter(function (x) { return x.id === sel.id; })[0];
+    return '<div class="field"><span>Group label</span><input id="f-glabel" data-f="glabel" value="' + esc(g.label) + '"></div><p class="hint">Dragging the group by its label moves everything inside it. Drag the corner to resize.</p><div class="actions"><button class="btn danger" type="button" data-a="delsel">Delete group</button></div>';
+  }
+  var b = findBlock(st, sel.id);
+  var h = ['<datalist id="typelist">' + TYPE_LIST.concat(Object.keys(STRUCTS).map(function (s) { return s + '*'; })).map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>'];
+  h.push('<div class="field"><span>Name</span><input id="f-name" data-f="name" class="mono-in" value="' + esc(b.name) + '" placeholder="' + (b.region === 'heap' ? 'heap blocks have no name' : 'name') + '"></div>');
+  if (b.kind === 'scalar') {
+    h.push('<div class="field"><span>Type</span><input id="f-stype" data-f="stype" class="mono-in" list="typelist" value="' + esc(b.slots[0].type) + '"></div>');
+  } else if (b.kind === 'array') {
+    h.push('<div class="row2"><div class="field"><span>Element type</span><input id="f-etype" data-f="etype" class="mono-in" list="typelist" value="' + esc(b.slots[0].type) + '"></div>' +
+      '<div class="field"><span>Length</span><input id="f-alen" data-f="alen" type="number" min="1" max="64" value="' + b.slots.length + '"></div></div>');
+  } else {
+    var fields = b.slots.map(function (s) { return fieldDecl(s.type, s.label); }).join('\n');
+    var inCode = CODE_STRUCTS[b.typeName], def = STRUCTS[b.typeName];
+    h.push('<div class="field"><span>Struct type</span><input id="f-tname" data-f="tname" class="mono-in" value="' + esc(b.typeName) + '"></div>');
+    if (def && !sameFields(b, def)) {
+      h.push('<div class="result err" style="margin:0 0 10px">This box\'s fields do not match ' + esc(b.typeName) + (inCode ? ' as defined on line ' + inCode + ' of your code' : '') + ' (' + esc(def.map(function (f) { return f.name; }).join(', ')) + '). <button class="btn sm" type="button" data-a="syncstruct" style="margin-top:6px">Match the definition</button></div>');
+    }
+    h.push('<div class="field"><span>Fields (one per line, like C)</span><textarea id="f-fields" data-f="fields" spellcheck="false"' + (inCode ? ' readonly aria-describedby="f-fields-note"' : '') + '>' + esc(fields) + '</textarea>' +
+      (inCode ? '<span class="hint" id="f-fields-note" style="margin:0">Defined on line ' + inCode + ' of your code. Edit the code to change the fields, and every ' + esc(b.typeName) + ' box updates.</span>' : '<span class="hint" style="margin:0">Changing the fields updates every ' + esc(b.typeName) + ' box in every step. Renamed fields keep their values.</span>') + '</div>');
+  }
+  h.push('<div class="row2"><div class="field"><span>Memory region</span><select id="f-region" data-f="region">' + REGION_ORDER.slice().reverse().map(function (r) { return '<option value="' + r + '"' + (r === b.region ? ' selected' : '') + '>' + REGION_LABEL[r] + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><span>Address</span><div class="inl"><input id="f-addr" data-f="addr" class="mono-in" value="' + hex(b.addr) + '"><button class="btn sm" type="button" data-a="readdr" title="Give it a fresh address in its region">New</button></div></div></div>');
+  h.push('<p class="kv">Size <b>' + b.size + ' B</b> &middot; ends at <b>' + hex(b.addr + b.size - 1) + '</b>' + (b.freed ? ' &middot; <b style="color:var(--bad)">freed</b>' : '') + '</p>');
+  h.push('<table class="slots"><thead><tr><th>' + (b.kind === 'struct' ? 'Field' : b.kind === 'array' ? 'Index' : 'Slot') + '</th><th>Value</th></tr></thead><tbody>');
+  b.slots.forEach(function (sl, i) {
+    var isP = isPtrType(sl.type), tgt = '';
+    if (isP) {
+      var to = targetOf(st, sl.value), cls = to.kind === 'ok' ? '' : (to.kind === 'null' ? ' mut' : ' bad');
+      tgt = '<div class="tgt' + cls + '">' + esc(targetText(st, sl.value)) + '</div>';
+    }
+    var lab = b.kind === 'struct' ? sl.label : b.kind === 'array' ? '[' + i + ']' : (b.name || '*');
+    h.push('<tr class="' + (sel.slot === i ? 'on' : '') + '"><td class="l">' + esc(lab) + '<div class="tgt mut">' + esc(sl.type) + '</div></td><td><input class="vin" id="f-sv' + i + '" data-f="sv" data-i="' + i + '" value="' + esc(editText(sl)) + '" placeholder="? (uninitialized)" aria-label="Value of ' + esc(slotName(b, i)) + '">' + tgt + '</td></tr>');
+  });
+  h.push('</tbody></table>');
+  h.push('<p class="hint" style="margin-top:-6px">Values take C expressions: <code>42</code>, <code>\'A\'</code>, <code>&amp;x</code>, <code>arr + 2</code>, <code>NULL</code>, <code>malloc(8)</code>. Leave empty for uninitialized.</p>');
+  h.push('<div class="actions"><button class="btn" type="button" data-a="dup">Duplicate</button>' +
+    (b.region === 'heap' ? '<button class="btn" type="button" data-a="togglefree">' + (b.freed ? 'Un-free' : 'Free it') + '</button>' : '') +
+    '<button class="btn danger" type="button" data-a="delsel">Delete</button></div>');
+  return h.join('');
+}
+/* ----- memory layout: overview + section views ----- */
+var SECTIONS = {
+  heap: { title: 'Heap', regions: ['heap'], cls: 'heap',
+    desc: 'Memory you ask for while the program runs, with malloc, calloc or new. A block stays until you free or delete it, even after the function that made it returns.' },
+  stack: { title: 'Stack', regions: ['stack'], cls: 'stack',
+    desc: 'Local variables. Every function call gets its own stack frame, and the frame disappears when the function returns.' },
+  static: { title: 'Static / Global', regions: ['global', 'rodata'], cls: 'global',
+    desc: 'Global and static variables, plus string literals (read-only). They exist for the whole run of the program.' },
+  code: { title: 'Code (Text)', regions: [], cls: 'code',
+    desc: 'The compiled instructions of your functions. Read-only. The board does not run machine code, so these addresses are illustrative.' }
+};
+function sectionOf(region) { return region === 'heap' ? 'heap' : region === 'stack' ? 'stack' : 'static'; }
+function sectionOrder() { return ui.mapOrder === 'address' ? ['stack', 'heap', 'static', 'code'] : ['heap', 'stack', 'static', 'code']; }
+function growText(sec, long) {
+  var lec = ui.mapOrder !== 'address';
+  if (sec === 'stack') return (lec ? 'grows ↑' : 'grows ↓') + (long ? ' toward the heap' : '');
+  if (sec === 'heap') return (lec ? 'grows ↓' : 'grows ↑') + (long ? ' toward the stack' : '');
+  return 'fixed size';
+}
+function secBlocks(st, sec) {
+  var regs = SECTIONS[sec].regions;
+  return st.blocks.filter(function (b) { return regs.indexOf(b.region) >= 0; })
+    .sort(function (a, b) { return ui.mapOrder === 'address' ? b.addr - a.addr : a.addr - b.addr; });
+}
+function leakedSet(st) {
+  var out = {}, live = st.blocks.filter(function (b) { return !b.freed; });
+  st.blocks.forEach(function (h) {
+    if (h.region !== 'heap' || h.freed) return;
+    var reached = live.some(function (o) {
+      return o !== h && o.slots.some(function (sl) { return sl.value != null && isPtrType(sl.type) && sl.value >= h.addr && sl.value < h.addr + h.size; });
+    });
+    if (!reached) out[h.id] = true;
+  });
+  return out;
+}
+function codeFuncs() {
+  return (defs.funcs || []).map(function (f, k) { return { name: f.name, line: f.line, addr: CODE_BASE + k * 0x40 }; });
+}
+function miniVal(b) {
+  if (b.kind === 'scalar') return fmtVal(b.slots[0], true);
+  var vals = b.slots.slice(0, 3).map(function (s) { return fmtVal(s, true); });
+  return '{' + vals.join(', ') + (b.slots.length > 3 ? ', …' : '') + '}';
+}
+function secRange(st, sec, list) {
+  if (sec === 'code') { var fs = codeFuncs(); return fs.length ? hex(CODE_BASE) + ' – ' + hex(CODE_BASE + fs.length * 0x40 - 1) : 'no functions yet'; }
+  if (!list.length) return sec === 'stack' ? 'empty, starts just below ' + hex(BASES.stack) : sec === 'heap' ? 'empty, starts at ' + hex(BASES.heap + 0x10) : 'empty';
+  var lo = Infinity, hi = -Infinity;
+  list.forEach(function (b) { lo = Math.min(lo, b.addr); hi = Math.max(hi, b.addr + b.size - 1); });
+  if (sec === 'stack') hi = Math.max(hi, BASES.stack - 1);
+  return hex(lo) + ' – ' + hex(hi);
+}
+function bandHtml(st, sec, leaks) {
+  var D = SECTIONS[sec], list = sec === 'code' ? [] : secBlocks(st, sec), bytes = 0, freed = 0, leak = 0, items = [], foot;
+  list.forEach(function (b) { bytes += b.size; if (b.freed) freed++; if (leaks[b.id]) leak++; });
+  if (sec === 'code') {
+    var fs = codeFuncs();
+    fs.slice(0, 4).forEach(function (f) { items.push('<li><span>' + esc(trunc(f.name, 16)) + '()</span><span class="v">' + hex(f.addr) + '</span></li>'); });
+    if (fs.length > 4) items.push('<li class="more">+' + (fs.length - 4) + ' more</li>');
+    foot = fs.length + (fs.length === 1 ? ' function' : ' functions');
+  } else {
+    list.slice(0, 4).forEach(function (b) {
+      items.push('<li class="' + (b.freed ? 'fr' : '') + '"><span>' + esc(trunc(b.name || (b.region === 'heap' ? 'heap @' + hex(b.addr) : blockTitle(b)), 15)) + '</span><span class="v">' + esc(trunc(miniVal(b), 16)) + '</span></li>');
+    });
+    if (list.length > 4) items.push('<li class="more">+' + (list.length - 4) + ' more</li>');
+    foot = list.length ? list.length + (list.length === 1 ? ' block' : ' blocks') + ' · ' + bytes + ' B' + (freed ? ' · ' + freed + ' freed' : '') + (leak ? ' · <span class="tag-leak">' + leak + ' leaked</span>' : '') : 'nothing here yet';
+  }
+  return '<button type="button" class="band b-' + D.cls + '" data-sec="' + sec + '" aria-label="Inspect ' + D.title + '">' +
+    '<span class="band-h"><b>' + D.title + '</b><span class="grow">' + growText(sec) + '</span></span>' +
+    '<span class="band-r">' + secRange(st, sec, list) + '</span>' +
+    (items.length ? '<ul class="mini">' + items.join('') + '</ul>' : '') +
+    '<span class="band-f">' + foot + '</span></button>';
+}
+function mapHtml() {
+  var st = S(), leaks = leakedSet(st);
+  if (ui.mapView !== 'overview' && SECTIONS[ui.mapView]) return sectionHtml(st, ui.mapView, leaks);
+  var order = sectionOrder(), lec = ui.mapOrder !== 'address';
+  var h = ['<div class="mo-head"><h3>Program memory</h3><div class="seg" role="group" aria-label="Drawing order">' +
+    '<button type="button" data-order="lecture" aria-pressed="' + lec + '">Lecture order</button>' +
+    '<button type="button" data-order="address" aria-pressed="' + !lec + '">Address order</button></div></div>'];
+  h.push('<div class="mo-col' + (lec ? '' : ' with-axis') + '">');
+  if (!lec) h.push('<div class="axis" aria-hidden="true"><span>high</span><i></i><span>low</span></div>');
+  h.push('<div class="bands">');
+  order.forEach(function (sec, k) {
+    h.push(bandHtml(st, sec, leaks));
+    var nx = order[k + 1];
+    if ((sec === 'heap' && nx === 'stack') || (sec === 'stack' && nx === 'heap')) {
+      h.push('<div class="gapband"><span>' + SECTIONS[sec].title + ' ↓</span><span>free space</span><span>↑ ' + SECTIONS[nx].title + '</span></div>');
+    }
+  });
+  h.push('</div></div>');
+  h.push(lec
+    ? '<p class="hint">Drawn like the lecture diagram: heap on top, stack growing up toward it. Real Linux x86-64 puts the stack <i>above</i> the heap, at higher addresses, growing down. That is the layout your exams assume (globals &lt; heap &lt; stack), so check <b>Address order</b> before answering an address question.</p>'
+    : '<p class="hint">Real Linux x86-64 order, high addresses at the top. The stack starts high and grows down, the heap starts above the globals and grows up, and the free space between them is what both use up.</p>');
+  h.push('<p class="hint">Click a region to inspect its addresses, values and allocations.</p>');
+  return h.join('');
+}
+function slotRows(st, b, on) {
+  var h = [];
+  b.slots.forEach(function (sl, i) {
+    var isP = isPtrType(sl.type), a = slotAddr(b, i);
+    var vtxt = isP && sl.value ? '<span class="pv">' + hex(sl.value) + '</span> <span class="a">' + esc(targetText(st, sl.value).replace(/^points to /, '→ ')) + '</span>' : esc(fmtVal(sl, false));
+    if (!ui.bytes) {
+      h.push('<tr data-b="' + b.id + '" class="' + (on ? 'on' : '') + '"><td class="a">' + hex(a) + '</td><td>' + esc(slotName(b, i)) + '</td><td>' + vtxt + '</td></tr>');
+      return;
+    }
+    var bytes = bytesOf(sl);
+    for (var k = 0; k < sl.size; k++) {
+      var bv = bytes ? bytes[k] : null, bits = bv === null ? '???? ????' : ('00000000' + bv.toString(2)).slice(-8).replace(/(\d{4})(\d{4})/, '$1 $2');
+      h.push('<tr data-b="' + b.id + '" class="' + (on ? 'on' : '') + '"><td class="a">' + hex(a + k) + '</td><td>' + bits + '</td><td class="a">' + (bv === null ? '??' : ('0' + bv.toString(16)).slice(-2)) + '</td>' +
+        (k === 0 ? '<td class="br" rowspan="' + sl.size + '">' + esc(slotName(b, i)) + ' = ' + (isP && sl.value ? '<span class="pv">' + hex(sl.value) + '</span>' : esc(fmtVal(sl, false))) + '</td>' : '') + '</tr>');
+    }
+  });
+  return h.join('');
+}
+function blockHeadRow(b, leaks, cols, on) {
+  var bits = [blockType(b), b.size + ' B'];
+  if (b.region === 'heap') bits.push('malloc(' + (b.allocSize || b.size) + ')');
+  if (b.region === 'rodata') bits.push('read-only');
+  var status = b.freed ? ' · <span class="tag-leak">freed</span>' : leaks[b.id] ? ' · <span class="tag-leak">leaked: nothing points here</span>' : '';
+  return '<tr class="bh' + (on ? ' on' : '') + '" data-b="' + b.id + '"><td colspan="' + cols + '"><b>' + esc(blockTitle(b)) + '</b> <span class="a">@' + hex(b.addr) + ' · ' + esc(bits.join(' · ')) + '</span>' + status + '</td></tr>';
+}
+function sectionHtml(st, sec, leaks) {
+  var D = SECTIONS[sec], lec = ui.mapOrder !== 'address', list = sec === 'code' ? [] : secBlocks(st, sec);
+  var h = ['<button type="button" class="btn sm sv-back" data-back="1">&larr; All memory</button>'];
+  h.push('<div class="sv-t b-' + D.cls + '"><h3>' + D.title + '</h3><span class="grow">' + growText(sec, true) + '</span></div>');
+  h.push('<p class="hint">' + esc(D.desc) + '</p>');
+  var bytes = 0;
+  list.forEach(function (b) { bytes += b.size; });
+  var stats = [['Address range', secRange(st, sec, list)]];
+  if (sec === 'stack') stats.push(['Top of stack (newest)', list.length ? hex(Math.min.apply(null, list.map(function (b) { return b.addr; }))) : 'empty']);
+  if (sec === 'heap') stats.push(['Next malloc starts near', hex(Math.ceil(st.alloc.heap / 16) * 16)]);
+  if (sec !== 'code') { stats.push(['Blocks', String(list.length)]); stats.push(['Bytes in use', bytes + ' B']); }
+  if (sec === 'heap') {
+    var lk = list.filter(function (b) { return leaks[b.id]; }).length, fr = list.filter(function (b) { return b.freed; }).length;
+    stats.push(['Freed / leaked', fr + ' / ' + lk]);
+  }
+  h.push('<dl class="stats">' + stats.map(function (s) { return '<div><dt>' + s[0] + '</dt><dd>' + esc(s[1]) + '</dd></div>'; }).join('') + '</dl>');
+  if (sec === 'code') {
+    var fs = codeFuncs();
+    if (!fs.length) return h.join('') + '<p class="hint">No function definitions in the code yet.</p>';
+    h.push('<div class="mm-wrap"><table class="mm"><thead><tr><th>Address</th><th>Function</th><th>Defined on</th></tr></thead><tbody>');
+    fs.forEach(function (f) { h.push('<tr data-line="' + f.line + '" style="cursor:pointer"><td class="a">' + hex(f.addr) + '</td><td>' + esc(f.name) + '()</td><td>line ' + f.line + '</td></tr>'); });
+    h.push('</tbody></table></div><p class="hint">String literals live with the static data in this board, in its read-only part.</p>');
+    return h.join('');
+  }
+  h.push('<div class="mm-tools"><span>' + (lec ? 'Drawn in the direction this region grows' : 'High addresses at the top') + '</span><label><input type="checkbox" id="f-bytes" data-f="bytes"' + (ui.bytes ? ' checked' : '') + '> Show bytes</label></div>');
+  if (!list.length) { h.push('<p class="hint">Nothing in this region in this step.</p>'); return h.join(''); }
+  var cols = ui.bytes ? 4 : 3;
+  h.push('<div class="mm-wrap"><table class="mm sec-' + D.cls + '"><thead><tr>' + (ui.bytes ? '<th>Address</th><th>Byte</th><th>Hex</th><th>Holds</th>' : '<th>Address</th><th>Name</th><th>Value</th>') + '</tr></thead><tbody>');
+  if (sec === 'stack') {
+    h.push('<tr class="gap"><td colspan="' + cols + '">' + (lec ? '↑ the next local goes here, toward the heap' : 'top of the stack frame area, ' + hex(BASES.stack)) + '</td></tr>');
+    var frames = [], byFrame = {};
+    list.forEach(function (b) { var f = b.frame || ''; if (!byFrame[f]) { byFrame[f] = []; frames.push(f); } byFrame[f].push(b); });
+    frames.forEach(function (f) {
+      h.push('<tr class="fh"><td colspan="' + cols + '">' + (f ? esc(f) + '() stack frame' : 'drawn by hand') + '</td></tr>');
+      byFrame[f].forEach(function (b) { var on = sel && sel.kind === 'block' && sel.id === b.id; h.push(blockHeadRow(b, leaks, cols, on) + slotRows(st, b, on)); });
+    });
+    if (!lec) h.push('<tr class="gap"><td colspan="' + cols + '">↓ the next local goes here, toward the heap</td></tr>');
+  } else {
+    if (sec === 'heap' && !lec) h.push('<tr class="gap"><td colspan="' + cols + '">↑ the next malloc goes here, toward the stack</td></tr>');
+    var region = null;
+    list.forEach(function (b) {
+      if (sec === 'static' && b.region !== region) { region = b.region; h.push('<tr class="fh"><td colspan="' + cols + '">' + (region === 'rodata' ? 'read-only data (string literals)' : 'globals and statics') + '</td></tr>'); }
+      var on = sel && sel.kind === 'block' && sel.id === b.id;
+      h.push(blockHeadRow(b, leaks, cols, on) + slotRows(st, b, on));
+    });
+    if (sec === 'heap' && lec) h.push('<tr class="gap"><td colspan="' + cols + '">↓ the next malloc goes here, toward the stack</td></tr>');
+  }
+  h.push('</tbody></table></div>');
+  if (sec === 'stack' && lec) h.push('<p class="hint">Newest variables are at the top, as in the lecture diagram. On x86-64 Linux each new variable actually gets a <i>lower</i> address, which is why the addresses get smaller toward the top.</p>');
+  if (ui.bytes) h.push('<p class="hint">Bytes are little-endian, as on x86-64 and ARM: the lowest address holds the lowest byte. Padding between struct fields is not shown.</p>');
+  return h.join('');
+}
+
+/* ================= editing operations ================= */
+function mutate(fn) {
+  pushUndo();
+  try { fn(); } catch (e) { undoStack.pop(); toast(e.message, true); renderAll(); return false; }
+  fixSel(); renderAll(); save();
+  return true;
+}
+function relayout(b, keepAddr) {
+  var old = b.size;
+  layout(b);
+  if (!keepAddr && b.size > old) b.addr = allocAddr(S(), b.region, b.size, b.align, b.allocSize);
+}
+function setSlotFromText(b, i, text) {
+  var sl = b.slots[i];
+  text = String(text).trim();
+  if (text === '' || text === '?') { sl.value = null; return; }
+  var r = evalForSlot(S(), text, sl.type);
+  if (r.error) throw new Error(r.error);
+  /* evaluation may have created blocks (malloc, string literals); adopt that state */
+  var cur = doc.steps[doc.cur];
+  var nb = findBlock(r.state, b.id);
+  nb.slots[i].value = r.value;
+  cur.state = r.state;
+  if (r.msgs && r.msgs.length) toast(r.msgs.map(function (m) { return m.text; }).join(' · '));
+}
+function uniqueName(base) {
+  var st = S(), n = base, k = 2;
+  function taken(x) { return st.blocks.some(function (b) { return b.name === x; }); }
+  while (taken(n)) n = base + k++;
+  return n;
+}
+var addCascade = 0;
+function viewCenter(w, h) {
+  var s = svgSize(), c = toWorld(s.l + s.w / 2, s.t + s.h / 2);
+  addCascade = (addCascade + 1) % 6;
+  return { x: Math.round((c.x - w / 2 + addCascade * 22) / 4) * 4, y: Math.round((c.y - h / 2 + addCascade * 22) / 4) * 4 };
+}
+function freeSpot(w, h) {
+  var s = svgSize(), c = toWorld(s.l + s.w / 2, s.t + s.h / 2), st = S();
+  var x0 = Math.round((c.x - w / 2) / 4) * 4, y0 = Math.round((c.y - h / 2) / 4) * 4;
+  function hit(x, y) {
+    return st.blocks.some(function (b) { var r = blockRect(b); return x < r.x + r.w + 18 && r.x < x + w + 18 && y < r.y + r.h + 18 && r.y < y + h + 18; });
+  }
+  for (var col = 0; col < 6; col++) {
+    for (var row = 0; row < 8; row++) {
+      var x = x0 + (col % 2 ? -1 : 1) * Math.ceil(col / 2) * (w + 40), y = y0 + row * 44;
+      if (!hit(x, y)) return { x: x, y: y };
+    }
+  }
+  return { x: x0 + 30, y: y0 + 30 };
+}
+function addThing(kind) {
+  var st = S(), made = null;
+  mutate(function () {
+    if (kind === 'note' || kind === 'group') {
+      var w = kind === 'note' ? 190 : 320, hh = kind === 'note' ? 96 : 220, p = viewCenter(w, hh);
+      var o = { id: uid(kind === 'note' ? 'n' : 'g'), x: p.x, y: p.y, w: w, h: hh };
+      if (kind === 'note') { o.text = 'Note: '; st.notes.push(o); } else { o.label = 'Stack frame: main'; st.groups.unshift(o); }
+      sel = { kind: kind, id: o.id };
+      return;
+    }
+    var spec;
+    if (kind === 'var') spec = { name: uniqueName('x'), kind: 'scalar', slots: [{ label: '', type: 'int', value: null }] };
+    else if (kind === 'ptr') spec = { name: uniqueName('p'), kind: 'scalar', slots: [{ label: '', type: 'int*', value: null }] };
+    else if (kind === 'arr') { spec = { name: uniqueName('arr'), kind: 'array', slots: [] }; for (var k = 0; k < 4; k++) spec.slots.push({ label: '[' + k + ']', type: 'int', value: null }); }
+    else if (kind === 'heap') spec = { name: '', region: 'heap', kind: 'scalar', slots: [{ label: '', type: 'int', value: null }], allocSize: 4 };
+    else if (kind === 'struct') {
+      var tn = Object.keys(STRUCTS)[0];
+      if (!tn) { tn = 'struct Node'; registerStruct(tn, [{ name: 'data', type: 'int' }, { name: 'next', type: 'struct Node*' }]); }
+      spec = { name: uniqueName('node'), kind: 'struct', typeName: tn, slots: structSlots(tn, null) };
+    }
+    spec.region = spec.region || 'stack';
+    var tmp = { kind: spec.kind, slots: spec.slots, typeName: spec.typeName || '' };
+    layout(tmp);
+    var g = geom(tmp), p2 = freeSpot(g.w, g.h);
+    spec.x = p2.x; spec.y = p2.y;
+    made = makeBlock(st, spec);
+    sel = { kind: 'block', id: made.id, slot: 0 };
+  });
+  if (made) {
+    ui.tab = 'inspect'; renderPane();
+    var f = $('f-sv0') || $('f-name');
+    if (f && window.matchMedia('(min-width: 1081px)').matches) f.focus();
+  }
+}
+function deleteSel() {
+  if (!sel) return;
+  var st = S();
+  mutate(function () {
+    if (sel.kind === 'block') st.blocks = st.blocks.filter(function (b) { return b.id !== sel.id; });
+    if (sel.kind === 'note') st.notes = st.notes.filter(function (n) { return n.id !== sel.id; });
+    if (sel.kind === 'group') st.groups = st.groups.filter(function (g) { return g.id !== sel.id; });
+    sel = null;
+  });
+}
+function applyField(el) {
+  var f = el.getAttribute('data-f'), st = S();
+  if (f === 'bytes') { ui.bytes = el.checked; renderPane(); return; }
+  if (!sel) return;
+  if (f === 'ntext') { mutate(function () { st.notes.forEach(function (n) { if (n.id === sel.id) n.text = el.value; }); }); return; }
+  if (f === 'glabel') { mutate(function () { st.groups.forEach(function (g) { if (g.id === sel.id) g.label = el.value; }); }); return; }
+  var b = findBlock(st, sel.id);
+  if (!b) return;
+  mutate(function () {
+    b = findBlock(S(), sel.id);
+    if (f === 'name') {
+      var nm = el.value.trim();
+      if (nm && !/^[A-Za-z_]\w*$/.test(nm) && b.region !== 'rodata') throw new Error('"' + nm + '" is not a valid C name');
+      b.name = nm;
+    } else if (f === 'stype') {
+      var t = typeInfo(el.value.trim());
+      if (t.struct && t.ptr === 0) throw new Error('to make a struct, use the Struct button');
+      b.slots[0].type = el.value.trim().replace(/\s*\*/g, '*');
+      b.slots[0].value = coerce(b.slots[0].value, t);
+      relayout(b);
+    } else if (f === 'etype') {
+      var et = typeInfo(el.value.trim());
+      if (et.struct && et.ptr === 0) throw new Error('arrays of structs are not supported');
+      b.slots.forEach(function (s) { s.type = el.value.trim().replace(/\s*\*/g, '*'); s.value = coerce(s.value, et); });
+      relayout(b);
+    } else if (f === 'alen') {
+      var n = Math.max(1, Math.min(64, parseInt(el.value, 10) || 1)), ty = b.slots[0].type;
+      while (b.slots.length < n) b.slots.push({ label: '[' + b.slots.length + ']', type: ty, value: null });
+      b.slots.length = n;
+      relayout(b);
+    } else if (f === 'tname' || f === 'fields') {
+      var tn = ($('f-tname').value || '').trim().replace(/^(struct\s+)?/, 'struct ');
+      if (!/^struct [A-Za-z_]\w*$/.test(tn)) throw new Error('a struct type looks like "struct Node"');
+      if (CODE_STRUCTS[tn]) {
+        if (f === 'fields') throw new Error(tn + ' is defined on line ' + CODE_STRUCTS[tn] + ' of your code. Edit the code to change its fields.');
+      } else {
+        var fields = parseFields(($('f-fields').value || '').replace(/\n/g, ';'));
+        if (!fields.length) throw new Error('a struct needs at least one field, like "int data;"');
+        var seen = {};
+        fields.forEach(function (fd) {
+          typeInfo(fd.type);
+          if (seen[fd.name]) throw new Error('two fields are both called "' + fd.name + '"');
+          seen[fd.name] = 1;
+        });
+        if (f === 'fields' || !STRUCTS[tn]) registerStruct(tn, fields);
+      }
+      b.typeName = tn;
+      syncAllStructs();
+    } else if (f === 'region') {
+      b.region = el.value;
+      b.addr = allocAddr(S(), b.region, b.size, b.align, b.allocSize || b.size);
+      if (b.region !== 'heap') b.freed = false;
+    } else if (f === 'addr') {
+      var v = el.value.trim(), a = /^0x/i.test(v) ? parseInt(v, 16) : parseInt(v, 10);
+      if (!(a >= 0)) throw new Error('an address looks like 0x7000');
+      b.addr = a;
+      var clash = S().blocks.filter(function (o) { return o !== b && a < o.addr + o.size && o.addr < a + b.size; })[0];
+      if (clash) toast('Heads up: this overlaps ' + blockTitle(clash) + ' (' + hex(clash.addr) + ')');
+    } else if (f === 'sv') {
+      setSlotFromText(b, +el.getAttribute('data-i'), el.value);
+    }
+  });
+}
+
+/* ================= toasts, inline editor ================= */
+var toastTimer = null;
+function toast(text, isErr) {
+  var t = $('toast');
+  t.textContent = text; t.className = 'toast' + (isErr ? ' err' : ''); t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.hidden = true; }, isErr ? 6000 : 3800);
+}
+var inlineEd = null;
+function openInline(b, mode, i) {
+  closeInline(false);
+  var r = mode === 'name' ? { x: b.x + 6, y: b.y + 4, w: geom(b).w - 12, h: 22 } : slotRect(b, i);
+  var s = svgSize(), wrap = $('wrap').getBoundingClientRect();
+  var inp = document.createElement('input');
+  inp.className = 'inline-ed';
+  inp.id = 'inline-editor';
+  inp.setAttribute('aria-label', mode === 'name' ? 'Rename' : 'New value for ' + slotName(b, i));
+  inp.value = mode === 'name' ? b.name : editText(b.slots[i]);
+  inp.placeholder = mode === 'name' ? 'name' : '?';
+  var left = s.l - wrap.left + view.x + r.x * view.k, top = s.t - wrap.top + view.y + r.y * view.k;
+  var w = Math.max(110, r.w * view.k);
+  inp.style.left = left + 'px'; inp.style.top = (top + (r.h * view.k - 30) / 2) + 'px'; inp.style.width = w + 'px'; inp.style.height = '30px';
+  $('wrap').appendChild(inp);
+  inlineEd = { el: inp, bid: b.id, mode: mode, i: i };
+  inp.focus(); inp.select();
+  inp.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); closeInline(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); closeInline(false); }
+    e.stopPropagation();
+  });
+  inp.addEventListener('blur', function () { closeInline(true); });
+}
+function closeInline(commit) {
+  if (!inlineEd) return;
+  var ed = inlineEd;
+  inlineEd = null;
+  var v = ed.el.value;
+  ed.el.remove();
+  if (!commit) return;
+  var b = findBlock(S(), ed.bid);
+  if (!b) return;
+  if (ed.mode === 'name') {
+    if (v.trim() === b.name) return;
+    mutate(function () {
+      var nm = v.trim();
+      if (nm && !/^[A-Za-z_]\w*$/.test(nm)) throw new Error('"' + nm + '" is not a valid C name');
+      findBlock(S(), ed.bid).name = nm;
+    });
+  } else {
+    if (v.trim() === editText(b.slots[ed.i])) return;
+    mutate(function () { setSlotFromText(findBlock(S(), ed.bid), ed.i, v); });
+  }
+}
+/* ================= app: panel layout (resize, collapse, expand code) ================= */
+var LAYOUT_KEY = STORE_KEY + '-layout';
+var LAY_DEFAULT = { lw: 310, rw: 330, lOpen: true, rOpen: true, codeH: 0, wide: false, prev: null };
+var lay = JSON.parse(JSON.stringify(LAY_DEFAULT));
+try { var savedLay = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null'); if (savedLay) Object.keys(LAY_DEFAULT).forEach(function (k) { if (savedLay[k] !== undefined) lay[k] = savedLay[k]; }); } catch (e) { /* ignore */ }
+var MIN_L = 220, MIN_R = 260, MIN_C = 380, RAIL_OPEN = 8, RAIL_OFF = 22;
+function saveLayout() { try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(lay)); } catch (e) { /* ignore */ } }
+function isStacked() { return !window.matchMedia('(min-width: 1081px)').matches; }
+/* widths actually used: the saved preference, squeezed if the window is too small to keep the canvas usable */
+function effectiveWidths() {
+  var W = $('main').clientWidth || window.innerWidth;
+  var rails = (lay.lOpen ? RAIL_OPEN : RAIL_OFF) + (lay.rOpen ? RAIL_OPEN : RAIL_OFF);
+  var room = Math.max(0, W - MIN_C - rails);
+  var l = lay.lOpen ? Math.max(MIN_L, lay.lw) : 0, r = lay.rOpen ? Math.max(MIN_R, lay.rw) : 0;
+  if (l + r > room) {
+    var over = l + r - room;
+    var lc = lay.lOpen ? Math.min(over * (l / (l + r || 1)), l - MIN_L) : 0;
+    l -= lc; over -= lc;
+    if (lay.rOpen) { var rc = Math.min(over, r - MIN_R); r -= rc; over -= rc; }
+    if (over > 0 && lay.lOpen) l = Math.max(MIN_L, l - over);
+  }
+  return { l: Math.round(l), r: Math.round(r) };
+}
+function applyLayout(noComp) {
+  var cvBox = $('cv').getBoundingClientRect(), beforeL = cvBox.left, beforeW = cvBox.width;
+  $('leftPanel').hidden = !lay.lOpen;
+  $('rightPanel').hidden = !lay.rOpen;
+  $('leftPanel').classList.toggle('wide', !!lay.wide);
+  var main = $('main');
+  if (isStacked()) main.style.gridTemplateColumns = '';
+  else {
+    var w = effectiveWidths();
+    main.style.gridTemplateColumns = (lay.lOpen ? w.l + 'px ' + RAIL_OPEN + 'px' : '0px ' + RAIL_OFF + 'px') + ' minmax(0, 1fr) ' + (lay.rOpen ? RAIL_OPEN + 'px ' + w.r + 'px' : RAIL_OFF + 'px 0px');
+    $('rzL').setAttribute('aria-valuenow', w.l); $('rzR').setAttribute('aria-valuenow', w.r);
+  }
+  [['l', 'rzL', 'togL'], ['r', 'rzR', 'togR']].forEach(function (p) {
+    var open = p[0] === 'l' ? lay.lOpen : lay.rOpen;
+    $(p[1]).classList.toggle('off', !open);
+    $(p[1]).setAttribute('aria-expanded', String(open));
+    $(p[2]).setAttribute('aria-pressed', String(open));
+  });
+  /* keep the drawing where it was on screen while the canvas changes size */
+  var after = $('cv').getBoundingClientRect();
+  if (!noComp && beforeW > 0 && after.width > 0 && !isStacked()) view.x += beforeL - after.left;
+  renderCanvas();
+}
+function togglePanel(side, force) {
+  var key = side === 'l' ? 'lOpen' : 'rOpen';
+  lay[key] = force === undefined ? !lay[key] : force;
+  if (side === 'l' && !lay.lOpen && lay.wide) { lay.wide = false; if (lay.prev) { lay.lw = lay.prev.lw; lay.codeH = lay.prev.codeH; } }
+  applyLayout(); saveLayout(); save();
+  if (lay[key]) { var first = $(side === 'l' ? 'leftPanel' : 'rightPanel').querySelector('button, input, [tabindex="0"]'); if (first && document.activeElement && document.activeElement.closest && document.activeElement.closest('.resizer')) first.focus(); }
+}
+function toggleWide() {
+  if (!lay.wide) {
+    lay.prev = { lw: lay.lw, codeH: lay.codeH };
+    lay.wide = true; lay.lOpen = true;
+    lay.lw = Math.max(lay.lw, Math.round(window.innerWidth * 0.42));
+    lay.codeH = Math.max(lay.codeH || 0, Math.round(window.innerHeight * 0.58));
+  } else {
+    lay.wide = false;
+    if (lay.prev) { lay.lw = lay.prev.lw; lay.codeH = lay.prev.codeH; }
+  }
+  applyLayout(); renderCode(); saveLayout();
+}
+function codeBoxHeight() { return lay.codeH ? Math.max(120, Math.min(lay.codeH, window.innerHeight - 160)) : 0; }
+
+/* dragging the dividers */
+function bindResizer(id, side) {
+  var el = $(id), drag = null;
+  el.addEventListener('pointerdown', function (e) {
+    var open = side === 'l' ? lay.lOpen : lay.rOpen;
+    if (!open) { togglePanel(side, true); e.preventDefault(); return; }
+    e.preventDefault();
+    var w = effectiveWidths();
+    drag = { x: e.clientX, w0: side === 'l' ? w.l : w.r, moved: false };
+    el.classList.add('dragging');
+    try { el.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+  });
+  el.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = e.clientX - drag.x;
+    if (Math.abs(dx) > 1) drag.moved = true;
+    var W = $('main').clientWidth, other = side === 'l' ? (lay.rOpen ? effectiveWidths().r : 0) : (lay.lOpen ? effectiveWidths().l : 0);
+    var max = Math.max(side === 'l' ? MIN_L : MIN_R, W - MIN_C - other - 2 * RAIL_OFF);
+    var nw = Math.max(side === 'l' ? MIN_L : MIN_R, Math.min(max, drag.w0 + (side === 'l' ? dx : -dx)));
+    if (side === 'l') { lay.lw = nw; if (lay.wide) { lay.wide = false; lay.prev = null; renderCode(); } } else lay.rw = nw;
+    applyLayout();
+  });
+  function end() { if (!drag) return; drag = null; el.classList.remove('dragging'); saveLayout(); save(); }
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+  el.addEventListener('dblclick', function () {
+    if (side === 'l') { lay.lw = LAY_DEFAULT.lw; lay.wide = false; renderCode(); } else lay.rw = LAY_DEFAULT.rw;
+    applyLayout(); saveLayout(); save();
+  });
+  el.addEventListener('keydown', function (e) {
+    var step = e.shiftKey ? 64 : 16, k = side === 'l' ? 1 : -1;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      e.preventDefault(); e.stopPropagation();
+      var w = effectiveWidths(), d = (e.key === 'ArrowRight' ? step : -step) * k;
+      if (side === 'l') lay.lw = Math.max(MIN_L, w.l + d); else lay.rw = Math.max(MIN_R, w.r + d);
+      applyLayout(); saveLayout(); save();
+    } else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); togglePanel(side); }
+  });
+}
+/* dragging the grip under the code box */
+var gripDrag = null;
+function bindCodeGrip() {
+  document.addEventListener('pointerdown', function (e) {
+    var g = e.target.closest && e.target.closest('#codeGrip');
+    if (!g) return;
+    e.preventDefault();
+    var box = $('codeList');
+    gripDrag = { y: e.clientY, h0: box ? box.offsetHeight : 240, el: g };
+    g.classList.add('dragging');
+    try { g.setPointerCapture(e.pointerId); } catch (x) { /* ignore */ }
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!gripDrag) return;
+    var h = Math.max(120, Math.min(window.innerHeight - 160, gripDrag.h0 + e.clientY - gripDrag.y));
+    lay.codeH = Math.round(h);
+    var box = $('codeList');
+    if (box) { box.style.height = lay.codeH + 'px'; box.style.maxHeight = 'none'; }
+  });
+  function end() { if (!gripDrag) return; gripDrag.el.classList.remove('dragging'); gripDrag = null; saveLayout(); }
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
+  document.addEventListener('dblclick', function (e) { if (e.target.closest && e.target.closest('#codeGrip')) { lay.codeH = 0; saveLayout(); renderCode(); } });
+  document.addEventListener('keydown', function (e) {
+    if (!(e.target.id === 'codeGrip' && (e.key === 'ArrowUp' || e.key === 'ArrowDown'))) return;
+    e.preventDefault(); e.stopPropagation();
+    var box = $('codeList'), cur = box ? box.offsetHeight : 240;
+    lay.codeH = Math.max(120, Math.min(window.innerHeight - 160, cur + (e.key === 'ArrowDown' ? 32 : -32)));
+    saveLayout(); renderCode();
+    var g = $('codeGrip'); if (g) g.focus();
+  }, true);
+}
+function setupLayout() {
+  bindResizer('rzL', 'l');
+  bindResizer('rzR', 'r');
+  bindCodeGrip();
+  bindCodeEditorKeys();
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-panel]');
+    if (!b) return;
+    e.stopPropagation();
+    togglePanel(b.getAttribute('data-panel'));
+  }, true);
+  var rt = null;
+  window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { applyLayout(true); }, 60); });
+  applyLayout(true);
+}
+
+/* ================= code editor keys: indentation like a real editor ================= */
+var INDENT = '    ';
+var tabLeaves = false;
+function taReplace(ta, a, b, text, selA, selB) {
+  ta.focus();
+  ta.setSelectionRange(a, b);
+  var ok = false;
+  try { ok = document.execCommand('insertText', false, text); } catch (e) { ok = false; }
+  if (!ok || ta.value.slice(a, a + text.length) !== text) ta.setRangeText(text, a, b, 'end');
+  ta.setSelectionRange(selA != null ? selA : a + text.length, selB != null ? selB : (selA != null ? selA : a + text.length));
+}
+function bindCodeEditorKeys() {
+  document.addEventListener('keydown', function (e) {
+    var ta = e.target;
+    if (!ta || ta.id !== 'codeText') return;
+    if (e.key === 'Escape') { tabLeaves = true; return; }
+    if (e.key !== 'Tab') tabLeaves = false;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var v = ta.value, s = ta.selectionStart, en = ta.selectionEnd;
+    var ls = v.lastIndexOf('\n', s - 1) + 1;
+    if (e.key === 'Tab') {
+      if (tabLeaves) { tabLeaves = false; return; }
+      e.preventDefault();
+      var multi = s !== en && v.slice(s, en).indexOf('\n') >= 0;
+      if (multi || e.shiftKey) {
+        var endAt = (en > s && v[en - 1] === '\n') ? en - 1 : en;
+        var le = v.indexOf('\n', endAt); if (le < 0) le = v.length;
+        var lines = v.slice(ls, le).split('\n'), firstShift = 0, total = 0;
+        var out = lines.map(function (l, k) {
+          if (e.shiftKey) {
+            var m = /^( {1,4}|\t)/.exec(l), cut = m ? m[0].length : 0;
+            if (k === 0) firstShift = -cut;
+            total -= cut;
+            return l.slice(cut);
+          }
+          if (!l.trim()) return l;
+          if (k === 0) firstShift = INDENT.length;
+          total += INDENT.length;
+          return INDENT + l;
+        }).join('\n');
+        if (multi) taReplace(ta, ls, le, out, ls, ls + out.length);
+        else taReplace(ta, ls, le, out, Math.max(ls, s + firstShift), Math.max(ls, en + total));
+      } else {
+        var col = s - ls, n = INDENT.length - (col % INDENT.length);
+        taReplace(ta, s, en, INDENT.slice(0, n));
+      }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      var line = v.slice(ls, s), ind = (/^[ \t]*/.exec(line) || [''])[0];
+      var before = line.trim(), after = v.slice(en, (v.indexOf('\n', en) + 1 || v.length + 1) - 1).trim();
+      if (/\{$/.test(before)) {
+        if (/^\}/.test(after)) { taReplace(ta, s, en, '\n' + ind + INDENT + '\n' + ind, s + 1 + ind.length + INDENT.length); return; }
+        ind += INDENT;
+      }
+      taReplace(ta, s, en, '\n' + ind);
+    } else if (e.key === '}' && s === en) {
+      var pre = v.slice(ls, s);
+      if (/^[ \t]+$/.test(pre)) {
+        e.preventDefault();
+        var cut2 = /\t$/.test(pre) ? 1 : Math.min(INDENT.length, pre.length - (pre.replace(/ +$/, '').length) ) ;
+        taReplace(ta, s - cut2, s, '}');
+      }
+    } else if (e.key === 'Backspace' && s === en && s > ls) {
+      var pre2 = v.slice(ls, s);
+      if (/^ +$/.test(pre2) && pre2.length % INDENT.length === 0) { e.preventDefault(); taReplace(ta, s - INDENT.length, s, ''); }
+    }
+  });
+}
+/* ================= app: input handling and startup ================= */
+var act = null, touches = {}, lastTap = { t: 0, key: '' };
+function snap4(v) { return Math.round(v / 4) * 4; }
+function capture(e) { try { $('cv').setPointerCapture(e.pointerId); } catch (x) { /* ignore */ } }
+function itemById(kind, id) {
+  var st = S(), list = kind === 'note' ? st.notes : kind === 'group' ? st.groups : st.blocks;
+  for (var k = 0; k < list.length; k++) if (list[k].id === id) return list[k];
+  return null;
+}
+function insideGroup(g) {
+  var st = S(), items = [];
+  st.blocks.forEach(function (b) { var r = blockRect(b), cx = r.x + r.w / 2, cy = r.y + r.h / 2; if (cx > g.x && cx < g.x + g.w && cy > g.y && cy < g.y + g.h) items.push(b); });
+  st.notes.forEach(function (n) { var cx = n.x + n.w / 2, cy = n.y + n.h / 2; if (cx > g.x && cx < g.x + g.w && cy > g.y && cy < g.y + g.h) items.push(n); });
+  return items;
+}
+function selectAndShow(s) {
+  var changed = JSON.stringify(s) !== JSON.stringify(sel);
+  sel = s;
+  if (changed) {
+    renderCanvas();
+    if (s && s.kind === 'block' && ui.tab === 'map' && ui.mapView !== 'overview') { var bb = findBlock(S(), s.id); if (bb) ui.mapView = sectionOf(bb.region); }
+    renderPane();
+  }
+}
+function onDown(e) {
+  if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 1) return;
+  if (inlineEd) closeInline(true);
+  touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+  var ids = Object.keys(touches);
+  if (ids.length === 2) {
+    var a = touches[ids[0]], b = touches[ids[1]];
+    if (act && act.snap && act.moved) { undoStack.push(act.snap); redoStack.length = 0; }
+    linking = null;
+    act = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y), k0: view.k, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, vx: view.x, vy: view.y };
+    capture(e);
+    return;
+  }
+  var t = e.target, w = toWorld(e.clientX, e.clientY);
+  var port = t.closest && t.closest('[data-port]'), rz = t.closest && t.closest('[data-rz]');
+  var bEl = t.closest && t.closest('[data-b]'), nEl = t.closest && t.closest('[data-n]'), gEl = t.closest && t.closest('.ghead') && t.closest('[data-g]');
+  capture(e);
+  if (e.button === 1) { act = { type: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; return; }
+  if (port) {
+    var pp = port.getAttribute('data-port').split(':');
+    sel = { kind: 'block', id: pp[0], slot: +pp[1] };
+    linking = { bid: pp[0], si: +pp[1], x: w.x, y: w.y, hover: null };
+    act = { type: 'link' };
+    renderCanvas(); renderPane();
+    return;
+  }
+  if (rz) {
+    var rp = rz.getAttribute('data-rz').split(':'), obj = itemById(rp[0] === 'n' ? 'note' : 'group', rp[1]);
+    act = { type: 'resize', obj: obj, sx: w.x, sy: w.y, w0: obj.w, h0: obj.h, snap: snapshot(), moved: false };
+    return;
+  }
+  if (bEl) {
+    var id = bEl.getAttribute('data-b'), sEl = t.closest('[data-s]'), hd = t.closest('[data-hd]');
+    var si = sEl ? +sEl.getAttribute('data-s') : null, blk = findBlock(S(), id);
+    act = { type: 'move', items: [{ o: blk, x0: blk.x, y0: blk.y }], sx: w.x, sy: w.y, snap: snapshot(), moved: false,
+      key: id + ':' + (hd ? 'hd' : si), dbl: hd ? { mode: 'name' } : (si !== null ? { mode: 'val', i: si } : null) };
+    selectAndShow({ kind: 'block', id: id, slot: si });
+    return;
+  }
+  if (nEl || gEl) {
+    var isN = !!nEl, oid = (nEl || gEl).getAttribute(isN ? 'data-n' : 'data-g'), o = itemById(isN ? 'note' : 'group', oid);
+    var items = [{ o: o, x0: o.x, y0: o.y }];
+    if (!isN) insideGroup(o).forEach(function (it) { items.push({ o: it, x0: it.x, y0: it.y }); });
+    act = { type: 'move', items: items, sx: w.x, sy: w.y, snap: snapshot(), moved: false, key: oid, dbl: { mode: isN ? 'note' : 'group' } };
+    selectAndShow({ kind: isN ? 'note' : 'group', id: oid });
+    return;
+  }
+  if (sel) selectAndShow(null);
+  act = { type: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
+}
+function onMove(e) {
+  if (touches[e.pointerId]) touches[e.pointerId] = { x: e.clientX, y: e.clientY };
+  if (!act) return;
+  if (act.type === 'pinch') {
+    var ids = Object.keys(touches);
+    if (ids.length < 2) return;
+    var a = touches[ids[0]], b = touches[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y);
+    var s = svgSize(), nk = Math.max(0.25, Math.min(3, act.k0 * d / act.d0));
+    var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    var wx = (act.cx - s.l - act.vx) / act.k0, wy = (act.cy - s.t - act.vy) / act.k0;
+    view.k = nk; view.x = mx - s.l - wx * nk; view.y = my - s.t - wy * nk;
+    renderCanvas();
+    return;
+  }
+  if (act.type === 'pan') { view.x = act.vx + e.clientX - act.sx; view.y = act.vy + e.clientY - act.sy; renderCanvas(); return; }
+  var w = toWorld(e.clientX, e.clientY);
+  if (act.type === 'move') {
+    var dx = w.x - act.sx, dy = w.y - act.sy;
+    if (!act.moved && Math.abs(dx) + Math.abs(dy) < 3 / view.k) return;
+    act.moved = true;
+    act.items.forEach(function (it) { it.o.x = snap4(it.x0 + dx); it.o.y = snap4(it.y0 + dy); });
+    renderCanvas();
+  } else if (act.type === 'resize') {
+    act.moved = true;
+    act.obj.w = Math.max(120, snap4(act.w0 + w.x - act.sx));
+    act.obj.h = Math.max(60, snap4(act.h0 + w.y - act.sy));
+    renderCanvas();
+  } else if (act.type === 'link') {
+    linking.x = w.x; linking.y = w.y;
+    var el = document.elementFromPoint(e.clientX, e.clientY), hov = null;
+    var hb = el && el.closest && el.closest('[data-b]');
+    if (hb) { var hs = el.closest('[data-s]'); hov = { bid: hb.getAttribute('data-b'), si: hs ? +hs.getAttribute('data-s') : -1 }; }
+    linking.hover = hov;
+    renderCanvas();
+  }
+}
+function onUp(e) {
+  delete touches[e.pointerId];
+  if (!act) return;
+  var a = act;
+  if (a.type === 'pinch') { if (Object.keys(touches).length === 0) { act = null; save(); } return; }
+  act = null;
+  if (a.type === 'pan') { save(); return; }
+  if (a.type === 'link') {
+    var L = linking; linking = null;
+    if (L.hover) {
+      var tb = findBlock(S(), L.hover.bid), src = findBlock(S(), L.bid);
+      if (tb && src) {
+        var addr = L.hover.si >= 0 && !(tb.kind === 'scalar') ? slotAddr(tb, L.hover.si) : tb.addr;
+        var tgtType = L.hover.si >= 0 ? tb.slots[L.hover.si].type : blockType(tb);
+        mutate(function () { findBlock(S(), L.bid).slots[L.si].value = addr; });
+        var pt = typeInfo(src.slots[L.si].type), want = pointee(pt).str;
+        if (want !== 'void' && tb.kind !== 'struct' && typeInfo(tgtType).str !== want && pointee(pt).base !== 'void') toast('Pointed at ' + hex(addr) + '. Note: ' + slotName(src, L.si) + ' is ' + pt.str + ' but the target holds ' + tgtType + '.');
+        return;
+      }
+    }
+    toast('Drop the end of the arrow on a box to point there. To make it NULL, type NULL into its value.');
+    renderCanvas();
+    return;
+  }
+  if (a.moved) { undoStack.push(a.snap); if (undoStack.length > 120) undoStack.shift(); redoStack.length = 0; $('undo').disabled = false; save(); renderPane(); return; }
+  if (a.type === 'move' && a.dbl) {
+    var now = Date.now();
+    if (now - lastTap.t < 420 && lastTap.key === a.key) {
+      lastTap = { t: 0, key: '' };
+      if (a.dbl.mode === 'name' || a.dbl.mode === 'val') {
+        var bl = findBlock(S(), sel.id);
+        if (bl) openInline(bl, a.dbl.mode === 'name' ? 'name' : 'val', a.dbl.i);
+      } else {
+        ui.tab = 'inspect'; renderPane();
+        var f = $(a.dbl.mode === 'note' ? 'f-ntext' : 'f-glabel');
+        if (f) { f.focus(); f.select && f.select(); }
+      }
+    } else lastTap = { t: now, key: a.key };
+  }
+}
+
+function setup() {
+  var cv = $('cv');
+  cv.addEventListener('pointerdown', onDown);
+  cv.addEventListener('pointermove', onMove);
+  cv.addEventListener('pointerup', onUp);
+  cv.addEventListener('pointercancel', onUp);
+  $('wrap').addEventListener('wheel', function (e) {
+    var wide = window.matchMedia('(min-width: 1081px)').matches;
+    if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0045), e.clientX, e.clientY); }
+    else if (wide) { e.preventDefault(); view.x -= e.deltaX; view.y -= e.deltaY; renderCanvas(); save(); }
+  }, { passive: false });
+  $('legendBtn').addEventListener('click', function () {
+    var lg = $('legend'), mini = !lg.classList.contains('mini');
+    lg.classList.toggle('mini', mini);
+    $('legendBtn').setAttribute('aria-expanded', String(!mini));
+    $('legendBtn').innerHTML = mini ? 'Key <span aria-hidden="true">+</span>' : 'Key <span aria-hidden="true">&times;</span>';
+    try { localStorage.setItem(STORE_KEY + '-key', mini ? '1' : ''); } catch (x) { /* ignore */ }
+  });
+  try { if (localStorage.getItem(STORE_KEY + '-key')) $('legendBtn').click(); } catch (x) { /* ignore */ }
+  $('zin').addEventListener('click', function () { zoomAt(1.2); });
+  $('zout').addEventListener('click', function () { zoomAt(1 / 1.2); });
+  $('zfit').addEventListener('click', fitView);
+  $('undo').addEventListener('click', undo);
+  $('redo').addEventListener('click', redo);
+  $('tabInspect').addEventListener('click', function () { ui.tab = 'inspect'; renderPane(); });
+  $('tabMap').addEventListener('click', function () { ui.tab = 'map'; renderPane(); });
+
+  var exSel = $('examples');
+  exSel.innerHTML = '<option value="">Load an example…</option>' + EXAMPLES.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title) + '</option>'; }).join('');
+  exSel.addEventListener('change', function () {
+    if (!exSel.value) return;
+    pushUndo();
+    loadExample(exSel.value);
+    exSel.value = '';
+    renderAll(); fitView(); save();
+    toast('Loaded. Every line already ran: use Back and Forward to watch it step by step.');
+  });
+  var clearBtn = $('clear'), armTimer = null;
+  clearBtn.addEventListener('click', function () {
+    if (!clearBtn.classList.contains('armed')) {
+      clearBtn.classList.add('armed'); clearBtn.textContent = 'Click again to clear';
+      armTimer = setTimeout(function () { clearBtn.classList.remove('armed'); clearBtn.textContent = 'Clear'; }, 3000);
+      return;
+    }
+    clearTimeout(armTimer); clearBtn.classList.remove('armed'); clearBtn.textContent = 'Clear';
+    pushUndo();
+    doc.steps = [{ id: uid('s'), line: null, state: newState(), msgs: [] }];
+    doc.cur = 0; sel = null; ui.lastResult = null; pendingLine = firstLine();
+    view = { x: 40, y: 56, k: 1 };
+    renderAll(); save();
+    toast('Cleared the drawing and the steps. The code is still there. Undo brings everything back.');
+  });
+
+  /* save / load dialog */
+  function openDlg() { $('dlgText').value = snapshot(); $('dlgMsg').textContent = ''; $('modal').hidden = false; $('dlgText').focus(); $('dlgText').select(); }
+  $('saveload').addEventListener('click', openDlg);
+  $('dlgClose').addEventListener('click', function () { $('modal').hidden = true; });
+  $('modal').addEventListener('click', function (e) { if (e.target === $('modal')) $('modal').hidden = true; });
+  $('dlgCopy').addEventListener('click', function () {
+    var ta = $('dlgText');
+    try {
+      navigator.clipboard.writeText(ta.value).then(function () { $('dlgMsg').textContent = 'Copied.'; }, function () { ta.select(); $('dlgMsg').textContent = 'Press Ctrl+C (Cmd+C) to copy the selected text.'; });
+    } catch (x) { ta.select(); $('dlgMsg').textContent = 'Press Ctrl+C (Cmd+C) to copy the selected text.'; }
+  });
+  $('dlgLoad').addEventListener('click', function () {
+    var before = snapshot();
+    try {
+      restore($('dlgText').value);
+      undoStack.push(before); redoStack.length = 0;
+      sel = null; pendingLine = firstLine();
+      $('modal').hidden = true;
+      renderAll(); fitView(); save();
+      toast('Board loaded.');
+    } catch (x) { restore(before); $('dlgMsg').textContent = 'Could not load that: ' + x.message; }
+  });
+
+  /* delegated clicks */
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    var add = t.closest('[data-add]');
+    if (add) { addThing(add.getAttribute('data-add')); return; }
+    var line = t.closest('[data-line]');
+    if (line) { pendingLine = +line.getAttribute('data-line'); ui.lastResult = null; renderCode(); renderStepbar(); save(); return; }
+    var a = t.closest('[data-a]');
+    if (a) {
+      var act2 = a.getAttribute('data-a');
+      if (act2 === 'run') runPending();
+      else if (act2 === 'manual') newManualStep();
+      else if (act2 === 'prev') goStep(doc.cur - 1);
+      else if (act2 === 'next') goStep(doc.cur + 1);
+      else if (act2 === 'widecode') toggleWide();
+      else if (act2 === 'syncstruct') mutate(function () { syncAllStructs(); });
+      else if (act2 === 'editcode') {
+        if (ui.editingCode) {
+          var v = $('codeText').value;
+          ui.editingCode = false;
+          if (v !== doc.code) {
+            pushUndo(); doc.code = v; defs = setDefs(v);
+            if (syncAllStructs()) toast('Updated the struct boxes to match the definitions in your code.');
+            if (!pendingLine || pendingLine > codeLines().length) pendingLine = firstLine();
+            save();
+          }
+        } else ui.editingCode = true;
+        renderAll();
+        if (ui.editingCode) $('codeText').focus();
+      } else if (act2 === 'delstep') {
+        e.stopPropagation();
+        var k = +a.getAttribute('data-k');
+        mutate(function () { doc.steps.splice(k, 1); if (doc.cur >= k) doc.cur = Math.max(0, doc.cur - 1); });
+      } else if (act2 === 'delsel') deleteSel();
+      else if (act2 === 'dup') {
+        var src = findBlock(S(), sel.id);
+        mutate(function () {
+          var c = JSON.parse(JSON.stringify(src));
+          c.id = uid('b'); c.name = src.name ? uniqueName(src.name) : ''; c.x = src.x + 28; c.y = src.y + 28;
+          c.addr = allocAddr(S(), c.region, c.size, c.align, c.allocSize || c.size);
+          S().blocks.push(c);
+          sel = { kind: 'block', id: c.id, slot: null };
+        });
+      } else if (act2 === 'togglefree') mutate(function () { var b = findBlock(S(), sel.id); b.freed = !b.freed; });
+      else if (act2 === 'readdr') mutate(function () { var b = findBlock(S(), sel.id); b.addr = allocAddr(S(), b.region, b.size, b.align, b.allocSize || b.size); });
+      return;
+    }
+    var stp = t.closest('[data-step]');
+    if (stp) { goStep(+stp.getAttribute('data-step')); return; }
+    var secBtn = t.closest('[data-sec]');
+    if (secBtn) { ui.mapView = secBtn.getAttribute('data-sec'); renderPane(); var pn = $('pane'); pn.scrollTop = 0; var bk = pn.querySelector('.sv-back'); if (bk) bk.focus(); return; }
+    var ordBtn = t.closest('[data-order]');
+    if (ordBtn) { ui.mapOrder = ordBtn.getAttribute('data-order'); try { localStorage.setItem('memory-whiteboard-v1-order', ui.mapOrder); } catch (x) { /* ignore */ } renderPane(); return; }
+    if (t.closest('[data-back]')) { ui.mapView = 'overview'; renderPane(); var pb = $('pane').querySelector('[data-sec]'); if (pb) pb.focus(); return; }
+    var mrow = t.closest('.mm tr[data-b]');
+    if (mrow) { sel = { kind: 'block', id: mrow.getAttribute('data-b'), slot: null }; renderCanvas(); renderPane(); }
+  });
+  $('pane').addEventListener('change', function (e) { if (e.target.getAttribute('data-f')) applyField(e.target); });
+  $('pane').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.getAttribute('data-f') && e.target.type !== 'checkbox') { e.preventDefault(); e.target.blur(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    var tag = (e.target.tagName || '').toLowerCase(), typing = tag === 'input' || tag === 'textarea' || tag === 'select';
+    if (e.key === 'Escape') {
+      if (!$('modal').hidden) { $('modal').hidden = true; return; }
+      if (linking) { linking = null; act = null; renderCanvas(); return; }
+      if (!typing && sel) { sel = null; renderCanvas(); renderPane(); }
+      return;
+    }
+    if (typing) return;
+    var mod = e.ctrlKey || e.metaKey;
+    if (mod && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) redo(); else undo(); return; }
+    if (mod && (e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); return; }
+    if (mod || e.altKey) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') { if (sel) { e.preventDefault(); deleteSel(); } }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); goStep(doc.cur - 1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); goStep(doc.cur + 1); }
+    else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); runPending(); }
+    else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); newManualStep(); }
+    else if (e.key === '[') { e.preventDefault(); togglePanel('l'); }
+    else if (e.key === ']') { e.preventDefault(); togglePanel('r'); }
+    else if (e.key === '+' || e.key === '=') zoomAt(1.2);
+    else if (e.key === '-') zoomAt(1 / 1.2);
+    else if (e.key === '0') fitView();
+  });
+  window.addEventListener('resize', function () { renderCanvas(); });
+}
+
+function init() {
+  setup();
+  var loaded = false;
+  try {
+    var raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      var d = JSON.parse(raw);
+      restore(d.doc);
+      if (d.view && isFinite(d.view.k)) view = d.view;
+      pendingLine = d.pending === null ? null : (d.pending || firstLine());
+      loaded = true;
+    }
+  } catch (x) { loaded = false; }
+  if (!loaded) loadExample('basics');
+  setupLayout();
+  renderAll();
+  requestAnimationFrame(function () { if (!loaded) fitView(); else keepInView(); });
+}
+init();
+})();
+</script>
+</body>
+</html>
