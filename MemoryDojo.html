@@ -217,6 +217,24 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .grp.sel .gbox { stroke: var(--accent); stroke-dasharray: none; }
 #cv .gl { font: 600 12px var(--font-body); fill: var(--grp); }
 .grp.sel .gl { fill: var(--accent) !important; }
+/* automatic groups: one color per region, a tinted label bar, solid outline */
+.ag { --gc: var(--r-stack); --gb: var(--r-stack-bg); }
+.ag-heap { --gc: var(--r-heap); --gb: var(--r-heap-bg); }
+.ag-static { --gc: var(--r-global); --gb: var(--r-global-bg); }
+.aglbl text { paint-order: stroke; stroke: var(--gb); stroke-width: 5px; stroke-linejoin: round; }
+.aglbl.gone { opacity: .6; }
+#cv .aglbl.sel .gl { fill: var(--accent); }
+.grp.ag .gbox { stroke: var(--gc); fill: var(--gc); fill-opacity: .045; stroke-dasharray: none; stroke-width: 1.4; stroke-opacity: .7; }
+.grp.ag .agbar { fill: var(--gb); pointer-events: none; }
+#cv .ag .gl { fill: var(--gc); font-size: 12.5px; }
+#cv .gsub { font: 500 10.5px var(--font-mono); fill: var(--gc); opacity: .85; pointer-events: none; }
+.grp.ag.gone .gbox { stroke-dasharray: 6 5; fill-opacity: .02; }
+.grp.ag.gone { opacity: .6; }
+.grp.ag.sel .gbox { stroke: var(--accent); stroke-opacity: 1; }
+.tools .tsep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--line); }
+.tools .btn.tog[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.tools .btn[hidden] { display: none; }
+.ins-h { font: 600 15px var(--font-body); margin: 0 0 8px; }
 .nbox { fill: var(--note-bg); stroke: var(--note-line); stroke-width: 1.2; cursor: grab; }
 .note.sel .nbox { stroke: var(--accent); stroke-width: 2.2; }
 #cv .nt { font: 12.5px var(--font-body); }
@@ -388,6 +406,9 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
           <button class="btn" type="button" data-add="heap">Heap block</button>
           <button class="btn" type="button" data-add="note">Note</button>
           <button class="btn" type="button" data-add="group">Group</button>
+          <span class="tsep" aria-hidden="true"></span>
+          <button class="btn tog" type="button" id="agBtn" aria-pressed="true" title="File the boxes the code creates into stack, heap and static groups">Auto groups: on</button>
+          <button class="btn" type="button" id="tidyBtn" title="Put every box from the code back in its group">Tidy</button>
         </div>
         <div class="legend" id="legend">
           <button class="lg-t" type="button" id="legendBtn" aria-expanded="true">Key <span aria-hidden="true">&times;</span></button>
@@ -635,7 +656,7 @@ function makeBlock(state, o) {
   layout(b);
   b.addr = o.addr != null ? o.addr : allocAddr(state, b.region, b.size, b.align, b.allocSize);
   state.blocks.push(b);
-  if (o.x == null) autoPlace(state, b); else { b.x = o.x; b.y = o.y; }
+  if (o.x == null) { autoPlace(state, b); b.code = true; b.auto = true; } else { b.x = o.x; b.y = o.y; }
   return b;
 }
 function structSlots(typeName, value) {
@@ -1471,7 +1492,7 @@ function prevState() { return doc.cur > 0 ? doc.steps[doc.cur - 1].state : null;
 function codeLines() { return doc.code.split('\n'); }
 function regionFor(line) { return (defs.depth[line] || 0) > 0 ? 'stack' : 'global'; }
 function frameFor(line) { return (defs.fnAt && defs.fnAt[line]) || ''; }
-function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
+function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, auto: doc.autoPos || {}, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
 /* ---------- keep struct boxes in line with their struct definitions ---------- */
 function fieldDecl(type, name) { var m = /^(.*?)\s*(\**)$/.exec(type); return m[1] + ' ' + m[2] + name + ';'; }
 function sameFields(b, fields) {
@@ -1508,7 +1529,7 @@ function restore(json) {
   if (!d || !Array.isArray(d.steps) || !d.steps.length) throw new Error('that text is not a saved whiteboard');
   EXTRA_STRUCTS = d.extra || {};
   NEXT_ID = d.nextId || 1000;
-  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1) };
+  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1), autoPos: d.auto || {} };
   defs = setDefs(doc.code);
   syncAllStructs();
 }
@@ -1652,7 +1673,7 @@ function runAllFresh() {
 function loadExample(id) {
   var ex = EXAMPLES.filter(function (e) { return e.id === id; })[0] || EXAMPLES[0];
   EXTRA_STRUCTS = {};
-  doc = { code: ex.code, steps: [], cur: 0 };
+  doc = { code: ex.code, steps: [], cur: 0, autoPos: {} };
   defs = setDefs(doc.code);
   runAllFresh();
   /* open on the last step before the program ends, so the example shows its pointers; the end is one step forward */
@@ -1791,9 +1812,18 @@ function curve(p, a) {
 var linking = null; // {bid, si, x, y, hover:{bid, si}}
 function renderCanvas() {
   var st = S(), df = diffStates(prevState(), st), out = [];
-  var chg = df.chg;
+  var chg = df.chg, agLbl = [];
   st.groups.forEach(function (g) {
     var on = sel && sel.kind === 'group' && sel.id === g.id;
+    if (g.auto) {
+      var kd = agKind(g.auto), subFits = !!g.sub && g.w - 24 - g.sub.length * 6.4 - 12 >= g.label.length * 7;
+      out.push('<g class="grp ag ag-' + kd + (g.gone ? ' gone' : '') + (on ? ' sel' : '') + '" data-g="' + g.id + '"><rect class="gbox" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="' + g.h + '" rx="10"/>' +
+        '<path class="agbar" d="M' + g.x + ' ' + (g.y + 10) + ' a10 10 0 0 1 10 -10 H' + (g.x + g.w - 10) + ' a10 10 0 0 1 10 10 V' + (g.y + 30) + ' H' + g.x + ' Z"/></g>');
+      agLbl.push('<g class="ag ag-' + kd + (g.gone ? ' gone' : '') + (on ? ' sel' : '') + ' aglbl" pointer-events="none">' + '<text class="gl" x="' + (g.x + 12) + '" y="' + (g.y + 20) + '">' + esc(trunc(g.label, Math.floor((g.w - 24 - (subFits ? g.sub.length * 6.4 + 12 : 0)) / 7))) + '</text>' +
+        (subFits ? '<text class="gsub" x="' + (g.x + g.w - 12) + '" y="' + (g.y + 20) + '" text-anchor="end">' + esc(g.sub) + '</text>' : '') + '</g>');
+      out.push('<g class="grp ag ag-' + kd + (g.gone ? ' gone' : '') + (on ? ' sel' : '') + '" data-g="' + g.id + '"><rect class="ghead" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="30" rx="10"><title>Drag to move this group on every step</title></rect></g>');
+      return;
+    }
     out.push('<g class="grp' + (on ? ' sel' : '') + '" data-g="' + g.id + '"><rect class="gbox" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="' + g.h + '" rx="10"/>' +
       '<rect class="ghead" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="28" rx="10"/>' +
       '<text class="gl" x="' + (g.x + 12) + '" y="' + (g.y + 19) + '">' + esc(trunc(g.label || 'Group', Math.floor(g.w / 7.5))) + '</text>' +
@@ -1865,6 +1895,7 @@ function renderCanvas() {
     });
   });
   out.push(arrows.join(''));
+  out.push(agLbl.join(''));
   /* box names sit above the arrows, with a halo, so a line passing through a header never hides the name */
   out.push(labels.join(''));
   out.push(ports.join(''));
@@ -2012,6 +2043,7 @@ function keepInView() {
 }
 /* ================= app: panels ================= */
 function renderAll() {
+  arrangeAll();
   renderCanvas(); renderCode(); renderSteps(); renderStepbar(); renderPane();
   $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
 }
@@ -2108,6 +2140,15 @@ function inspectorHtml() {
   }
   if (sel.kind === 'group') {
     var g = st.groups.filter(function (x) { return x.id === sel.id; })[0];
+    if (g.auto) {
+      var what = g.auto === 'heap' ? 'Every malloc, calloc and new lands here, in the order the code allocates. Freed blocks stay, dashed, until the program ends, so dangling pointers still have something to point at.'
+        : g.auto === 'static' ? 'Globals and string literals. They exist for the whole run, so nothing here goes away when a function returns.'
+        : 'Local variables of this function, top to bottom in the order they are declared (highest address first). A variable leaves when its { } block closes, and the whole frame goes when the function returns.';
+      return '<h3 class="ins-h">' + esc(g.label) + '</h3><p class="hint">' + what + '</p>' + (g.sub ? '<p class="hint mono">Addresses ' + esc(g.sub) + '</p>' : '') +
+        '<p class="hint">Filled in automatically as you step. Drag the group by its label to move it on every step. Drag a box out of it to pin that box yourself.</p>' +
+        '<div class="actions">' + (doc.autoPos && doc.autoPos[g.auto] ? '<button class="btn" type="button" data-a="agreset">Put this group back</button>' : '') +
+        '<button class="btn" type="button" data-a="agtidy">Tidy all groups</button></div>';
+    }
     return '<div class="field"><span>Group label</span><input id="f-glabel" data-f="glabel" value="' + esc(g.label) + '"></div><p class="hint">Dragging the group by its label moves everything inside it. Drag the corner to resize.</p><div class="actions"><button class="btn danger" type="button" data-a="delsel">Delete group</button></div>';
   }
   var b = findBlock(st, sel.id);
@@ -2410,6 +2451,7 @@ function addThing(kind) {
 function deleteSel() {
   if (!sel) return;
   var st = S();
+  if (sel.kind === 'group' && /^ag-/.test(sel.id)) { toast('This group follows the code. Turn off Auto groups to remove it.'); return; }
   mutate(function () {
     if (sel.kind === 'block') st.blocks = st.blocks.filter(function (b) { return b.id !== sel.id; });
     if (sel.kind === 'note') st.notes = st.notes.filter(function (n) { return n.id !== sel.id; });
@@ -2533,6 +2575,155 @@ function closeInline(commit) {
     if (v.trim() === editText(b.slots[ed.i])) return;
     mutate(function () { setSlotFromText(findBlock(S(), ed.bid), ed.i, v); });
   }
+}
+/* ================= automatic stack / heap / static groups =================
+   Boxes the code creates (b.code) are filed into groups: one per stack frame, one for the heap and one
+   for globals and string literals. Every box keeps a fixed "seat" inside its group for its whole life,
+   so stepping back and forward never shuffles things around, and a seat freed by a closed scope is
+   reused by the next declaration, the way the real stack reuses it. Dragging a box out pins it where
+   you put it; dragging a group by its label moves the whole group for every step. */
+var AG = { PADX: 16, TOP: 42, PADB: 14, GAP: 22, COLGAP: 170, X0: 40, Y0: 40, FRAMEGAP: 34, MINW: 290 };
+ui.autoGroups = true;
+try { if (localStorage.getItem(STORE_KEY + '-auto') === 'off') ui.autoGroups = false; } catch (e) { /* ignore */ }
+
+function agKey(b) {
+  if (b.region === 'heap') return 'heap';
+  if (b.region === 'stack') return 'stack:' + (b.frame || '');
+  return 'static';
+}
+function agCol(key) { return key === 'heap' ? 1 : key === 'static' ? 2 : 0; }
+function agKind(key) { return key === 'heap' ? 'heap' : key === 'static' ? 'static' : 'stack'; }
+function agLabel(key, gone) {
+  if (key === 'heap') return 'Heap (malloc / new)';
+  if (key === 'static') return 'Static: globals + literals';
+  var fn = key.slice(6);
+  return (fn ? 'Stack frame: ' + fn + '()' : 'Stack') + (gone ? (fn ? ', returned' : ', gone') : '');
+}
+function isAutoBlock(b) { return !!b.auto; }
+
+function arrangeAll() {
+  if (!doc) return;
+  if (!doc.autoPos) doc.autoPos = {};
+  doc.steps.forEach(function (s) { s.state.groups = s.state.groups.filter(function (g) { return !g.auto; }); });
+  if (!ui.autoGroups) return;
+
+  /* 1. seats: walk the steps in order; a box keeps the seat it got when it first appeared */
+  var seats = {}, inner = {}, order = [];
+  doc.steps.forEach(function (s) {
+    var live = s.state.blocks.filter(isAutoBlock), bottom = {};
+    live.forEach(function (b) {
+      var key = agKey(b), g = geom(b);
+      if (order.indexOf(key) < 0) order.push(key);
+      inner[key] = Math.max(inner[key] || 0, g.w);
+      var st = seats[b.id];
+      if (st && st.key === key) bottom[key] = Math.max(bottom[key] == null ? -Infinity : bottom[key], st.dy + g.h);
+    });
+    live.forEach(function (b) {
+      var key = agKey(b), st = seats[b.id];
+      if (st && st.key === key) return;
+      var dy = bottom[key] == null ? 0 : bottom[key] + AG.GAP;
+      seats[b.id] = { key: key, dy: dy };
+      bottom[key] = dy + geom(b).h;
+    });
+  });
+  if (!order.length) return;
+
+  /* 2. group heights per step (live boxes plus the ghosts of boxes that just went away) */
+  var heights = doc.steps.map(function (s, k) {
+    var h = {}, gone = {}, alive = {};
+    s.state.blocks.forEach(function (b) {
+      alive[b.id] = 1;
+      if (!isAutoBlock(b) || !seats[b.id]) return;
+      var key = seats[b.id].key; h[key] = Math.max(h[key] || 0, seats[b.id].dy + geom(b).h);
+    });
+    var prev = k > 0 ? doc.steps[k - 1].state : null;
+    if (prev) prev.blocks.forEach(function (b) {
+      if (alive[b.id] || !isAutoBlock(b) || !seats[b.id] || (b.region !== 'stack' && b.region !== 'heap')) return;
+      var key = seats[b.id].key; gone[key] = 1;
+      h[key] = Math.max(h[key] || 0, seats[b.id].dy + geom(b).h);
+    });
+    return { h: h, gone: gone };
+  });
+  var maxH = {};
+  heights.forEach(function (x) { Object.keys(x.h).forEach(function (key) { maxH[key] = Math.max(maxH[key] || 0, x.h[key]); }); });
+
+  /* 3. default places: stack frames in the first column, the heap next to them, statics last */
+  var colW = [0, 0, 0];
+  order.forEach(function (key) { colW[agCol(key)] = Math.max(colW[agCol(key)], Math.max(AG.MINW, inner[key] + 2 * AG.PADX)); });
+  var colX = [], x = AG.X0;
+  [0, 1, 2].forEach(function (c) { colX[c] = x; if (colW[c]) x += colW[c] + AG.COLGAP; });
+  var base = {}, colY = [AG.Y0, AG.Y0, AG.Y0];
+  order.slice().sort(function (a, b) { return agCol(a) - agCol(b) || order.indexOf(a) - order.indexOf(b); }).forEach(function (key) {
+    var c = agCol(key);
+    base[key] = { x: colX[c], y: colY[c], w: colW[c] };
+    colY[c] += AG.TOP + (maxH[key] || 0) + AG.PADB + AG.FRAMEGAP;
+  });
+
+  /* 4. place the boxes and add the group frames, step by step */
+  doc.steps.forEach(function (s, k) {
+    var st = s.state, info = heights[k], pos = {};
+    order.forEach(function (key) {
+      var p = doc.autoPos[key];
+      pos[key] = { x: p ? p.x : base[key].x, y: p ? p.y : base[key].y, w: base[key].w };
+    });
+    var lo = {}, hi = {}, live = {};
+    st.blocks.forEach(function (b) {
+      if (!isAutoBlock(b) || !seats[b.id]) return;
+      var key = seats[b.id].key, p = pos[key];
+      b.x = p.x + AG.PADX; b.y = p.y + AG.TOP + seats[b.id].dy;
+      live[key] = (live[key] || 0) + 1;
+      lo[key] = Math.min(lo[key] == null ? Infinity : lo[key], b.addr);
+      hi[key] = Math.max(hi[key] || 0, b.addr + (b.size || 0) - 1);
+    });
+    var made = [];
+    order.forEach(function (key) {
+      if (!live[key] && !info.gone[key]) return;
+      var p = pos[key];
+      made.push({ id: 'ag-' + key, auto: key, x: p.x, y: p.y, w: p.w, h: AG.TOP + (info.h[key] || 0) + AG.PADB,
+        label: agLabel(key, !live[key]), gone: !live[key],
+        sub: live[key] ? hex(lo[key]) + ' – ' + hex(hi[key]) : '' });
+    });
+    st.groups = made.concat(st.groups);
+  });
+}
+
+/* every step's copy of a box moves to where you dropped it, and it leaves its group */
+function pinBlock(id, x, y) {
+  doc.steps.forEach(function (s) {
+    s.state.blocks.forEach(function (b) { if (b.id === id) { b.x = x; b.y = y; b.auto = false; } });
+  });
+}
+/* boxes made by the code go back into their groups, and the groups go back to their default places */
+function tidyAuto() {
+  doc.autoPos = {};
+  doc.steps.forEach(function (s, k) {
+    var prev = k > 0 ? doc.steps[k - 1].state : null, had = {};
+    if (prev) prev.blocks.forEach(function (b) { had[b.id] = 1; });
+    s.state.blocks.forEach(function (b) {
+      /* older boards: a box that first showed up on a step that ran a line was made by the code */
+      if (b.code === undefined && s.line && !s.manual && !had[b.id]) b.code = true;
+      if (b.code) b.auto = true;
+    });
+  });
+  /* carry the mark forward to later copies of the same box */
+  var codeIds = {};
+  doc.steps.forEach(function (s) { s.state.blocks.forEach(function (b) { if (b.code) codeIds[b.id] = 1; }); });
+  doc.steps.forEach(function (s) { s.state.blocks.forEach(function (b) { if (codeIds[b.id]) { b.code = true; b.auto = true; } }); });
+}
+function renderAgBtn() {
+  var b = $('agBtn');
+  if (!b) return;
+  b.setAttribute('aria-pressed', String(!!ui.autoGroups));
+  b.textContent = ui.autoGroups ? 'Auto groups: on' : 'Auto groups: off';
+  $('tidyBtn').hidden = !ui.autoGroups;
+}
+function setAutoGroups(on) {
+  ui.autoGroups = on;
+  try { localStorage.setItem(STORE_KEY + '-auto', on ? 'on' : 'off'); } catch (e) { /* ignore */ }
+  if (on) { pushUndo(); tidyAuto(); }
+  sel = null;
+  renderAll(); renderAgBtn(); fitView(); save();
+  toast(on ? 'Auto groups on: boxes from the code are filed into stack, heap and static groups.' : 'Auto groups off: boxes stay where they are and you arrange them yourself.');
 }
 /* ================= app: panel layout (resize, collapse, expand code) ================= */
 var LAYOUT_KEY = STORE_KEY + '-layout';
@@ -2890,6 +3081,19 @@ function onUp(e) {
     renderCanvas();
     return;
   }
+  if (a.moved && a.type === 'move') {
+    var first = a.items[0].o;
+    if (first && first.auto && typeof first.auto === 'string') {
+      /* an automatic group: remember where it goes, for every step */
+      doc.autoPos = doc.autoPos || {};
+      doc.autoPos[first.auto] = { x: first.x, y: first.y };
+      arrangeAll(); renderCanvas();
+    } else if (first && first.auto === true && a.items.length === 1) {
+      pinBlock(first.id, first.x, first.y);
+      arrangeAll(); renderCanvas();
+      toast('Pinned ' + (blockTitle(first) || 'the box') + ' here on every step. Tidy puts it back in its group.');
+    }
+  }
   if (a.moved) { undoStack.push(a.snap); if (undoStack.length > 120) undoStack.shift(); redoStack.length = 0; $('undo').disabled = false; save(); renderPane(); return; }
   if (a.type === 'move' && a.dbl) {
     var now = Date.now();
@@ -2930,6 +3134,9 @@ function setup() {
   $('zout').addEventListener('click', function () { zoomAt(1 / 1.2); });
   $('zfit').addEventListener('click', fitView);
   $('undo').addEventListener('click', undo);
+  $('agBtn').addEventListener('click', function () { setAutoGroups(!ui.autoGroups); });
+  $('tidyBtn').addEventListener('click', function () { mutate(function () { tidyAuto(); }); fitView(); toast('Every box from the code is back in its group.'); });
+  renderAgBtn();
   $('redo').addEventListener('click', redo);
   $('tabInspect').addEventListener('click', function () { ui.tab = 'inspect'; renderPane(); });
   $('tabMap').addEventListener('click', function () { ui.tab = 'map'; renderPane(); });
@@ -2955,7 +3162,7 @@ function setup() {
     pushUndo();
     doc.steps = [{ id: uid('s'), line: null, state: newState(), msgs: [] }];
     doc.cur = 0; sel = null; ui.lastResult = null; pendingLine = firstLine();
-    view = { x: 40, y: 56, k: 1 };
+    view = { x: 40, y: 56, k: 1 }; doc.autoPos = {};
     renderAll(); save();
     toast('Cleared the drawing and the steps. The code is still there. Undo brings everything back.');
   });
@@ -3017,6 +3224,8 @@ function setup() {
         var k = +a.getAttribute('data-k');
         mutate(function () { doc.steps.splice(k, 1); if (doc.cur >= k) doc.cur = Math.max(0, doc.cur - 1); });
       } else if (act2 === 'delsel') deleteSel();
+      else if (act2 === 'agreset') mutate(function () { var g = itemById('group', sel.id); if (g && doc.autoPos) delete doc.autoPos[g.auto]; });
+      else if (act2 === 'agtidy') { mutate(function () { tidyAuto(); }); fitView(); }
       else if (act2 === 'dup') {
         var src = findBlock(S(), sel.id);
         mutate(function () {
