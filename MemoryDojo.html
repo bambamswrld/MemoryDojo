@@ -3,49 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="Interactive C pointer and memory whiteboard: trace code line by line and see the stack, heap, and static memory.">
-<title>Memory Whiteboard</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<meta name="description" content="MemoryDojo: an interactive C pointer and memory whiteboard. Trace code line by line and see the stack, heap, and static memory.">
+<title>MemoryDojo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
 <style>
 /* Layout: code + step history on the left, the drawing canvas in the middle, inspector / memory map on the right.
    Below 1080px the canvas comes first and the two panels stack under it.
    Color carries meaning: orange = an address stored in a pointer, ink on blue-grey = plain data,
    amber hatch = uninitialized, yellow ring = changed in this step, red dashes = dangling. */
 :root {
-  --bg: #e7ebf0; --panel: #f6f8fa; --surface: #ffffff; --ink: #16202a; --muted: #5a6876; --line: #d2dae2;
-  --canvas: #f2f5f8; --grid: #c9d3dd; --accent: #1f5fd1; --accent-ink: #ffffff; --accent-soft: #dfe9fb;
-  --addr: #c2410c; --addr-bg: #fff0e5; --data-bg: #edf2f8; --uninit: #b7791f; --uninit-bg: #fdf3dc;
+  --bg: #f3f5f7; --panel: #fafbfc; --surface: #ffffff; --ink: #14161a; --muted: #5d6470; --line: #dde1e6;
+  --canvas: #f6f8f9; --grid: #cfd5db; --accent: #0d9488; --accent-ink: #ffffff; --accent-soft: #d5f3ef;
+  --grad: linear-gradient(90deg, #0d9488 0%, #0284c7 50%, #7c3aed 100%);
+  --glow-a: rgba(13, 148, 136, .07); --glow-b: rgba(124, 58, 237, .06);
+  --addr: #c2410c; --addr-bg: #fff0e5; --data-bg: #eef1f5; --uninit: #b7791f; --uninit-bg: #fdf3dc;
   --chg: #e0a100; --bad: #c92a2a; --bad-bg: #fde8e8; --good: #2b8a3e;
-  --r-stack: #2563eb; --r-stack-bg: #e1eafc; --r-heap: #7c3aed; --r-heap-bg: #eee6fd;
-  --r-global: #0f8a6c; --r-global-bg: #dbf2ea; --r-rodata: #64748b; --r-rodata-bg: #e6eaef;
+  --r-stack: #0284c7; --r-stack-bg: #ddf0fb; --r-heap: #7c3aed; --r-heap-bg: #eee6fd;
+  --r-global: #0d9488; --r-global-bg: #d8f3ef; --r-rodata: #64748b; --r-rodata-bg: #e6eaef;
   --r-code: #b45309; --r-code-bg: #fbeedd;
-  --note-bg: #fff4c4; --note-line: #dcbc4e; --grp: #8095aa; --shadow: rgba(22, 32, 42, .10);
-  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --note-bg: #fff4c4; --note-line: #dcbc4e; --grp: #8a94a3; --shadow: rgba(20, 22, 26, .08);
+  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0d1318; --panel: #121a21; --surface: #18222c; --ink: #e2e9f0; --muted: #93a3b2; --line: #2a3743;
-    --canvas: #0f161c; --grid: #24313d; --accent: #6aa5ff; --accent-ink: #08172b; --accent-soft: #17283f;
-    --addr: #ff9a5c; --addr-bg: #3a2416; --data-bg: #1d2935; --uninit: #f0b75a; --uninit-bg: #392c14;
-    --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3d1b1b; --good: #6fd38a;
-    --r-stack: #6ea2ff; --r-stack-bg: #172a46; --r-heap: #b493ff; --r-heap-bg: #2a1f45;
-    --r-global: #4fd1a8; --r-global-bg: #123a30; --r-rodata: #9fb0c3; --r-rodata-bg: #222c37;
-    --r-code: #f2a55a; --r-code-bg: #3a2814;
-    --note-bg: #3b3216; --note-line: #8c7729; --grp: #60758a; --shadow: rgba(0, 0, 0, .35);
+    --bg: #0c0d10; --panel: #111215; --surface: #17191d; --ink: #e7e9ec; --muted: #8b919b; --line: #25282e;
+    --canvas: #0e1013; --grid: #23262c; --accent: #2dd4bf; --accent-ink: #042521; --accent-soft: #0f2a28;
+    --grad: linear-gradient(90deg, #2dd4bf 0%, #38bdf8 48%, #a78bfa 100%);
+    --glow-a: rgba(45, 212, 191, .07); --glow-b: rgba(139, 92, 246, .07);
+    --addr: #ff9a5c; --addr-bg: #35210f; --data-bg: #1c1f24; --uninit: #f0b75a; --uninit-bg: #332712;
+    --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3a1a1c; --good: #6fd38a;
+    --r-stack: #38bdf8; --r-stack-bg: #0f2433; --r-heap: #a78bfa; --r-heap-bg: #221b3a;
+    --r-global: #2dd4bf; --r-global-bg: #0f2a28; --r-rodata: #9aa4b1; --r-rodata-bg: #1f2329;
+    --r-code: #f5a55a; --r-code-bg: #33230f;
+    --note-bg: #33301a; --note-line: #857a35; --grp: #5b6370; --shadow: rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0d1318; --panel: #121a21; --surface: #18222c; --ink: #e2e9f0; --muted: #93a3b2; --line: #2a3743;
-  --canvas: #0f161c; --grid: #24313d; --accent: #6aa5ff; --accent-ink: #08172b; --accent-soft: #17283f;
-  --addr: #ff9a5c; --addr-bg: #3a2416; --data-bg: #1d2935; --uninit: #f0b75a; --uninit-bg: #392c14;
-  --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3d1b1b; --good: #6fd38a;
-  --r-stack: #6ea2ff; --r-stack-bg: #172a46; --r-heap: #b493ff; --r-heap-bg: #2a1f45;
-  --r-global: #4fd1a8; --r-global-bg: #123a30; --r-rodata: #9fb0c3; --r-rodata-bg: #222c37;
-  --r-code: #f2a55a; --r-code-bg: #3a2814;
-  --note-bg: #3b3216; --note-line: #8c7729; --grp: #60758a; --shadow: rgba(0, 0, 0, .35);
+  --bg: #0c0d10; --panel: #111215; --surface: #17191d; --ink: #e7e9ec; --muted: #8b919b; --line: #25282e;
+  --canvas: #0e1013; --grid: #23262c; --accent: #2dd4bf; --accent-ink: #042521; --accent-soft: #0f2a28;
+  --grad: linear-gradient(90deg, #2dd4bf 0%, #38bdf8 48%, #a78bfa 100%);
+  --glow-a: rgba(45, 212, 191, .07); --glow-b: rgba(139, 92, 246, .07);
+  --addr: #ff9a5c; --addr-bg: #35210f; --data-bg: #1c1f24; --uninit: #f0b75a; --uninit-bg: #332712;
+  --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3a1a1c; --good: #6fd38a;
+  --r-stack: #38bdf8; --r-stack-bg: #0f2433; --r-heap: #a78bfa; --r-heap-bg: #221b3a;
+  --r-global: #2dd4bf; --r-global-bg: #0f2a28; --r-rodata: #9aa4b1; --r-rodata-bg: #1f2329;
+  --r-code: #f5a55a; --r-code-bg: #33230f;
+  --note-bg: #33301a; --note-line: #857a35; --grp: #5b6370; --shadow: rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -62,13 +68,15 @@ code, .mono { font-family: var(--font-mono); }
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   background: var(--panel); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; min-width: 0; }
-.brand h1 { margin: 0; font: 700 21px/1.1 var(--font-display); letter-spacing: -0.01em; white-space: nowrap; }
-.brand span { color: var(--muted); font-size: 13px; }
+.brand h1 { margin: 0; font: 800 21px/1.1 var(--font-display); letter-spacing: -0.025em; white-space: nowrap; }
+.brand h1 .gr { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.brand > span { color: var(--muted); font-size: 13px; }
 .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .btn { border: 1px solid var(--line); background: var(--surface); border-radius: 7px; padding: 5px 11px; font-size: 13px; line-height: 1.3; white-space: nowrap; }
 .btn:hover:not(:disabled) { border-color: var(--muted); }
 .btn:disabled { opacity: .45; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; box-shadow: 0 4px 16px -4px color-mix(in srgb, var(--accent) 55%, transparent); }
+.btn.primary:hover:not(:disabled) { border-color: var(--accent); filter: brightness(1.08); }
 .btn.danger { color: var(--bad); }
 .btn.armed { background: var(--bad); border-color: var(--bad); color: #fff; }
 .btn.sm { padding: 3px 8px; font-size: 12px; }
@@ -140,7 +148,7 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 
 /* canvas */
 .center { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0; min-width: 0; }
-.cv-wrap { position: relative; min-height: 0; overflow: hidden; background: var(--canvas); }
+.cv-wrap { position: relative; min-height: 0; overflow: hidden; background: radial-gradient(900px 520px at 22% 18%, var(--glow-a), transparent 70%), radial-gradient(800px 520px at 82% 85%, var(--glow-b), transparent 70%), var(--canvas); }
 #cv { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
 .tools { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
 .tools .btn { pointer-events: auto; box-shadow: 0 1px 3px var(--shadow); }
@@ -409,7 +417,7 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 <body>
 <div class="app">
   <header class="top">
-    <div class="brand"><h1>Memory Whiteboard</h1><span>draw pointers and memory as you trace code</span></div>
+    <div class="brand"><h1>Memory<span class="gr">Dojo</span></h1><span>draw pointers and memory as you trace code</span></div>
     <div class="bar">
       <label class="sr" for="examples" style="font-size:12px;color:var(--muted)">Example</label>
       <select id="examples" class="btn"></select>
