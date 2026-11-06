@@ -95,6 +95,12 @@ select.btn { padding-right: 6px; }
 .left.wide .code { font-size: 13.5px; }
 .side { background: var(--panel); min-height: 0; overflow: auto; }
 .right { display: flex; flex-direction: column; }
+/* desktop: the code stays put and the step list scrolls on its own */
+@media (min-width: 1081px) {
+  .left { display: flex; flex-direction: column; overflow: hidden; }
+  .left #codeSec { flex: 0 1 auto; min-height: 0; overflow: auto; }
+  .left #stepSec { flex: 1 1 160px; min-height: 160px; overflow: auto; }
+}
 .sec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
 .sec h2 { margin: 0; font: 600 12px/1.2 var(--font-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .sec-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
@@ -196,6 +202,29 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .endban b { font-weight: 600; }
 .endnote { flex: 1 1 100%; font-size: 12.5px; line-height: 1.45; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; padding: 6px 10px; }
 .endnote b { font-weight: 600; }
+/* debugger: calls, frames, call stack */
+.callstack { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12.5px; }
+.callstack .cs-l { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.callstack .cs-f { font-family: var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+.callstack .cs-f.top { border-color: var(--r-stack); color: var(--r-stack); font-weight: 600; }
+.callstack .cs-ln { font-family: var(--font-body); font-weight: 400; color: var(--muted); font-size: 11.5px; }
+.callstack .cs-sep { color: var(--muted); }
+.stepnote { flex: 1 1 100%; font-size: 12.5px; line-height: 1.45; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--r-stack); border-radius: 6px; padding: 6px 10px; }
+.stepnote.bad { border-left-color: var(--bad); color: var(--bad); }
+.btn.into { border-color: var(--r-stack); color: var(--r-stack); }
+.cl.callsite { background: color-mix(in srgb, var(--r-stack) 10%, transparent); }
+.cl.callsite .mk::before { content: "\21B3"; color: var(--r-stack); }
+.cl.exec { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.cl.exec .mk::before { content: "\25B6"; color: var(--accent); }
+.step.inner { border-left: 3px solid var(--r-stack); }
+.step.inner.k-enter, .step.inner.k-return { background: color-mix(in srgb, var(--r-stack) 7%, var(--surface)); }
+.step.crash { border-left-color: var(--bad); }
+.fnchip { font: 600 10.5px var(--font-mono); color: var(--r-stack); background: var(--r-stack-bg); border-radius: 4px; padding: 0 5px; }
+.msg.m-call { color: var(--r-stack); }
+.msg.m-flow { color: var(--muted); }
+.grp.ag.f-running .gbox { stroke-width: 2.6; stroke-opacity: 1; fill-opacity: .08; }
+.grp.ag.f-paused .gbox { stroke-dasharray: 3 4; }
+#cv .aglbl.f-running .gl { font-weight: 700; }
 .lbl-g { cursor: grab; }
 .lbl-g text { paint-order: stroke; stroke: var(--r-stack-bg); stroke-width: 6px; stroke-linejoin: round; }
 .lbl-g.r-heap text { stroke: var(--r-heap-bg); } .lbl-g.r-global text { stroke: var(--r-global-bg); } .lbl-g.r-rodata text { stroke: var(--r-rodata-bg); }
@@ -221,6 +250,10 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .ag { --gc: var(--r-stack); --gb: var(--r-stack-bg); }
 .ag-heap { --gc: var(--r-heap); --gb: var(--r-heap-bg); }
 .ag-static { --gc: var(--r-global); --gb: var(--r-global-bg); }
+.ag-code { --gc: var(--r-code); --gb: var(--r-code-bg); }
+.r-code .hd { fill: var(--r-code-bg); } .r-code .rg { fill: var(--r-code) !important; } .lbl-g.r-code text { stroke: var(--r-code-bg); }
+.codebody { fill: var(--r-code-bg) !important; stroke: var(--r-code) !important; stroke-opacity: .5; }
+#cv .sig { font: 500 11.5px var(--font-mono); fill: var(--r-code); }
 .aglbl text { paint-order: stroke; stroke: var(--gb); stroke-width: 5px; stroke-linejoin: round; }
 .aglbl.gone { opacity: .6; }
 #cv .aglbl.sel .gl { fill: var(--accent); }
@@ -340,6 +373,17 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .modal { position: fixed; inset: 0; background: rgba(10, 16, 22, .45); display: grid; place-items: center; z-index: 20; padding: 16px; }
 .dlg { background: var(--surface); border-radius: 12px; padding: 18px; width: min(640px, 100%); display: grid; gap: 10px; box-shadow: 0 10px 30px var(--shadow); }
 .dlg h2 { margin: 0; font: 700 18px var(--font-display); }
+.psave { display: flex; gap: 8px; }
+.psave input { flex: 1; min-width: 0; }
+.plist { display: grid; gap: 6px; max-height: 42vh; overflow: auto; }
+.prog { display: flex; gap: 10px; align-items: center; justify-content: space-between; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel); }
+.prog .pi { display: grid; gap: 2px; min-width: 0; }
+.prog .pi b { font-weight: 600; }
+.prog .pi .mono { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prog .pa { display: flex; gap: 6px; flex: none; }
+.psave input, .prog .pi input { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--panel); color: var(--ink); font-size: 13px; }
+.prog .pi input { padding: 4px 8px; }
+@media (max-width: 560px) { .prog { flex-direction: column; align-items: stretch; } }
 .dlg textarea { width: 100%; min-height: 260px; font: 12px/1.5 var(--font-mono); border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--panel); }
 
 @media (max-width: 1080px) {
@@ -369,6 +413,7 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
     <div class="bar">
       <label class="sr" for="examples" style="font-size:12px;color:var(--muted)">Example</label>
       <select id="examples" class="btn"></select>
+      <button class="btn" id="progBtn" type="button" title="Save the code in the editor to your examples, or manage saved programs">My programs</button>
       <span class="seg panels" role="group" aria-label="Panels">
         <button type="button" id="togL" data-panel="l" aria-pressed="true" title="Show or hide the code panel ( [ )">Code</button>
         <button type="button" id="togR" data-panel="r" aria-pressed="true" title="Show or hide the details panel ( ] )">Details</button>
@@ -441,6 +486,24 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
     </aside>
   </div>
 </div>
+<div class="modal" id="progModal" hidden>
+  <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="progTitle">
+    <h2 id="progTitle">My programs</h2>
+    <p class="hint" style="margin:0">Save the code in the editor to the Example menu, so you can trace it again later. Programs are kept in this browser.</p>
+    <div class="psave">
+      <input id="progName" class="mono-in" placeholder="Name, e.g. Lab 3 addFront" aria-label="Program name" maxlength="60">
+      <button class="btn primary" type="button" id="progSave">Save</button>
+    </div>
+    <div id="progList" class="plist"></div>
+    <div id="progIO" hidden><textarea id="progText" spellcheck="false" aria-label="Programs as text" style="min-height:150px"></textarea></div>
+    <div class="bar" style="justify-content:flex-end">
+      <span id="progMsg" class="hint" style="margin:0 auto 0 0"></span>
+      <button class="btn" type="button" id="progExport" title="Copy every saved program as text, to move them to another browser">Copy all</button>
+      <button class="btn" type="button" id="progImport">Add pasted</button>
+      <button class="btn" type="button" id="progClose">Close</button>
+    </div>
+  </div>
+</div>
 <div class="modal" id="modal" hidden>
   <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
     <h2 id="dlgTitle">Save or load a whiteboard</h2>
@@ -461,7 +524,8 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 var CODE_BASE = 0x1000;
 var BASES = { rodata: 0x2000, global: 0x3000, heap: 0x5000, stack: 0x7000 };
 var REGION_ORDER = ['rodata', 'global', 'heap', 'stack'];
-var REGION_LABEL = { stack: 'Stack', heap: 'Heap', global: 'Globals', rodata: 'Read-only' };
+var REGION_LABEL = { stack: 'Stack', heap: 'Heap', global: 'Globals', rodata: 'Read-only', code: 'Code' };
+var FUNCS = {};      // 'add' -> {name, ret, params:[{type,name}], line, end, addr, fn, sig}
 var BASE_SIZES = { char: 1, bool: 1, short: 2, int: 4, float: 4, long: 8, double: 8, void: 1 };
 var ALIASES = {
   size_t: 'unsigned long', ssize_t: 'long', ptrdiff_t: 'long', intptr_t: 'long', uintptr_t: 'unsigned long',
@@ -487,6 +551,14 @@ function mkType(base, ptr, uns) {
 function typeInfo(str) {
   var key = String(str == null ? 'int' : str);
   if (TI_CACHE[key]) return TI_CACHE[key];
+  var fm = /^(.*?)\(\s*(\*+)\s*\)\s*\((.*)\)\s*$/.exec(key);
+  if (fm) {
+    /* a function pointer type, written the way C declares it: int (*)(int, int) */
+    var fret = typeInfo(fm[1].trim() || 'int').str;
+    var fparams = splitParams(fm[3]).map(function (p) { return normParam(p).type; }).filter(function (p) { return p !== null; });
+    TI_CACHE[key] = fnType({ ret: fret, params: fparams }, fm[2].length);
+    return TI_CACHE[key];
+  }
   var s = key.replace(/\b(const|volatile|static|register|extern|restrict)\b/g, ' ');
   var ptr = (s.match(/\*/g) || []).length;
   s = s.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim();
@@ -498,7 +570,7 @@ function typeInfo(str) {
   var alias = TYPEDEFS[s] || ALIASES[s];
   if (alias) {
     var t = typeInfo(alias);
-    out = mkType(t.base, t.ptr + ptr, t.unsigned || uns);
+    out = t.fn ? fnType(t.fn, t.ptr + ptr) : mkType(t.base, t.ptr + ptr, t.unsigned || uns);
   } else {
     if (!/^struct \w+$/.test(s) && BASE_SIZES[s] === undefined) throw new Error('unknown type "' + s + '"');
     out = mkType(s, ptr, uns);
@@ -506,8 +578,36 @@ function typeInfo(str) {
   TI_CACHE[key] = out;
   return out;
 }
-function ptrTo(t) { return mkType(t.base, t.ptr + 1, t.unsigned); }
-function pointee(t) { return mkType(t.base, t.ptr - 1, t.unsigned); }
+function ptrTo(t) { return t.fn ? fnType(t.fn, t.ptr + 1) : mkType(t.base, t.ptr + 1, t.unsigned); }
+function pointee(t) { return t.fn ? fnType(t.fn, t.ptr - 1) : mkType(t.base, t.ptr - 1, t.unsigned); }
+/* function types: fn = {ret, params}. ptr 0 is the function itself, ptr 1 a pointer to it */
+function fnType(fn, ptr) {
+  var o = { base: 'fn', ptr: ptr, unsigned: false, struct: false, fn: fn };
+  var ps = '(' + (fn.params.length ? fn.params.join(', ') : 'void') + ')';
+  o.str = ptr > 0 ? fn.ret + ' (' + new Array(ptr + 1).join('*') + ')' + ps : fn.ret + ps;
+  return o;
+}
+function splitParams(s) {
+  var out = [], cur = '', d = 0;
+  String(s).split('').forEach(function (c) {
+    if (c === '(') d++; else if (c === ')') d--;
+    if (c === ',' && d === 0) { out.push(cur); cur = ''; } else cur += c;
+  });
+  if (cur.trim() || out.length) out.push(cur);
+  return out.map(function (p) { return p.trim(); });
+}
+/* "int a" -> {type:'int', name:'a'}, "char *argv[]" -> {type:'char**', name:'argv'},
+   "int (*f)(int)" -> {type:'int (*)(int)', name:'f'}, "void" or "" -> {type:null} */
+function normParam(p) {
+  p = String(p).trim();
+  if (!p || p === 'void') return { type: null, name: '' };
+  var fp = /^(.*?)\(\s*(\*+)\s*([A-Za-z_]\w*)?\s*\)\s*\((.*)\)$/.exec(p);
+  if (fp) return { type: fp[1].trim() + ' (' + fp[2] + ')(' + fp[4] + ')', name: fp[3] || '' };
+  var m = /^(.*?[\s*])([A-Za-z_]\w*)\s*(\[[^\]]*\])?$/.exec(p), type = p, name = '';
+  if (m && m[1].trim() && !TYPE_WORDS[m[2]] && !TYPEDEFS[m[2]] && !ALIASES[m[2]]) { type = m[1].trim() + (m[3] ? '*' : ''); name = m[2]; }
+  try { type = typeInfo(type).str; } catch (e) { /* keep as written */ }
+  return { type: type, name: name };
+}
 function structLayout(name) {
   var f = STRUCTS[name];
   if (!f) throw new Error(name + ' is not defined. Put its definition in the code, or create it with the Struct tool.');
@@ -523,11 +623,13 @@ function structLayout(name) {
 }
 function sizeOfInfo(t) {
   if (t.ptr > 0) return 8;
+  if (t.fn) return 1;
   if (t.struct) return structLayout(t.base).size;
   return BASE_SIZES[t.base];
 }
 function alignOfInfo(t) {
   if (t.ptr > 0) return 8;
+  if (t.fn) return 1;
   if (t.struct) return structLayout(t.base).align;
   return Math.min(8, BASE_SIZES[t.base]);
 }
@@ -553,6 +655,7 @@ function newState() {
 function cloneState(s) { return JSON.parse(JSON.stringify(s)); }
 
 function layout(b) {
+  if (b.kind === 'func') { b.size = 0x40; b.align = 16; return; }
   var off = 0, maxA = 1;
   b.slots.forEach(function (sl) {
     var t = typeInfo(sl.type), sz = sizeOfInfo(t), a = alignOfInfo(t);
@@ -564,11 +667,18 @@ function layout(b) {
   b.align = maxA;
 }
 function blockType(b) {
-  if (b.kind === 'array') return b.slots[0].type + '[' + b.slots.length + ']';
+  if (b.kind === 'func') return b.typeName || 'function';
+  if (b.kind === 'array') {
+    var et = b.slots[0].type, fm = /^(.*?\(\**)(\)\s*\(.*\))$/.exec(et);
+    /* an array of function pointers is written int (*[2])(int, int) */
+    if (fm) return fm[1] + '[' + b.slots.length + ']' + fm[2];
+    return et + '[' + b.slots.length + ']';
+  }
   if (b.kind === 'struct') return b.typeName;
   return b.slots[0].type;
 }
 function blockTitle(b) {
+  if (b.kind === 'func') return b.name + '()';
   if (b.name) return b.name;
   if (b.region === 'heap') return 'malloc(' + (b.allocSize || b.size) + ')';
   return '(unnamed)';
@@ -618,6 +728,8 @@ function geom(b) {
         g.slots.push({ x: P + (i % cols) * cw, y: y0 + Math.floor(i / cols) * rh, w: cw, h: GEO.CH, port: 'bottom', lay: 'h' });
       });
     }
+  } else if (b.kind === 'func') {
+    bw = Math.max(GEO.SW, Math.ceil(String(b.sig || '').length * 7.3)); bh = GEO.SH;
   } else if (b.kind === 'struct') {
     bw = GEO.LW + GEO.RW; bh = b.slots.length * GEO.RH;
     b.slots.forEach(function (s, i) {
@@ -653,6 +765,7 @@ function makeBlock(state, o) {
     id: o.id || uid('b'), name: o.name || '', kind: o.kind || 'scalar', region: o.region || 'stack',
     typeName: o.typeName || '', slots: o.slots, freed: !!o.freed, allocSize: o.allocSize || 0, frame: o.frame || '', scope: o.scope || 0
   };
+  if (o.sig) b.sig = o.sig;
   layout(b);
   b.addr = o.addr != null ? o.addr : allocAddr(state, b.region, b.size, b.align, b.allocSize);
   state.blocks.push(b);
@@ -664,10 +777,11 @@ function structSlots(typeName, value) {
   if (!f) structLayout(typeName); // throws a helpful error
   return f.map(function (fd) { return { label: fd.name, type: fd.type, value: value === undefined ? null : value }; });
 }
-function lookupVar(state, name) {
+function lookupVar(state, name, onlyFrame) {
   for (var k = state.blocks.length - 1; k >= 0; k--) {
     var b = state.blocks[k];
-    if (b.name === name && b.region !== 'heap' && b.region !== 'rodata') return b;
+    if (onlyFrame !== undefined && b.region === 'stack' && (b.frame || '') !== onlyFrame) continue;
+    if (b.name === name && b.region !== 'heap' && b.region !== 'rodata' && b.region !== 'code') return b;
   }
   return null;
 }
@@ -731,7 +845,7 @@ function targetText(state, v) {
   if (t.kind === 'null') return 'NULL: points at nothing';
   if (t.kind === 'wild') return 'dangling: no memory at ' + hex(v);
   var b = t.r.b, rel = v - b.addr, what;
-  if (b.kind === 'struct' && rel === 0) what = blockTitle(b);
+  if ((b.kind === 'struct' || b.kind === 'func') && rel === 0) what = (b.kind === 'func' ? 'the function ' : '') + blockTitle(b);
   else if (t.r.i >= 0 && b.slots[t.r.i].off === rel) what = slotName(b, t.r.i);
   else what = blockTitle(b) + ' + ' + rel;
   return (t.kind === 'freed' ? 'dangling: ' + what + ' was freed' : 'points to ' + what);
@@ -795,6 +909,8 @@ function parseFields(body) {
   body.split(';').forEach(function (part) {
     part = part.trim();
     if (!part) return;
+    var fpf = /^(.*?)\(\s*(\*+)\s*([A-Za-z_]\w*)\s*\)\s*\((.*)\)$/.exec(part);
+    if (fpf) { out.push({ name: fpf[3], type: fpf[1].trim() + ' (' + fpf[2] + ')(' + fpf[4] + ')' }); return; }
     var segs = part.split(',');
     var first = /^(.*?)([A-Za-z_]\w*)\s*$/.exec(segs[0].trim());
     if (!first) return;
@@ -807,7 +923,7 @@ function parseFields(body) {
   });
   return out;
 }
-var EXTRA_STRUCTS = {};
+var EXTRA_STRUCTS = {}, FUNC_SRC = [];
 function setDefs(code) {
   STRUCTS = {}; TYPEDEFS = {}; TI_CACHE = {}; CODE_STRUCTS = {};
   var src = blankComments(code || ''), m;
@@ -824,25 +940,43 @@ function setDefs(code) {
   }
   var re2 = /typedef\s+struct\s+(\w+)\s+(\w+)\s*;/g;
   while ((m = re2.exec(src))) TYPEDEFS[m[2]] = 'struct ' + m[1];
+  var re4 = /typedef\s+([A-Za-z_][\w ]*?\**)\s*\(\s*(\*+)\s*(\w+)\s*\)\s*\(([^)]*)\)\s*;/g;
+  while ((m = re4.exec(src))) { TYPEDEFS[m[3]] = m[1].trim() + ' (' + m[2] + ')(' + m[4] + ')'; for (var L4 = lineOf(m.index); L4 <= lineOf(m.index + m[0].length - 1); L4++) skip[L4] = true; }
   var re3 = /typedef\s+([A-Za-z_][\w ]*?\**)\s*(\w+)\s*;/g;
   while ((m = re3.exec(src))) if (!/^struct\b/.test(m[1])) TYPEDEFS[m[2]] = m[1];
   Object.keys(EXTRA_STRUCTS).forEach(function (k) { if (!STRUCTS[k]) STRUCTS[k] = EXTRA_STRUCTS[k]; });
   /* brace depth before each line (1-based) */
   /* braces inside string and character literals do not open or close anything */
   var plain = src.replace(/"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, function (m) { return m.replace(/./g, ' '); });
-  var depth = [0], d = 0, lines = plain.split('\n'), fnAt = [], funcs = [], curFn = '', minDepth = [0];
+  var depth = [0], d = 0, lines = plain.split('\n'), fnAt = [], funcs = [], curFn = '', minDepth = [0], fnLine = {};
   lines.forEach(function (ln, i) {
     depth[i + 1] = d;
     if (d === 0) {
-      var fm = /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;]*$/.exec(ln);
-      if (fm && !/^\s*(struct|typedef|if|while|for|switch)\b/.test(ln)) { curFn = fm[1]; funcs.push({ name: fm[1], line: i + 1 }); }
+      var fm = /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;]*$/.exec(ln) || /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;{]*\)\s*\{/.exec(ln);
+      if (fm && !/^\s*(struct|typedef|if|while|for|switch|return)\b/.test(ln)) { curFn = fm[1]; funcs.push({ name: fm[1], line: i + 1 }); fnLine[i + 1] = fm[1]; }
     }
     fnAt[i + 1] = d > 0 ? curFn : '';
     var lo = d;
     for (var c = 0; c < ln.length; c++) { if (ln[c] === '{') d++; else if (ln[c] === '}') { d = Math.max(0, d - 1); if (d < lo) lo = d; } }
     minDepth[i + 1] = lo;
   });
-  return { skip: skip, depth: depth, fnAt: fnAt, funcs: funcs, minDepth: minDepth };
+  /* each function: its signature, its body lines and the address of its machine code */
+  FUNCS = {};
+  funcs.forEach(function (f, k) {
+    var hd = lines[f.line - 1], hm = /^\s*(.*?)\b([A-Za-z_]\w*)\s*\((.*)\)\s*\{?\s*$/.exec(src.split('\n')[f.line - 1].replace(/\{.*$/, ''));
+    if (!hm) return;
+    var ret = hm[1].replace(/\b(static|inline|extern)\b/g, ' ').replace(/\s+/g, ' ').trim() || 'int';
+    try { ret = typeInfo(ret).str; } catch (e) { /* keep */ }
+    var params = splitParams(hm[3]).map(normParam).filter(function (p) { return p.type !== null; });
+    var end = f.line;
+    for (var L = f.line + 1; L < lines.length + 1; L++) { if (fnAt[L] === f.name) end = L; else if (L > f.line + 1 && depth[L] === 0) break; }
+    FUNCS[f.name] = { name: f.name, ret: ret, params: params, line: f.line, end: end, addr: CODE_BASE + k * 0x40,
+      fn: { ret: ret, params: params.map(function (p) { return p.type; }) },
+      sig: ret + ' ' + f.name + '(' + (params.length ? params.map(function (p) { return p.type + (p.name ? ' ' + p.name : ''); }).join(', ') : 'void') + ')' };
+    void hd;
+  });
+  FUNC_SRC = src.split('\n');
+  return { skip: skip, depth: depth, fnAt: fnAt, funcs: funcs, minDepth: minDepth, fnLine: fnLine };
 }
 function registerStruct(name, fields) {
   EXTRA_STRUCTS[name] = fields;
@@ -872,6 +1006,7 @@ function tokenize(src) {
     re.lastIndex = pos;
     m = re.exec(src);
     if (!m) throw new Error('cannot read "' + src.slice(pos).trim().charAt(0) + '"');
+    var tokStart = pos + (m[0].length - m[0].replace(/^\s+/, '').length);
     pos = re.lastIndex;
     if (m[1] !== undefined) {
       var txt = m[1];
@@ -886,11 +1021,121 @@ function tokenize(src) {
     } else if (m[3] !== undefined) toks.push({ k: 'str', s: m[3], v: unescapeC(m[3].slice(1, -1)) });
     else if (m[4] !== undefined) toks.push({ k: 'id', s: m[4] });
     else toks.push({ k: 'op', s: m[5] });
+    toks[toks.length - 1].p = tokStart;
   }
   return toks;
 }
 
-function makeCtx(state, region, frame, depth) { return { state: state, msgs: [], pend: [], region: region || 'stack', frame: frame || '', depth: depth || 1, warned: {} }; }
+function makeCtx(state, region, frame, depth) { return { state: state, msgs: [], pend: [], region: region || 'stack', frame: frame || '', depth: depth || 1, warned: {}, calls: 0 }; }
+/* the box for a function's machine code, made the first time the code names the function */
+function funcBlock(st, F) {
+  for (var k = 0; k < st.blocks.length; k++) if (st.blocks[k].region === 'code' && st.blocks[k].name === F.name) return st.blocks[k];
+  return makeBlock(st, { name: F.name, region: 'code', kind: 'func', slots: [], addr: F.addr, typeName: fnType(F.fn, 0).str, sig: F.sig });
+}
+function funcAt(addr) {
+  var names = Object.keys(FUNCS);
+  for (var k = 0; k < names.length; k++) if (FUNCS[names[k]].addr === addr) return FUNCS[names[k]];
+  return null;
+}
+/* The body of a function as statements: blocks, if/else, while, for, do-while, return, break,
+   continue, and plain statements (kept as tokens and run by runTokens). */
+function funcBody(F) {
+  if (F.ast) return F.ast;
+  var txt = FUNC_SRC.slice(F.line - 1, F.end).join('\n');
+  var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+  if (a < 0 || b <= a) throw new Error('cannot find the body of ' + F.name + '()');
+  var body = txt.slice(a, b + 1), toks = tokenize(body), i = 0;
+  function lineOf(t) { return F.line + (txt.slice(0, a + (t ? t.p : 0)).match(/\n/g) || []).length; }
+  function srcOf(tk) { return tk.length ? body.slice(tk[0].p, tk[tk.length - 1].p + tk[tk.length - 1].s.length).replace(/\s+/g, ' ') : ''; }
+  function peek(k) { return toks[i + (k || 0)]; }
+  function isOp(x) { var t = peek(); return !!t && t.k === 'op' && t.s === x; }
+  function isId(x) { var t = peek(); return !!t && t.k === 'id' && t.s === x; }
+  function expect(x) { if (!isOp(x)) throw new Error(F.name + '(): expected "' + x + '"' + (peek() ? ' near "' + peek().s + '"' : ' at the end')); i++; }
+  function until(stop) {
+    /* tokens up to `stop` at nesting depth 0 */
+    var out = [], d = 0;
+    for (;;) {
+      var t = peek();
+      if (!t) throw new Error(F.name + '(): a statement is missing its "' + stop + '"');
+      if (t.k === 'op' && d === 0 && t.s === stop) return out;
+      if (t.k === 'op' && (t.s === '(' || t.s === '[' || t.s === '{')) d++;
+      if (t.k === 'op' && (t.s === ')' || t.s === ']' || t.s === '}')) d--;
+      out.push(t); i++;
+    }
+  }
+  function paren() { expect('('); var c = until(')'); expect(')'); return c; }
+  function stmt() {
+    var n = stmt0(), t0 = toks[n.at];
+    n.line = lineOf(t0);
+    ['cond', 'toks', 'init', 'step'].forEach(function (k) { if (n[k]) n[k + 'Text'] = srcOf(n[k]); });
+    if (n.k === 'simple') n.text = srcOf(n.toks);
+    return n;
+  }
+  function stmt0() {
+    var at = i, r = stmt1();
+    r.at = at;
+    return r;
+  }
+  function stmt1() {
+    if (isOp('{')) { i++; var body = []; while (!isOp('}')) { if (!peek()) throw new Error(F.name + '(): a { is never closed'); body.push(stmt()); } i++; return { k: 'block', body: body }; }
+    if (isOp(';')) { i++; return { k: 'empty' }; }
+    if (isId('if')) { i++; var c = paren(), th = stmt(), el = null; if (isId('else')) { i++; el = stmt(); } return { k: 'if', cond: c, then: th, els: el }; }
+    if (isId('while')) { i++; var wc = paren(); return { k: 'while', cond: wc, body: stmt() }; }
+    if (isId('do')) { i++; var db = stmt(); if (!isId('while')) throw new Error(F.name + '(): do { } needs a while ( ) after it'); var wl = lineOf(peek()); i++; var dc = paren(); expect(';'); return { k: 'do', body: db, cond: dc, cline: wl }; }
+    if (isId('for')) {
+      i++; expect('(');
+      var init = until(';'); expect(';');
+      var fc = until(';'); expect(';');
+      var fs = until(')'); expect(')');
+      return { k: 'for', init: init, cond: fc, step: fs, body: stmt() };
+    }
+    if (isId('return')) { i++; var rt = until(';'); expect(';'); return { k: 'return', toks: rt }; }
+    if (isId('break') || isId('continue')) { var w = peek().s; i++; expect(';'); return { k: w }; }
+    if (isId('switch') || isId('goto')) throw new Error(F.name + '() uses ' + peek().s + ', which is not simulated. Trace it by hand.');
+    var st = until(';'); expect(';');
+    return { k: 'simple', toks: st };
+  }
+  F.ast = stmt();
+  F.ast.endLine = F.end;
+  return F.ast;
+}
+/* ----- recording a call step by step (Step into) -----
+   While REC is an array, every statement a called function runs is saved as its own snapshot:
+   {line, state, msgs, stack, kind}. CALLSTACK is the chain of active calls, innermost last. */
+var REC = null, CALLSTACK = [], REC_LIMIT = 400;
+function recSnap(st, line, msgs, kind) {
+  if (!REC) return;
+  if (REC.length >= REC_LIMIT) { REC.truncated = true; return; }
+  if (CALLSTACK.length) CALLSTACK[CALLSTACK.length - 1].line = line;
+  REC.push({ line: line, state: cloneState(st), msgs: (msgs || []).filter(function (m) { return m && m.text; }), stack: CALLSTACK.map(function (c) { return { fn: c.fn, line: c.line }; }), kind: kind || 'stmt' });
+}
+function showVal(v, t) {
+  if (v === null || v === undefined) return '?';
+  if (t && t.ptr > 0) return v === 0 ? 'NULL' : hex(v);
+  if (t && t.base === 'char' && t.ptr === 0) { var c = charText(v); return c ? c + ' (' + v + ')' : String(v); }
+  if (t && (t.base === 'double' || t.base === 'float')) return String(Number(Number(v).toPrecision(7)));
+  return String(v);
+}
+/* printf-style formatting, for showing what a print statement would print */
+function cFormat(st, fmt, vals) {
+  var k = 0;
+  return fmt.replace(/%([-+ 0#]*)(\d*)(?:\.(\d+))?(hh|h|ll|l|z)?([diuxXcspf%])/g, function (m, fl, w, prec, len, c) {
+    if (c === '%') return '%';
+    var v = vals[k++], s;
+    if (v === undefined) return m;
+    if (c === 'd' || c === 'i' || c === 'u') s = String(Math.trunc(v));
+    else if (c === 'x' || c === 'X') { s = (Math.trunc(v) >>> 0).toString(16); if (c === 'X') s = s.toUpperCase(); }
+    else if (c === 'c') s = String.fromCharCode(v & 255);
+    else if (c === 'p') s = hex(v);
+    else if (c === 'f') s = Number(v).toFixed(prec === undefined ? 6 : +prec);
+    else if (c === 's') {
+      s = '';
+      for (var n = 0; n < 256; n++) { var r = findAt(st, v + n); if (!r || r.i < 0) { s += '\u2026'; break; } var ch = r.b.slots[r.i].value; if (!ch) break; s += String.fromCharCode(ch); }
+    }
+    if (w && s.length < +w) s = fl.indexOf('-') >= 0 ? s + new Array(+w - s.length + 1).join(' ') : new Array(+w - s.length + 1).join(fl.indexOf('0') >= 0 ? '0' : ' ') + s;
+    return s;
+  });
+}
 function warn(ctx, text) { if (!ctx.warned[text]) { ctx.warned[text] = 1; ctx.msgs.push({ level: 'warn', text: text }); } }
 function note(ctx, text) { ctx.msgs.push({ level: 'info', text: text }); }
 
@@ -945,7 +1190,7 @@ function runTokens(ctx, toks, mode, destType) {
   function next() { var t = toks[i++]; if (!t) throw new Error('the statement ends too early'); return t; }
   function expectOp(s) { if (!isOp(s)) throw new Error('expected "' + s + '"' + (peek() ? ' before "' + peek().s + '"' : ' at the end')); i++; }
   function isTypeStart(t) {
-    return !!t && t.k === 'id' && !!(TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s]) && !lookupVar(st, t.s);
+    return !!t && t.k === 'id' && !!(TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s]) && !lookupVar(st, t.s, ctx.onlyFrame);
   }
   function num(v, ts) { var t = typeInfo(ts); return { t: t, v: coerce(v, t) }; }
   function slotOf(V) { return V.lv.b.slots[V.lv.i]; }
@@ -998,6 +1243,7 @@ function runTokens(ctx, toks, mode, destType) {
   }
   function derefV(a) {
     var t = a.t;
+    if (t.fn && t.ptr <= 1) return { t: fnType(t.fn, 1), v: NE ? 0 : val(a), fnDes: true };
     if (t.ptr <= 0) throw new Error('cannot dereference a value of type "' + t.str + '": it is not a pointer');
     var pt = pointee(t);
     if (pt.ptr === 0 && pt.base === 'void') throw new Error('cannot dereference a void*: cast it to a real pointer type first');
@@ -1018,6 +1264,7 @@ function runTokens(ctx, toks, mode, destType) {
     if (a.lv) return { t: ptrTo(typeInfo(slotOf(a).type)), v: slotAddr(a.lv.b, a.lv.i) };
     if (a.blk) return { t: ptrTo(a.t), v: a.blk.addr };
     if (a.arrBlk) return { t: a.t, v: a.v, arrBlk: a.arrBlk };
+    if (a.fnDes) return { t: a.t, v: a.v };
     throw new Error('cannot take the address of a temporary value');
   }
   function binop(op, a, b) {
@@ -1076,13 +1323,174 @@ function runTokens(ctx, toks, mode, destType) {
   function parseArgs() {
     var args = [];
     expectOp('(');
-    if (!isOp(')')) { do { args.push(parseAssign()); } while (isOp(',') && next()); }
+    if (!isOp(')')) {
+      do {
+        var i0 = i, A = parseAssign();
+        A.src = toks.slice(i0, i).map(function (t) { return t.s; }).join(' ').replace(/ ?([()\[\],.]|->) ?/g, '$1').replace(/,/g, ', ');
+        args.push(A);
+      } while (isOp(',') && next());
+    }
     expectOp(')');
     return args;
   }
+  /* Call a function from the code: push a frame with its parameters, run its body, take the return
+     value, pop the frame. It all happens inside this one line ("step over"). */
+  function callUser(F, args, via) {
+    if (NE) return F.ret === 'void' ? num(0, 'int') : num(0, F.ret);
+    if (ctx.calls > 40 || (ctx.depthCalls || 0) > 30) throw new Error('too many nested calls (infinite recursion?)');
+    ctx.calls++;
+    if (args.length !== F.params.length) throw new Error(F.name + '() takes ' + F.params.length + ' argument' + (F.params.length === 1 ? '' : 's') + ', but got ' + args.length);
+    var tag = F.name + '#' + ((ctx.depthCalls || 0) + 1), savedSp = st.alloc.stack;
+    var vals = args.map(function (A, k) {
+      var pt = typeInfo(F.params[k].type);
+      if (pt.struct && pt.ptr === 0) throw new Error('passing a struct by value is not simulated: pass a pointer to it');
+      var V = fin(A, pt.ptr > 0 ? pt : null);
+      if (V.blk) throw new Error('passing a struct by value is not simulated: pass a pointer to it');
+      return coerce(val(V), pt);
+    });
+    F.params.forEach(function (p, k) {
+      makeBlock(st, { name: p.name || ('arg' + k), region: 'stack', kind: 'scalar', slots: [{ label: '', type: p.type, value: vals[k] }], frame: tag, scope: 1 });
+    });
+    var c2 = makeCtx(st, 'stack', tag, 1);
+    c2.onlyFrame = tag; c2.depthCalls = (ctx.depthCalls || 0) + 1; c2.calls = ctx.calls; c2.warned = ctx.warned;
+    var caller = CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1] : { fn: ctx.frame ? String(ctx.frame).split('#')[0] : 'main', line: 0 };
+    var callerName = caller.fn, callerLine = caller.line;
+    if (REC) {
+      CALLSTACK.push({ fn: F.name, line: F.line });
+      recSnap(st, F.line, [{ level: 'call', text: 'Entered ' + F.name + '() from ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + '. ' +
+        (F.params.length ? 'A new stack frame holds its parameters, each a copy of the argument passed in: ' + F.params.map(function (p, k) {
+          return p.name + ' = ' + (args[k].src && args[k].src !== showVal(vals[k], typeInfo(p.type)) ? args[k].src + ' = ' : '') + showVal(vals[k], typeInfo(p.type));
+        }).join(', ') + '.' : 'It takes no parameters.') }], 'enter');
+    }
+    var mark = 0;
+    function fresh() { var m = c2.msgs.slice(mark); mark = c2.msgs.length; return m; }
+    function snap(line, extra, kind) { if (REC) recSnap(st, line, fresh().concat(extra ? [{ level: 'flow', text: extra }] : []), kind); }
+    var retT = F.ret === 'void' ? null : typeInfo(F.ret), result = null, returned = false;
+    /* run the whole body, with if / else, while, for, do-while, break, continue and return */
+    var body = funcBody(F), steps = 0;
+    function cond(tk, line, what, text, yes, no) {
+      var R = runTokens(c2, tk, 'expr');
+      if (R.blk) throw new Error('a whole struct cannot be used as a condition');
+      var v = R.v !== undefined ? R.v : R.lv ? R.lv.b.slots[R.lv.i].value : 0;
+      if (v === null) { warn(ctx, 'a condition in ' + F.name + '() reads an uninitialized value'); v = 0; }
+      if (REC) {
+        var isCmp = tk.some(function (t) { return t.k === 'op' && ['<', '>', '<=', '>=', '==', '!=', '&&', '||', '!'].indexOf(t.s) >= 0; });
+        var vars = [];
+        tk.forEach(function (t, q) {
+          if (t.k !== 'id' || (tk[q + 1] && tk[q + 1].s === '(')) return;
+          var vb = lookupVar(st, t.s, tag);
+          if (vb && vb.kind === 'scalar' && vars.indexOf(t.s) < 0) vars.push(t.s + ' = ' + showVal(vb.slots[0].value, typeInfo(vb.slots[0].type)));
+        });
+        var head = what + ' (' + text + '): ', tail = v ? 'true, so ' + yes : 'false, so ' + no;
+        var mid = isCmp ? (vars.length ? 'with ' + vars.join(', ') + ', it is ' : 'it is ')
+          : (text === showVal(v, R.t) ? '' : text + ' is ' + showVal(v, R.t) + ', which counts as ');
+        snap(line, head + mid + tail + '.', 'cond');
+      }
+      return !!v;
+    }
+    function exec(n) {
+      try { exec1(n); } catch (e) {
+        if (e && !e.ctl && !e.recorded && REC) {
+          /* a crash inside this function: keep a snapshot of the moment it happened */
+          e.recorded = true;
+          recSnap(st, n.k === 'block' ? F.line : n.line, fresh().concat([{ level: 'err', text: (e.message || String(e)) }]), 'crash');
+        }
+        throw e;
+      }
+    }
+    function loopCtl(e) { if (e && e.ctl === 'break') { snap(lastLine, 'break: leave the loop', 'flow'); return 'break'; } if (e && e.ctl === 'continue') { snap(lastLine, 'continue: skip to the next round of the loop', 'flow'); return 'continue'; } throw e; }
+    var lastLine = F.line;
+    function exec1(n) {
+      if (++steps > 20000) throw new Error(F.name + '() ran more than 20000 statements: is there an infinite loop?');
+      if (n.k !== 'block') { lastLine = n.line; if (REC && CALLSTACK.length) CALLSTACK[CALLSTACK.length - 1].line = n.line; }
+      switch (n.k) {
+        case 'block': for (var q = 0; q < n.body.length; q++) exec(n.body[q]); return;
+        case 'simple': runTokens(c2, n.toks, 'stmt'); snap(n.line); return;
+        case 'empty': return;
+        case 'if':
+          if (cond(n.cond, n.line, 'if', n.condText, 'the if body runs', n.els ? 'the else branch runs' : 'the if body is skipped')) exec(n.then); else if (n.els) exec(n.els);
+          return;
+        case 'while':
+          while (cond(n.cond, n.line, 'while', n.condText, 'the loop body runs', 'the loop ends')) { try { exec(n.body); } catch (e) { if (loopCtl(e) === 'break') break; } }
+          return;
+        case 'do':
+          do { try { exec(n.body); } catch (e) { if (loopCtl(e) === 'break') break; } } while (cond(n.cond, n.cline, 'do ... while', n.condText, 'the loop runs again', 'the loop ends'));
+          return;
+        case 'for':
+          if (n.init.length) { runTokens(c2, n.init, 'stmt'); snap(n.line, 'for loop starts: ' + n.initText); }
+          for (;;) {
+            if (n.cond.length && !cond(n.cond, n.line, 'for', n.condText, 'the loop body runs', 'the loop ends')) break;
+            try { exec(n.body); } catch (e) { if (loopCtl(e) === 'break') break; }
+            if (n.step.length) { lastLine = n.line; runTokens(c2, n.step, 'expr'); snap(n.line, 'end of this round: ' + n.stepText); }
+          }
+          return;
+        case 'break': throw { ctl: 'break' };
+        case 'continue': throw { ctl: 'continue' };
+        case 'return':
+          if (n.toks.length) {
+            var R = runTokens(c2, n.toks, 'expr', retT && retT.ptr > 0 ? retT : null);
+            if (R.blk) throw new Error('returning a whole struct is not simulated: return a pointer instead');
+            var rv = R.v !== undefined ? R.v : R.lv ? R.lv.b.slots[R.lv.i].value : 0;
+            if (rv === null) { warn(ctx, F.name + '() returned an uninitialized value'); rv = 0; }
+            result = retT ? coerce(rv, retT) : null;
+          }
+          snap(n.line, 'return' + (n.toks.length ? ' ' + n.toksText + ': ' + F.name + '() hands back ' + showVal(result, retT) : ': ' + F.name + '() is done') + ', and control goes back to ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + '. Its stack frame is about to be popped.', 'return');
+          throw { ctl: 'return' };
+      }
+    }
+    try { exec(body); } catch (e) {
+      if (e && e.ctl === 'return') returned = true;
+      else if (e && e.ctl) { if (REC) CALLSTACK.pop(); throw new Error('"' + e.ctl + '" outside of a loop in ' + F.name + '()'); }
+      else { if (REC) CALLSTACK.pop(); throw e; }
+    }
+    if (!returned) snap(F.end, 'end of ' + F.name + '(): it reaches its closing brace' + (retT ? ' without a return statement, so the caller gets garbage' : '') + ', and control goes back to ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + '.', 'return');
+    if (REC) CALLSTACK.pop();
+    if (!returned && retT) warn(ctx, F.name + '() reached its closing brace without a return statement, so the caller gets garbage');
+    var locals = st.blocks.filter(function (b) { return b.region === 'stack' && b.frame === tag; }).map(function (b) { return b.name; });
+    st.blocks = st.blocks.filter(function (b) { return !(b.region === 'stack' && b.frame === tag); });
+    st.alloc.stack = savedSp;
+    var seen = {}, kept = 0, inner = 0;
+    c2.msgs.forEach(function (m) {
+      if (/^called \w+\(\)/.test(m.text)) { inner += 1 + (+((/\[(\d+) more call/.exec(m.text) || [])[1] || 0)); return; }
+      if (/already existed, so it was reused/.test(m.text) || seen[m.text]) return;
+      if (REC && m.level !== 'warn') return;
+      seen[m.text] = 1;
+      if (kept++ < 6) ctx.msgs.push(m);
+    });
+    var argText = vals.map(function (v, k) { return isPtrType(F.params[k].type) ? (v === 0 ? 'NULL' : hex(v)) : String(v); }).join(', ');
+    if (REC) {
+      ctx.msgs.push({ level: 'call', text: 'Back in ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + ': ' + F.name + '() returned' + (retT ? ' ' + showVal(result, retT) : '') + ', and its stack frame' + (locals.length ? ' (' + locals.join(', ') + ')' : '') + ' was popped.' });
+      return retT ? { t: retT, v: result } : { t: typeInfo('void*'), v: 0, isVoid: true };
+    }
+    note(ctx, (via ? 'called ' + F.name + '() through ' + via : 'called ' + F.name + '()') + ' with (' + argText + '). Its stack frame' +
+      (locals.length ? ' (' + locals.join(', ') + ')' : '') + ' was pushed, ran, and popped within this line' +
+      (retT ? ', and it returned ' + (retT.ptr > 0 ? (result === 0 ? 'NULL' : hex(result)) : result) : '') + '.' +
+      (inner ? ' [' + inner + ' more call' + (inner === 1 ? '' : 's') + ' happened inside it.]' : ''));
+    return retT ? { t: retT, v: result } : { t: typeInfo('void*'), v: 0, isVoid: true };
+  }
+  function callValue(fv, args, via) {
+    if (NE) return num(0, 'int');
+    var addr = val(fv);
+    if (addr === 0) throw new Error('Segmentation fault: called through a NULL function pointer');
+    var F = funcAt(addr);
+    if (!F) throw new Error('Segmentation fault: there is no function at ' + hex(addr));
+    funcBlock(st, F);
+    return callUser(F, args, via);
+  }
   function call(name) {
+    var vb = lookupVar(st, name, ctx.onlyFrame);
+    if (vb && vb.kind === 'scalar' && typeInfo(vb.slots[0].type).fn) {
+      var fargs = parseArgs();
+      return callValue({ t: typeInfo(vb.slots[0].type), lv: { b: vb, i: 0 } }, fargs, 'the pointer ' + name);
+    }
+    if (FUNCS[name] && name !== 'main') return callUser(FUNCS[name], parseArgs());
     var args = parseArgs();
     if (NE) return num(0, 'int');
+    if (name === 'printf' && args.length && args[0].arrBlk && args[0].arrBlk.strText !== undefined) {
+      var shown = cFormat(st, args[0].arrBlk.strText, args.slice(1).map(function (A) { return val(fin(A, null)); }));
+      note(ctx, 'printf prints: ' + JSON.stringify(shown.replace(/\n$/, '')).slice(1, -1).replace(/\\"/g, '"') + '. Printing does not change memory.');
+      return num(shown.length, 'int');
+    }
     if (name === 'malloc') {
       if (args.length !== 1) throw new Error('malloc takes one argument');
       var V = { t: typeInfo('void*'), pending: { size: val(args[0]), zero: false } };
@@ -1126,9 +1534,15 @@ function runTokens(ctx, toks, mode, destType) {
     if (t.k === 'id') {
       if (isOp('(')) return call(t.s);
       if (t.s === 'NULL' || t.s === 'nullptr') return { t: typeInfo('void*'), v: 0 };
+      if (FUNCS[t.s] && !lookupVar(st, t.s, ctx.onlyFrame)) {
+        /* a function's name is the address of its code (it decays to a function pointer) */
+        var Fn = FUNCS[t.s];
+        if (!NE) funcBlock(st, Fn);
+        return { t: fnType(Fn.fn, 1), v: Fn.addr, fnDes: true };
+      }
       if (t.s === 'true') return num(1, 'int');
       if (t.s === 'false') return num(0, 'int');
-      var b2 = lookupVar(st, t.s);
+      var b2 = lookupVar(st, t.s, ctx.onlyFrame);
       if (!b2 && NE && ctx.declaring && ctx.declaring.name === t.s) return { t: ctx.declaring.T, v: 0, ne: true };
       if (!b2) throw new Error('"' + t.s + '" is not declared yet. Run its declaration first, or create it on the canvas.');
       if (b2.kind === 'array') {
@@ -1155,6 +1569,7 @@ function runTokens(ctx, toks, mode, destType) {
         a = derefV(binop('+', a, idx));
       } else if (isOp('.')) { next(); a = fieldOf(a, next().s); }
       else if (isOp('->')) { next(); var nm = next().s; a = fieldOf(derefV(a), nm); }
+      else if (isOp('(') && a.t.fn) { var cargs = parseArgs(); a = callValue(a, cargs, 'a function pointer'); }
       else if (isOp('++') || isOp('--')) { var d = next().s === '++' ? 1 : -1; if (NE) return a; a = incdec(a, d, true); }
       else break;
     }
@@ -1275,12 +1690,28 @@ function runTokens(ctx, toks, mode, destType) {
     for (;;) {
       var stars = 0;
       while (isOp('*')) { next(); stars++; while (isId('const')) next(); }
-      var nt = next();
-      if (nt.k !== 'id') throw new Error('expected a variable name, got "' + nt.s + '"');
-      var tstr = baseStr + new Array(stars + 1).join('*');
-      var T = typeInfo(tstr);
-      var dims = null;
-      if (isOp('[')) { next(); if (isOp(']')) dims = -1; else dims = val(parseAssign()); expectOp(']'); }
+      var nt, tstr, T, dims = null;
+      if (isOp('(') && isOp('*', 1)) {
+        /* a function pointer: ret (*name)(params), or an array of them: ret (*name[N])(params) */
+        next();
+        var fst = 0;
+        while (isOp('*')) { next(); fst++; }
+        nt = next();
+        if (nt.k !== 'id') throw new Error('expected a variable name, got "' + nt.s + '"');
+        if (isOp('[')) { next(); if (isOp(']')) dims = -1; else dims = val(parseAssign()); expectOp(']'); }
+        expectOp(')');
+        expectOp('(');
+        var pd = 1, ptxt = [];
+        while (pd > 0) { var pt2 = next(); if (pt2.k === 'op' && pt2.s === '(') pd++; if (pt2.k === 'op' && pt2.s === ')') { pd--; if (!pd) break; } ptxt.push(pt2.s); }
+        tstr = typeInfo(baseStr + new Array(stars + 1).join('*') + ' (' + new Array(fst + 1).join('*') + ')(' + ptxt.join(' ').replace(/ ,/g, ',').replace(/ \* /g, '* ') + ')').str;
+        T = typeInfo(tstr);
+      } else {
+        nt = next();
+        if (nt.k !== 'id') throw new Error('expected a variable name, got "' + nt.s + '"');
+        tstr = baseStr + new Array(stars + 1).join('*');
+        T = typeInfo(tstr);
+        if (isOp('[')) { next(); if (isOp(']')) dims = -1; else dims = val(parseAssign()); expectOp(']'); }
+      }
       var init = null;
       ctx.declaring = { name: nt.s, T: T };
       if (isOp('=')) {
@@ -1322,13 +1753,15 @@ function runTokens(ctx, toks, mode, destType) {
       else if (init) {
         v = val(init.v);
         if (T.ptr > 0 && init.v.t.ptr === 0 && v !== 0) warn(ctx, 'assigning a plain number to the pointer ' + name);
+        if (T.fn && init.v.t.fn && T.str !== init.v.t.str) warn(ctx, name + ' is ' + T.str + ' but it was given ' + init.v.t.str + ': the parameter or return types do not match');
+        if (init.v.isVoid) throw new Error('that function returns void, so there is no value to store in ' + name);
       }
       slots = [{ label: '', type: tstr, value: v === null ? null : coerce(v, T) }];
     }
     var ex = null;
     for (var q = 0; q < st.blocks.length; q++) {
       var o = st.blocks[q];
-      if (o.name === name && o.region === region) ex = o;
+      if (o.name === name && o.region === region && (region !== 'stack' || (o.frame || '') === (ctx.frame || ''))) ex = o;
     }
     if (ex) {
       var oldSize = ex.size;
@@ -1564,6 +1997,7 @@ function isQuietLine(L) {
   var t = codeLines()[L - 1];
   if (t === undefined) return false;
   if (defs.skip[L]) return true;
+  if (defs.fnLine && defs.fnLine[L]) return true;
   if (closesScope(L)) return false;
   var c = classifyLine(t);
   return !!c.skip && !c.control && !/function header/.test(c.skip);
@@ -1573,7 +2007,19 @@ function nextLine(L) {
   while (k <= n && isQuietLine(k)) k++;
   return k <= n ? k : null;
 }
-function firstLine() { return isQuietLine(1) ? nextLine(1) : 1; }
+function firstLine() {
+  var mainF = (defs.funcs || []).filter(function (f) { return f.name === 'main'; })[0];
+  if (mainF) {
+    /* start at the first line of main, not inside a helper function defined above it */
+    var n = codeLines().length;
+    for (var k = mainF.line; k <= n; k++) if (frameFor(k) === 'main' && !isQuietLine(k)) return k;
+  }
+  return isQuietLine(1) ? nextLine(1) : 1;
+}
+function inOtherFunction(L) {
+  var f = frameFor(L), hasMain = (defs.funcs || []).some(function (x) { return x.name === 'main'; });
+  return hasMain && !!f && f !== 'main';
+}
 function insertStep(step) {
   doc.steps.splice(doc.cur + 1, 0, step);
   doc.cur++;
@@ -1620,14 +2066,62 @@ function execLineAt(st, L) {
   }
   return runLine(st, raw, regionFor(L), fn, defs.depth[L] || 1);
 }
-function runPending() {
+/* does line L call a function from the code (directly or through a function pointer)? */
+function lineCallsUser(L) {
+  var t = codeLines()[L - 1];
+  if (!t) return false;
+  var toks;
+  try { toks = tokenize(blankComments(t)); } catch (e) { return false; }
+  return toks.some(function (tk, k) {
+    if (tk.k !== 'id' || !toks[k + 1] || toks[k + 1].s !== '(') {
+      /* (*fp)(...) or ops[i](...) */
+      return tk.k === 'id' && !!(function () { var b = lookupVar(S(), tk.s); try { return b && b.kind !== 'struct' && typeInfo(b.slots[0].type).fn; } catch (e) { return false; } })();
+    }
+    if (FUNCS[tk.s] && tk.s !== 'main') return true;
+    var b = lookupVar(S(), tk.s);
+    try { return !!(b && b.kind === 'scalar' && typeInfo(b.slots[0].type).fn); } catch (e) { return false; }
+  });
+}
+function inCall() { return !!doc.steps[doc.cur].stack; }
+function recToStep(s, L) { return { id: uid('s'), line: s.line, state: s.state, msgs: s.msgs, stack: s.stack, kind: s.kind, callLine: L }; }
+function runPending(into) {
+  if (inCall()) {
+    /* inside a recorded call, Run moves to the next recorded step, like a debugger's Step */
+    if (doc.cur < doc.steps.length - 1) goStep(doc.cur + 1);
+    else toast('The program stopped here. Go back a step to keep tracing.');
+    return;
+  }
   var L = pendingLine;
   if (S().ended) { toast('The program already finished at this step. Go back a step to keep tracing.'); return; }
   if (!L) { toast('There is no next line. Click a line in the code to choose one.'); return; }
   var text = codeLines()[L - 1];
   if (text === undefined) return;
+  if (defs.fnLine && defs.fnLine[L]) { ui.lastResult = { kind: 'inf', text: 'Line ' + L + ' starts the function ' + defs.fnLine[L] + '(). Nothing runs here: its body runs when something calls it.' }; pendingLine = nextLine(L); renderAll(); return; }
   if (defs.skip[L]) { ui.lastResult = { kind: 'inf', text: 'Line ' + L + ' is part of a struct definition. It is registered automatically, so nothing runs.' }; pendingLine = nextLine(L); renderAll(); return; }
-  var r = execLineAt(S(), L);
+  var r, rec = null;
+  if (into) { REC = []; CALLSTACK = [{ fn: frameFor(L) || 'main', line: L }]; }
+  try { r = execLineAt(S(), L); } finally { rec = REC; REC = null; CALLSTACK = []; }
+  if (rec && rec.length) {
+    /* Step into: every statement inside the call becomes its own step, then the line finishes */
+    pushUndo();
+    var first = doc.cur + 1;
+    rec.forEach(function (s) { insertStep(recToStep(s, L)); });
+    if (r.error) {
+      doc.steps[doc.cur].crash = true;
+      ui.lastResult = { kind: 'err', text: 'Line ' + L + ' crashed inside the call: ' + r.error + ' Step through it to see how it got there.' };
+    } else {
+      var fin = { id: uid('s'), line: L, state: r.state, msgs: r.msgs };
+      if (rec.truncated) fin.msgs = fin.msgs.concat([{ level: 'warn', text: 'Recording stopped after ' + REC_LIMIT + ' steps; the rest of the call ran without being recorded.' }]);
+      insertStep(fin);
+      ui.lastResult = { kind: 'inf', text: 'Stepped into line ' + L + ': ' + rec.length + ' steps inside the call. Press Next (or \u2192) to walk through them.' };
+    }
+    doc.cur = first;
+    pendingLine = null;
+    fixSel();
+    renderAll(); keepInView(); save();
+    return;
+  }
+  if (into && !r.error && !r.skipped) toast('Line ' + L + ' does not call one of your functions, so there is nothing to step into. It ran as one step.');
   if (r.skipped) {
     ui.lastResult = { kind: 'inf', text: 'Line ' + L + ': ' + r.skipped + '.' };
     pendingLine = nextLine(L);
@@ -1660,7 +2154,7 @@ function runAllFresh() {
   doc.steps = [{ id: uid('s'), line: null, state: st, msgs: [] }];
   doc.cur = 0;
   for (var L = 1; L <= lines.length; L++) {
-    if (defs.skip[L]) continue;
+    if (defs.skip[L] || inOtherFunction(L) || (defs.fnLine && defs.fnLine[L])) continue;
     var r = execLineAt(S(), L);
     if (r.skipped) continue;
     if (r.finished) break;
@@ -1685,7 +2179,7 @@ function goStep(k) {
   if (k < 0 || k >= doc.steps.length) return;
   doc.cur = k;
   var L = doc.steps[k].line;
-  pendingLine = doc.steps[k].state.ended ? null : (L ? nextLine(L) : firstLine());
+  pendingLine = doc.steps[k].stack || doc.steps[k].state.ended ? null : (L ? nextLine(L) : firstLine());
   ui.lastResult = null;
   fixSel();
   renderAll(); keepInView(); save();
@@ -1817,9 +2311,9 @@ function renderCanvas() {
     var on = sel && sel.kind === 'group' && sel.id === g.id;
     if (g.auto) {
       var kd = agKind(g.auto), subFits = !!g.sub && g.w - 24 - g.sub.length * 6.4 - 12 >= g.label.length * 7;
-      out.push('<g class="grp ag ag-' + kd + (g.gone ? ' gone' : '') + (on ? ' sel' : '') + '" data-g="' + g.id + '"><rect class="gbox" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="' + g.h + '" rx="10"/>' +
+      out.push('<g class="grp ag ag-' + kd + (g.gone ? ' gone' : '') + (g.run ? ' f-' + g.run : '') + (on ? ' sel' : '') + '" data-g="' + g.id + '"><rect class="gbox" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="' + g.h + '" rx="10"/>' +
         '<path class="agbar" d="M' + g.x + ' ' + (g.y + 10) + ' a10 10 0 0 1 10 -10 H' + (g.x + g.w - 10) + ' a10 10 0 0 1 10 10 V' + (g.y + 30) + ' H' + g.x + ' Z"/></g>');
-      agLbl.push('<g class="ag ag-' + kd + (g.gone ? ' gone' : '') + (on ? ' sel' : '') + ' aglbl" pointer-events="none">' + '<text class="gl" x="' + (g.x + 12) + '" y="' + (g.y + 20) + '">' + esc(trunc(g.label, Math.floor((g.w - 24 - (subFits ? g.sub.length * 6.4 + 12 : 0)) / 7))) + '</text>' +
+      agLbl.push('<g class="ag ag-' + kd + (g.gone ? ' gone' : '') + (g.run ? ' f-' + g.run : '') + (on ? ' sel' : '') + ' aglbl" pointer-events="none">' + '<text class="gl" x="' + (g.x + 12) + '" y="' + (g.y + 20) + '">' + esc(trunc(g.label, Math.floor((g.w - 24 - (subFits ? g.sub.length * 6.4 + 12 : 0)) / 7))) + '</text>' +
         (subFits ? '<text class="gsub" x="' + (g.x + g.w - 12) + '" y="' + (g.y + 20) + '" text-anchor="end">' + esc(g.sub) + '</text>' : '') + '</g>');
       out.push('<g class="grp ag ag-' + kd + (g.gone ? ' gone' : '') + (on ? ' sel' : '') + '" data-g="' + g.id + '"><rect class="ghead" x="' + g.x + '" y="' + g.y + '" width="' + g.w + '" height="30" rx="10"><title>Drag to move this group on every step</title></rect></g>');
       return;
@@ -1969,6 +2463,10 @@ function cardSvg(st, b, c, ghost) {
       h.push('<text class="' + vcls + '" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h / 2 + 1) + '" pointer-events="none">' + esc(trunc(txt, maxc)) + '</text>');
     }
   });
+  if (b.kind === 'func') {
+    h.push('<rect class="slot codebody" x="' + GEO.PAD + '" y="' + g.bodyY + '" width="' + (g.w - 2 * GEO.PAD) + '" height="' + GEO.SH + '" rx="4"><title>The machine code of ' + esc(b.name) + '(). A function pointer holds this address.</title></rect>');
+    h.push('<text class="sig" x="' + (GEO.PAD + 8) + '" y="' + (g.bodyY + GEO.SH / 2 + 4) + '" pointer-events="none">' + esc(b.sig || b.name + '()') + '</text>');
+  }
   var fy = g.h - 8;
   var right = ghost ? (b.region === 'stack' ? 'OUT OF SCOPE' : 'RELEASED') : b.freed ? 'FREED' : b.leak === 'lost' ? 'LEAKED · ' + b.size + ' B' : b.leak === 'reachable' ? 'STILL REACHABLE' : (b.size + ' B · ' + REGION_LABEL[b.region].toUpperCase());
   h.push('<text class="ft" x="10" y="' + fy + '">@' + hex(b.addr) + '</text><text class="rg" x="' + (g.w - 10) + '" y="' + fy + '" text-anchor="end">' + esc(right) + '</text>');
@@ -2064,16 +2562,17 @@ function renderCode() {
     h.push('<p class="hint">Tab indents and Shift+Tab outdents, also across selected lines. Enter keeps the indentation. To leave the editor with the keyboard, press Esc, then Tab. Struct definitions in the code are picked up automatically, and existing steps are kept.</p>');
   } else {
     h.push('<div class="code" id="codeList" role="listbox" aria-label="Code lines"' + (codeH ? ' style="height:' + codeH + 'px;max-height:none"' : '') + '>');
+    var stk = doc.steps[doc.cur].stack, sites = {};
+    if (stk) stk.slice(0, -1).forEach(function (f) { sites[f.line] = f.fn; });
     lines.forEach(function (t, k) {
-      var L = k + 1, cls = 'cl' + (L === curLine ? ' cur' : '') + (L === pendingLine ? ' pend' : '') + (isQuietLine(L) ? ' skipl' : '');
+      var L = k + 1, cls = 'cl' + (L === curLine ? ' cur' : '') + (L === pendingLine ? ' pend' : '') + (isQuietLine(L) ? ' skipl' : '') + (sites[L] && L !== curLine ? ' callsite' : '') + (stk && L === curLine ? ' exec' : '');
       var ns = ls[L] ? ls[L].map(function (n) { return n; }).slice(-3).join(',') : '';
       h.push('<div class="' + cls + '" data-line="' + L + '" role="option" aria-selected="' + (L === pendingLine) + '" title="Click to make this the next line to run"><span class="mk"></span><span class="ln">' + L + '</span><span class="tx">' + (esc(t) || ' ') + '</span><span class="ns">' + (ns ? 's' + ns : '') + '</span></div>');
     });
     h.push('</div><div class="grip" id="codeGrip" role="separator" aria-orientation="horizontal" aria-label="Resize the code box. Arrow keys make it taller or shorter, double-click resets." tabindex="0"></div>');
-    var pl = pendingLine ? pendingLine : null;
-    h.push('<div class="runbar"><button class="btn primary" type="button" data-a="run"' + (pl ? '' : ' disabled') + '>Run line ' + (pl || '') + '</button>' +
+    h.push('<div class="runbar">' + runButtons() +
       '<button class="btn" type="button" data-a="manual" title="Copy this step so you can draw the change yourself">New step by hand</button></div>');
-    h.push('<p class="hint">Click a line to choose what runs next. <span class="kbd">R</span> runs it, <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> move between steps. Loops and ifs: pick the next line yourself.</p>');
+    h.push('<p class="hint">Click a line to choose what runs next. <span class="kbd">R</span> runs it in one step, <span class="kbd">I</span> steps into the functions it calls, <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> move between steps. Loops and ifs in main: pick the next line yourself.</p>');
     if (ui.lastResult) h.push('<div class="result ' + ui.lastResult.kind + '">' + esc(ui.lastResult.text) + '</div>');
   }
   box.innerHTML = h.join('');
@@ -2083,29 +2582,55 @@ function renderCode() {
     if (top < list.scrollTop || top > list.scrollTop + list.clientHeight - 24) list.scrollTop = top - list.clientHeight / 3;
   }
 }
+function runButtons() {
+  if (inCall()) {
+    var more = doc.cur < doc.steps.length - 1;
+    return '<button class="btn primary" type="button" data-a="run"' + (more ? '' : ' disabled') + ' title="Go to the next statement (R or \u2192)">Next \u25B8</button>';
+  }
+  var pl = pendingLine && !S().ended ? pendingLine : null, can = pl && lineCallsUser(pl);
+  return '<button class="btn primary" type="button" data-a="run"' + (pl ? '' : ' disabled') + ' title="Run the whole line as one step (R)">Run line ' + (pl || '') + '</button>' +
+    (can ? '<button class="btn into" type="button" data-a="into" title="Walk through the called function statement by statement (I)">Step into \u21B3</button>' : '');
+}
 function renderSteps() {
   var lines = codeLines(), h = ['<div class="sec-h"><h2>Steps</h2><span class="hint" style="margin:0">' + doc.steps.length + ' total</span></div><ol class="steps">'];
   doc.steps.forEach(function (s, k) {
     var d = k > 0 ? diffStates(doc.steps[k - 1].state, s.state) : { lines: [] };
     var label = k === 0 ? 'Start' : s.line ? blankComments(lines[s.line - 1] || '').trim() : 'Drawn by hand';
-    h.push('<li class="step' + (k === doc.cur ? ' on' : '') + '" data-step="' + k + '"><div class="st-h"><span class="st-n">' + k + '</span>' +
-      '<span class="st-c" title="' + esc(label) + '">' + (s.line ? '<span style="color:var(--muted)">L' + s.line + '</span> ' : '') + esc(label) + '</span>' +
+    var depth = s.stack ? s.stack.length - 1 : 0, fnName = s.stack ? s.stack[s.stack.length - 1].fn : '';
+    if (s.kind === 'enter') label = 'enter ' + fnName + '()';
+    h.push('<li class="step' + (k === doc.cur ? ' on' : '') + (s.stack ? ' inner k-' + s.kind : '') + (s.crash ? ' crash' : '') + '" data-step="' + k + '"' + (depth ? ' style="margin-left:' + Math.min(5, depth) * 12 + 'px"' : '') + '><div class="st-h"><span class="st-n">' + k + '</span>' +
+      '<span class="st-c" title="' + esc(label) + '">' + (s.stack ? '<span class="fnchip">' + esc(fnName) + '</span> ' : '') + (s.line ? '<span style="color:var(--muted)">L' + s.line + '</span> ' : '') + esc(label) + '</span>' +
       (k > 0 ? '<button class="st-x" type="button" data-a="delstep" data-k="' + k + '" aria-label="Delete step ' + k + '">&times;</button>' : '') + '</div>');
     if (d.lines.length) h.push('<ul class="chg">' + d.lines.slice(0, 6).map(function (l) { return '<li class="' + l.k + '">' + esc(l.t) + '</li>'; }).join('') + (d.lines.length > 6 ? '<li>' + (d.lines.length - 6) + ' more</li>' : '') + '</ul>');
     else if (k > 0) h.push('<ul class="chg"><li>no change' + (s.manual ? ' yet: edit the canvas while this step is selected' : '') + '</li></ul>');
-    (s.msgs || []).forEach(function (m) { h.push('<div class="msg"' + (m.level === 'err' ? ' style="color:var(--bad)"' : '') + '>' + esc(m.text) + '</div>'); });
+    (s.msgs || []).forEach(function (m) { h.push('<div class="msg m-' + (m.level || 'info') + '"' + (m.level === 'err' ? ' style="color:var(--bad)"' : '') + '>' + esc(m.text) + '</div>'); });
     h.push('</li>');
   });
   h.push('</ol>');
   $('stepSec').innerHTML = h.join('');
+  var on = $('stepSec').querySelector('.step.on');
+  if (on && on.scrollIntoView && (ui.lastStepShown !== doc.cur)) { ui.lastStepShown = doc.cur; try { on.scrollIntoView({ block: 'nearest' }); } catch (e) { /* ignore */ } }
 }
 function renderStepbar() {
   var s = doc.steps[doc.cur], lines = codeLines();
-  var where = doc.cur === 0 ? '<b>Start</b>, before any line runs' : '<b>Step ' + doc.cur + '</b> of ' + (doc.steps.length - 1) + (s.line ? ', after line ' + s.line + ' <code>' + esc(trunc(blankComments(lines[s.line - 1] || '').trim(), 48)) + '</code>' : ', drawn by hand');
+  var where = doc.cur === 0 ? '<b>Start</b>, before any line runs' : '<b>Step ' + doc.cur + '</b> of ' + (doc.steps.length - 1) + (s.line ? (s.stack ? ', in <b>' + esc(s.stack[s.stack.length - 1].fn) + '()</b> line ' : ', after line ') + s.line + ' <code>' + esc(trunc(blankComments(lines[s.line - 1] || '').trim(), 48)) + '</code>' : ', drawn by hand');
+  var extra = '';
+  if (s.stack) {
+    extra += '<div class="callstack" role="status"><span class="cs-l">Call stack</span>' + s.stack.map(function (f, k) {
+      var top = k === s.stack.length - 1;
+      return '<span class="cs-f' + (top ? ' top' : '') + '">' + esc(f.fn) + '() <span class="cs-ln">line ' + f.line + (top ? '' : ', waiting') + '</span></span>';
+    }).join('<span class="cs-sep">\u203A</span>') + '</div>';
+  }
+  var notes = (s.msgs || []).filter(function (m) { return m.level === 'call' || m.level === 'flow' || m.level === 'err'; });
+  if (!notes.length && s.stack && doc.cur > 0) {
+    var dl = diffStates(doc.steps[doc.cur - 1].state, s.state).lines;
+    notes = [{ text: dl.length ? dl.slice(0, 4).map(function (l) { return l.t; }).join(' \u00b7 ') : 'no variable changed' }];
+  }
+  if (notes.length && doc.cur > 0) extra += '<div class="stepnote' + (notes.some(function (m) { return m.level === 'err'; }) ? ' bad' : '') + '">' + notes.slice(0, 2).map(function (m) { return esc(m.text); }).join('<br>') + '</div>';
   $('stepbar').innerHTML = '<button class="btn" type="button" data-a="prev"' + (doc.cur ? '' : ' disabled') + '>&larr; Back</button>' +
     '<button class="btn" type="button" data-a="next"' + (doc.cur < doc.steps.length - 1 ? '' : ' disabled') + '>Forward &rarr;</button>' +
     '<span class="where">' + where + '</span>' +
-    '<button class="btn primary" type="button" data-a="run"' + (pendingLine && !S().ended ? '' : ' disabled') + '>Run line ' + (pendingLine || '') + '</button>' +
+    runButtons() + extra +
     (S().ended ? '<div class="endnote" role="status"><b>Program finished.</b> ' + esc(endMessage(S().ended).replace(/^.*?finished\. /, '')) + '</div>' : '');
 }
 
@@ -2152,6 +2677,13 @@ function inspectorHtml() {
     return '<div class="field"><span>Group label</span><input id="f-glabel" data-f="glabel" value="' + esc(g.label) + '"></div><p class="hint">Dragging the group by its label moves everything inside it. Drag the corner to resize.</p><div class="actions"><button class="btn danger" type="button" data-a="delsel">Delete group</button></div>';
   }
   var b = findBlock(st, sel.id);
+  if (b.kind === 'func') {
+    var F = FUNCS[b.name];
+    return '<h3 class="ins-h mono">' + esc(b.sig || b.name + '()') + '</h3>' +
+      '<p class="hint">The machine code of ' + esc(b.name) + '() lives in the code (text) segment at <span class="mono">' + hex(b.addr) + '</span>. Writing <span class="mono">' + esc(b.name) + '</span> without parentheses gives this address, the same as <span class="mono">&amp;' + esc(b.name) + '</span>. A function pointer stores it, and calling through the pointer jumps here.</p>' +
+      '<p class="hint">Type: <span class="mono">' + esc(blockType(b)) + '</span>. A pointer to it: <span class="mono">' + esc(F ? fnType(F.fn, 1).str : '') + '</span>' + (F ? ', defined on line ' + F.line : '') + '.</p>' +
+      '<p class="hint">The code segment is read-only, so this box cannot be edited.</p>';
+  }
   var h = ['<datalist id="typelist">' + TYPE_LIST.concat(Object.keys(STRUCTS).map(function (s) { return s + '*'; })).map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>'];
   h.push('<div class="field"><span>Name</span><input id="f-name" data-f="name" class="mono-in" value="' + esc(b.name) + '" placeholder="' + (b.region === 'heap' ? 'heap blocks have no name' : 'name') + '"></div>');
   if (b.kind === 'scalar') {
@@ -2200,7 +2732,7 @@ var SECTIONS = {
   code: { title: 'Code (Text)', regions: [], cls: 'code',
     desc: 'The compiled instructions of your functions. Read-only. The board does not run machine code, so these addresses are illustrative.' }
 };
-function sectionOf(region) { return region === 'heap' ? 'heap' : region === 'stack' ? 'stack' : 'static'; }
+function sectionOf(region) { return region === 'heap' ? 'heap' : region === 'stack' ? 'stack' : region === 'code' ? 'code' : 'static'; }
 function sectionOrder() { return ui.mapOrder === 'address' ? ['stack', 'heap', 'static', 'code'] : ['heap', 'stack', 'static', 'code']; }
 function growText(sec, long) {
   var lec = ui.mapOrder !== 'address';
@@ -2343,7 +2875,7 @@ function sectionHtml(st, sec, leaks) {
     var frames = [], byFrame = {};
     list.forEach(function (b) { var f = b.frame || ''; if (!byFrame[f]) { byFrame[f] = []; frames.push(f); } byFrame[f].push(b); });
     frames.forEach(function (f) {
-      h.push('<tr class="fh"><td colspan="' + cols + '">' + (f ? esc(f) + '() stack frame' : 'drawn by hand') + '</td></tr>');
+      h.push('<tr class="fh"><td colspan="' + cols + '">' + (f ? esc(f.replace(/#\d+$/, '')) + '() stack frame' + (/#(\d+)$/.test(f) && +f.split('#')[1] > 1 ? ', depth ' + f.split('#')[1] : '') : 'drawn by hand') + '</td></tr>');
       byFrame[f].forEach(function (b) { var on = sel && sel.kind === 'block' && sel.id === b.id; h.push(blockHeadRow(b, leaks, cols, on) + slotRows(st, b, on)); });
     });
     if (!lec) h.push('<tr class="gap"><td colspan="' + cols + '">↓ the next local goes here, toward the heap</td></tr>');
@@ -2587,17 +3119,22 @@ ui.autoGroups = true;
 try { if (localStorage.getItem(STORE_KEY + '-auto') === 'off') ui.autoGroups = false; } catch (e) { /* ignore */ }
 
 function agKey(b) {
+  if (b.region === 'code') return 'code';
   if (b.region === 'heap') return 'heap';
   if (b.region === 'stack') return 'stack:' + (b.frame || '');
   return 'static';
 }
-function agCol(key) { return key === 'heap' ? 1 : key === 'static' ? 2 : 0; }
-function agKind(key) { return key === 'heap' ? 'heap' : key === 'static' ? 'static' : 'stack'; }
+/* columns, left to right: code (lowest addresses), stack frames (a called function's frame gets its
+   own column to the right of its caller's), heap, statics */
+function agDepth(key) { var m = /#(\d+)$/.exec(key); return m ? +m[1] : 0; }
+function agCol(key) { return key === 'code' ? 0 : key === 'heap' ? 100 : key === 'static' ? 101 : 1 + agDepth(key); }
+function agKind(key) { return key === 'heap' ? 'heap' : key === 'static' ? 'static' : key === 'code' ? 'code' : 'stack'; }
 function agLabel(key, gone) {
   if (key === 'heap') return 'Heap (malloc / new)';
   if (key === 'static') return 'Static: globals + literals';
-  var fn = key.slice(6);
-  return (fn ? 'Stack frame: ' + fn + '()' : 'Stack') + (gone ? (fn ? ', returned' : ', gone') : '');
+  if (key === 'code') return 'Code (text): functions';
+  var fn = key.slice(6).replace(/#\d+$/, ''), d = agDepth(key);
+  return (fn ? 'Stack frame: ' + fn + '()' : 'Stack') + (d > 1 ? ' \u00b7 depth ' + d : '') + (gone ? (fn ? ', returned' : ', gone') : '');
 }
 function isAutoBlock(b) { return !!b.auto; }
 
@@ -2648,11 +3185,16 @@ function arrangeAll() {
   heights.forEach(function (x) { Object.keys(x.h).forEach(function (key) { maxH[key] = Math.max(maxH[key] || 0, x.h[key]); }); });
 
   /* 3. default places: stack frames in the first column, the heap next to them, statics last */
-  var colW = [0, 0, 0];
-  order.forEach(function (key) { colW[agCol(key)] = Math.max(colW[agCol(key)], Math.max(AG.MINW, inner[key] + 2 * AG.PADX)); });
-  var colX = [], x = AG.X0;
-  [0, 1, 2].forEach(function (c) { colX[c] = x; if (colW[c]) x += colW[c] + AG.COLGAP; });
-  var base = {}, colY = [AG.Y0, AG.Y0, AG.Y0];
+  var colW = {};
+  order.forEach(function (key) { var c = agCol(key); colW[c] = Math.max(colW[c] || 0, Math.max(AG.MINW, inner[key] + 2 * AG.PADX)); });
+  var colX = {}, colY = {}, x = AG.X0;
+  Object.keys(colW).map(Number).sort(function (a, b) { return a - b; }).forEach(function (c) {
+    colX[c] = x; colY[c] = AG.Y0;
+    /* a frame column sits closer to its caller's, so the pair reads as one call stack */
+    var nextIsFrame = c >= 1 && c < 100 && colW[c + 1];
+    x += colW[c] + (nextIsFrame ? 90 : AG.COLGAP);
+  });
+  var base = {};
   order.slice().sort(function (a, b) { return agCol(a) - agCol(b) || order.indexOf(a) - order.indexOf(b); }).forEach(function (key) {
     var c = agCol(key);
     base[key] = { x: colX[c], y: colY[c], w: colW[c] };
@@ -2679,9 +3221,18 @@ function arrangeAll() {
     order.forEach(function (key) {
       if (!live[key] && !info.gone[key]) return;
       var p = pos[key];
+      var lbl = agLabel(key, !live[key]), state = '';
+      if (s.stack && /^stack:/.test(key) && live[key]) {
+        /* inside a call: say which frame is running and which are waiting for a call to return */
+        var d = agDepth(key), fr = s.stack[d];
+        if (fr && fr.fn === key.slice(6).replace(/#\d+$/, '')) {
+          state = d === s.stack.length - 1 ? 'running' : 'paused';
+          lbl = 'Frame: ' + fr.fn + '()' + (state === 'running' ? ' \u00b7 running' : ' \u00b7 paused at line ' + fr.line);
+        }
+      }
       made.push({ id: 'ag-' + key, auto: key, x: p.x, y: p.y, w: p.w, h: AG.TOP + (info.h[key] || 0) + AG.PADB,
-        label: agLabel(key, !live[key]), gone: !live[key],
-        sub: live[key] ? hex(lo[key]) + ' – ' + hex(hi[key]) : '' });
+        label: lbl, gone: !live[key], run: state,
+        sub: live[key] && !state ? hex(lo[key]) + ' – ' + hex(hi[key]) : '' });
     });
     st.groups = made.concat(st.groups);
   });
@@ -2724,6 +3275,153 @@ function setAutoGroups(on) {
   sel = null;
   renderAll(); renderAgBtn(); fitView(); save();
   toast(on ? 'Auto groups on: boxes from the code are filed into stack, heap and static groups.' : 'Auto groups off: boxes stay where they are and you arrange them yourself.');
+}
+/* ================= my programs: code saved into the examples bank =================
+   Kept in this browser's storage. The list can be copied out as text and pasted into another
+   browser or another copy of the whiteboard, since each site keeps its own storage. */
+var PROG_KEY = STORE_KEY + '-programs';
+function loadPrograms() {
+  try {
+    var a = JSON.parse(localStorage.getItem(PROG_KEY) || '[]');
+    return Array.isArray(a) ? a.filter(function (p) { return p && typeof p.code === 'string' && p.name; }) : [];
+  } catch (e) { return []; }
+}
+function storePrograms(list) {
+  try { localStorage.setItem(PROG_KEY, JSON.stringify(list)); return true; } catch (e) { return false; }
+}
+function guessProgramName(code) {
+  var fs = (defs.funcs || []).map(function (f) { return f.name; }).filter(function (n) { return n !== 'main'; });
+  if (fs.length) return fs.slice(0, 2).join(' and ');
+  var m = /\/\/\s*(.{3,40})/.exec(code);
+  return m ? m[1].trim() : 'My program';
+}
+function fillExamples() {
+  var progs = loadPrograms(), sel = $('examples');
+  sel.innerHTML = '<option value="">Load an example…</option>' +
+    '<optgroup label="Examples">' + EXAMPLES.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title) + '</option>'; }).join('') + '</optgroup>' +
+    (progs.length ? '<optgroup label="My programs">' + progs.map(function (p) { return '<option value="my:' + esc(p.id) + '">' + esc(p.name) + '</option>'; }).join('') + '</optgroup>' : '');
+}
+function loadProgramCode(name, code) {
+  EXTRA_STRUCTS = {};
+  doc = { code: code, steps: [], cur: 0, autoPos: {} };
+  defs = setDefs(doc.code);
+  runAllFresh();
+  if (S().ended && doc.cur > 1) doc.cur--;
+  pendingLine = doc.steps.length > 1 ? nextLine(doc.steps[doc.cur].line) : firstLine();
+  sel = null; ui.lastResult = null; ui.progName = name;
+}
+function openPrograms() {
+  var d = $('progModal');
+  $('progName').value = ui.progName || guessProgramName(doc.code);
+  $('progMsg').textContent = '';
+  $('progIO').hidden = true;
+  renderProgList();
+  d.hidden = false;
+  $('progName').focus(); $('progName').select();
+}
+function renderProgList() {
+  var progs = loadPrograms(), box = $('progList');
+  if (!progs.length) { box.innerHTML = '<p class="hint" style="margin:0">Nothing saved yet. Name the code that is in the editor and press Save.</p>'; return; }
+  box.innerHTML = progs.map(function (p) {
+    var first = p.code.split('\n').filter(function (l) { return l.trim() && !/^\s*#/.test(l); })[0] || '';
+    return '<div class="prog" data-pid="' + esc(p.id) + '"><div class="pi"><b>' + esc(p.name) + '</b><span class="mono">' + esc(trunc(first.trim(), 46)) + '</span>' +
+      '<span class="hint" style="margin:0">' + p.code.split('\n').length + ' lines' + (p.saved ? ' · saved ' + esc(new Date(p.saved).toLocaleDateString()) : '') + '</span></div>' +
+      '<div class="pa"><button class="btn sm" type="button" data-pa="load">Load</button><button class="btn sm" type="button" data-pa="ren">Rename</button><button class="btn sm danger" type="button" data-pa="del">Delete</button></div></div>';
+  }).join('');
+}
+function saveProgram() {
+  var name = $('progName').value.trim().replace(/\s+/g, ' ');
+  if (!name) { $('progMsg').textContent = 'Give it a name first.'; $('progName').focus(); return; }
+  if (!doc.code.trim()) { $('progMsg').textContent = 'The code editor is empty.'; return; }
+  var progs = loadPrograms(), same = progs.filter(function (p) { return p.name.toLowerCase() === name.toLowerCase(); })[0];
+  var btn = $('progSave');
+  if (same && same.code !== doc.code && !btn.classList.contains('armed')) {
+    btn.classList.add('armed'); btn.textContent = 'Replace "' + trunc(same.name, 18) + '"?';
+    $('progMsg').textContent = 'A program with this name exists. Click again to replace it, or change the name.';
+    return;
+  }
+  btn.classList.remove('armed'); btn.textContent = 'Save';
+  if (same) { same.code = doc.code; same.saved = Date.now(); same.name = name; }
+  else progs.push({ id: 'p' + Date.now().toString(36), name: name, code: doc.code, saved: Date.now() });
+  if (!storePrograms(progs)) { $('progMsg').textContent = 'This browser would not let the page save (private window?).'; return; }
+  ui.progName = name;
+  fillExamples(); renderProgList();
+  $('progMsg').textContent = 'Saved. It is in the Example menu under My programs.';
+}
+function progAction(pid, what, btn) {
+  var progs = loadPrograms(), p = progs.filter(function (x) { return x.id === pid; })[0];
+  if (!p) return;
+  if (what === 'load') {
+    pushUndo();
+    loadProgramCode(p.name, p.code);
+    $('progModal').hidden = true;
+    renderAll(); fitView(); save();
+    toast('Loaded "' + p.name + '". Every line already ran: use Back and Forward to watch it step by step.');
+  } else if (what === 'del') {
+    if (!btn.classList.contains('armed')) { btn.classList.add('armed'); btn.textContent = 'Click to delete'; setTimeout(function () { if (btn.isConnected) { btn.classList.remove('armed'); btn.textContent = 'Delete'; } }, 3000); return; }
+    storePrograms(progs.filter(function (x) { return x.id !== pid; }));
+    fillExamples(); renderProgList();
+    $('progMsg').textContent = 'Deleted "' + p.name + '".';
+  } else if (what === 'ren') {
+    var row = btn.closest('.prog'), pi = row.querySelector('.pi b');
+    pi.innerHTML = '<input class="mono-in" value="' + esc(p.name) + '" aria-label="New name">';
+    var inp = pi.querySelector('input');
+    inp.focus(); inp.select();
+    var finished = false;
+    var done = function (keep) {
+      if (finished) return;
+      finished = true;
+      var nn = inp.value.trim();
+      if (keep && nn) { if (ui.progName === p.name) ui.progName = nn; p.name = nn; storePrograms(progs); fillExamples(); }
+      renderProgList();
+    };
+    inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); done(true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(false); } });
+    inp.addEventListener('blur', function () { done(true); });
+  }
+}
+function setupPrograms() {
+  fillExamples();
+  $('progBtn').addEventListener('click', openPrograms);
+  $('progClose').addEventListener('click', function () { $('progModal').hidden = true; });
+  $('progModal').addEventListener('click', function (e) { if (e.target === $('progModal')) $('progModal').hidden = true; });
+  $('progModal').addEventListener('keydown', function (e) { if (e.key === 'Escape') $('progModal').hidden = true; });
+  $('progSave').addEventListener('click', saveProgram);
+  $('progName').addEventListener('input', function () { var b = $('progSave'); b.classList.remove('armed'); b.textContent = 'Save'; });
+  $('progName').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveProgram(); } });
+  $('progList').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-pa]');
+    if (!b) return;
+    progAction(b.closest('.prog').getAttribute('data-pid'), b.getAttribute('data-pa'), b);
+  });
+  /* move the bank between browsers or between copies of the page */
+  $('progExport').addEventListener('click', function () {
+    var io = $('progIO');
+    io.hidden = false;
+    $('progText').value = JSON.stringify({ memoryWhiteboardPrograms: 1, programs: loadPrograms() }, null, 1);
+    $('progText').focus(); $('progText').select();
+    $('progMsg').textContent = 'This is your whole bank as text. Copy it, then paste it into the other page and press Add pasted.';
+  });
+  $('progImport').addEventListener('click', function () {
+    var io = $('progIO');
+    if (io.hidden) { io.hidden = false; $('progText').value = ''; $('progText').focus(); $('progMsg').textContent = 'Paste a copied bank (or a single program\'s code) below, then press Add pasted again.'; return; }
+    var txt = $('progText').value.trim(), progs = loadPrograms(), added = 0;
+    if (!txt) { $('progMsg').textContent = 'Paste something first.'; return; }
+    var list = null;
+    try { var d = JSON.parse(txt); list = Array.isArray(d) ? d : d && d.programs; } catch (x) { list = null; }
+    if (!list) list = [{ name: 'Pasted program', code: txt }];
+    list.forEach(function (p) {
+      if (!p || typeof p.code !== 'string' || !p.name) return;
+      var dup = progs.filter(function (q) { return q.name === p.name && q.code === p.code; })[0];
+      if (dup) return;
+      var nm = p.name, n = 2;
+      while (progs.some(function (q) { return q.name === nm; })) nm = p.name + ' (' + n++ + ')';
+      progs.push({ id: 'p' + Date.now().toString(36) + added, name: nm, code: p.code, saved: p.saved || Date.now() });
+      added++;
+    });
+    storePrograms(progs); fillExamples(); renderProgList();
+    io.hidden = true;
+    $('progMsg').textContent = added ? 'Added ' + added + (added === 1 ? ' program.' : ' programs.') : 'Nothing new to add: those programs are already here.';
+  });
 }
 /* ================= app: panel layout (resize, collapse, expand code) ================= */
 var LAYOUT_KEY = STORE_KEY + '-layout';
@@ -3142,11 +3840,14 @@ function setup() {
   $('tabMap').addEventListener('click', function () { ui.tab = 'map'; renderPane(); });
 
   var exSel = $('examples');
-  exSel.innerHTML = '<option value="">Load an example…</option>' + EXAMPLES.map(function (x) { return '<option value="' + x.id + '">' + esc(x.title) + '</option>'; }).join('');
+  setupPrograms();
   exSel.addEventListener('change', function () {
     if (!exSel.value) return;
     pushUndo();
-    loadExample(exSel.value);
+    if (/^my:/.test(exSel.value)) {
+      var pid = exSel.value.slice(3), pr = loadPrograms().filter(function (p) { return p.id === pid; })[0];
+      if (pr) loadProgramCode(pr.name, pr.code);
+    } else { loadExample(exSel.value); ui.progName = ''; }
     exSel.value = '';
     renderAll(); fitView(); save();
     toast('Loaded. Every line already ran: use Back and Forward to watch it step by step.');
@@ -3201,6 +3902,7 @@ function setup() {
     if (a) {
       var act2 = a.getAttribute('data-a');
       if (act2 === 'run') runPending();
+      else if (act2 === 'into') runPending(true);
       else if (act2 === 'manual') newManualStep();
       else if (act2 === 'prev') goStep(doc.cur - 1);
       else if (act2 === 'next') goStep(doc.cur + 1);
@@ -3270,6 +3972,7 @@ function setup() {
     else if (e.key === 'ArrowLeft') { e.preventDefault(); goStep(doc.cur - 1); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); goStep(doc.cur + 1); }
     else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); runPending(); }
+    else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); runPending(true); }
     else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); newManualStep(); }
     else if (e.key === '[') { e.preventDefault(); togglePanel('l'); }
     else if (e.key === ']') { e.preventDefault(); togglePanel('r'); }
