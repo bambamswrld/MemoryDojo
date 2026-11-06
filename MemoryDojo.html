@@ -20,7 +20,7 @@
   --chg: #e0a100; --bad: #c92a2a; --bad-bg: #fde8e8; --good: #2b8a3e;
   --r-stack: #0284c7; --r-stack-bg: #ddf0fb; --r-heap: #7c3aed; --r-heap-bg: #eee6fd;
   --r-global: #0d9488; --r-global-bg: #d8f3ef; --r-rodata: #64748b; --r-rodata-bg: #e6eaef;
-  --r-code: #b45309; --r-code-bg: #fbeedd;
+  --r-code: #b45309; --r-code-bg: #fbeedd; --r-reg: #db2777; --r-reg-bg: #fde4f0;
   --note-bg: #fff4c4; --note-line: #dcbc4e; --grp: #8a94a3; --shadow: rgba(20, 22, 26, .08);
   --font-display: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -36,7 +36,7 @@
     --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3a1a1c; --good: #6fd38a;
     --r-stack: #38bdf8; --r-stack-bg: #0f2433; --r-heap: #a78bfa; --r-heap-bg: #221b3a;
     --r-global: #2dd4bf; --r-global-bg: #0f2a28; --r-rodata: #9aa4b1; --r-rodata-bg: #1f2329;
-    --r-code: #f5a55a; --r-code-bg: #33230f;
+    --r-code: #f5a55a; --r-code-bg: #33230f; --r-reg: #f472b6; --r-reg-bg: #3a1830;
     --note-bg: #33301a; --note-line: #857a35; --grp: #5b6370; --shadow: rgba(0, 0, 0, .45);
     color-scheme: dark;
   }
@@ -50,7 +50,7 @@
   --chg: #f2c14e; --bad: #ff7b7b; --bad-bg: #3a1a1c; --good: #6fd38a;
   --r-stack: #38bdf8; --r-stack-bg: #0f2433; --r-heap: #a78bfa; --r-heap-bg: #221b3a;
   --r-global: #2dd4bf; --r-global-bg: #0f2a28; --r-rodata: #9aa4b1; --r-rodata-bg: #1f2329;
-  --r-code: #f5a55a; --r-code-bg: #33230f;
+  --r-code: #f5a55a; --r-code-bg: #33230f; --r-reg: #f472b6; --r-reg-bg: #3a1830;
   --note-bg: #33301a; --note-line: #857a35; --grp: #5b6370; --shadow: rgba(0, 0, 0, .45);
   color-scheme: dark;
 }
@@ -210,6 +210,49 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .endban b { font-weight: 600; }
 .endnote { flex: 1 1 100%; font-size: 12.5px; line-height: 1.45; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; padding: 6px 10px; }
 .endnote b { font-weight: 600; }
+/* CPU registers panel (on the canvas, top right) */
+.cpu { position: absolute; top: 52px; right: 10px; z-index: 3; width: 360px; max-width: calc(100% - 20px); max-height: calc(100% - 130px); overflow: auto; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--line); border-left: 4px solid var(--r-reg); border-radius: 8px; box-shadow: 0 4px 14px var(--shadow); font-size: 12px; }
+.cpu.min { width: auto; }
+.cpu-h { display: flex; align-items: center; gap: 10px; padding: 6px 10px; }
+.cpu-t { border: 0; background: none; padding: 0; font-weight: 600; font-size: 12px; letter-spacing: .04em; color: var(--r-reg); }
+.cpu-t::before { content: "\25BE  "; } .cpu.min .cpu-t::before { content: "\25B8  "; }
+.cpu-ip { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.cpu-t2 { width: 100%; border-collapse: collapse; font: 11.5px/1.45 var(--font-mono); }
+.cpu-t2 th { text-align: left; font-weight: 600; padding: 1px 6px 1px 10px; color: var(--muted); width: 34px; }
+.cpu-t2 td { padding: 1px 6px; white-space: nowrap; }
+.cpu-t2 td.v { color: var(--ink); }
+.cpu-t2 td.d { color: var(--muted); max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+.cpu-t2 td.role { font-family: var(--font-body); font-size: 11px; color: var(--muted); max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.cpu-t2 tr.k-arg th, .cpu-t2 tr.k-arg td.role { color: var(--r-reg); font-weight: 600; }
+.cpu-t2 tr.k-arg td.v { color: var(--r-reg); }
+.cpu-t2 tr.k-ret td.role, .cpu-t2 tr.k-ret th { color: var(--r-global); font-weight: 600; }
+.cpu-t2 tr.k-sys td.role { color: var(--r-stack); }
+.cpu-t2 tr.k-na td.v { color: var(--muted); opacity: .7; }
+.cpu-t2 tr.chg td.v { background: color-mix(in srgb, var(--chg) 28%, transparent); border-radius: 3px; }
+.cpu-foot, .cpu-empty { margin: 4px 10px 8px; font-size: 11px; color: var(--muted); line-height: 1.4; }
+.cpu-foot .bad { color: var(--bad); }
+@media (max-width: 1080px) { .cpu { position: static; width: auto; max-height: none; margin: 8px; } }
+/* assembly tab */
+.asm-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.asm-frame { font-size: 12.5px; line-height: 1.45; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--r-stack); border-radius: 6px; padding: 6px 10px; margin-bottom: 10px; }
+.asm { font: 12px/1.55 var(--font-mono); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 0; }
+.asm { overflow-x: auto; }
+.asm > div { padding: 0 10px; white-space: pre; width: max-content; min-width: 100%; }
+.tab { white-space: nowrap; }
+.asm-dir { color: var(--muted); margin-top: 6px; }
+.asm-fn { margin-top: 10px; display: flex; gap: 10px; align-items: baseline; white-space: normal !important; }
+.asm-lab { color: var(--r-heap); font-weight: 600; }
+.asm-src { font-family: var(--font-body); font-size: 11.5px; color: var(--muted); margin-top: 4px; border-top: 1px dashed var(--line); padding-top: 3px !important; }
+.asm-src .ln { display: inline-block; min-width: 26px; color: var(--muted); opacity: .7; }
+.asm-ins { padding-left: 26px !important; cursor: help; }
+.asm-ins .op { color: var(--ink); }
+.asm-ins .cm { color: var(--r-global); margin-left: 14px; }
+.asm-ins.dir { color: var(--muted); cursor: default; }
+.asm-ins.na { color: var(--uninit); white-space: normal !important; }
+.asm .now { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.asm .asm-src.now { color: var(--ink); font-weight: 600; }
+.asm .waiting { background: color-mix(in srgb, var(--r-stack) 9%, transparent); }
+.asm-ins:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 /* debugger: calls, frames, call stack */
 .callstack { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: 12.5px; }
 .callstack .cs-l { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
@@ -259,6 +302,11 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .ag-heap { --gc: var(--r-heap); --gb: var(--r-heap-bg); }
 .ag-static { --gc: var(--r-global); --gb: var(--r-global-bg); }
 .ag-code { --gc: var(--r-code); --gb: var(--r-code-bg); }
+.ag-reg { --gc: var(--r-reg); --gb: var(--r-reg-bg); }
+.r-reg .hd { fill: var(--r-reg-bg); } .r-reg .rg { fill: var(--r-reg) !important; } .lbl-g.r-reg text { stroke: var(--r-reg-bg); }
+.r-reg .card { stroke: var(--r-reg); stroke-dasharray: 4 3; }
+.blk.sys .card { opacity: .85; } .blk.sys .rg { fill: var(--muted) !important; }
+.grp.ag.ag-reg .gbox { stroke-dasharray: 5 4; }
 .r-code .hd { fill: var(--r-code-bg); } .r-code .rg { fill: var(--r-code) !important; } .lbl-g.r-code text { stroke: var(--r-code-bg); }
 .codebody { fill: var(--r-code-bg) !important; stroke: var(--r-code) !important; stroke-opacity: .5; }
 #cv .sig { font: 500 11.5px var(--font-mono); fill: var(--r-code); }
@@ -463,6 +511,7 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
           <button class="btn tog" type="button" id="agBtn" aria-pressed="true" title="File the boxes the code creates into stack, heap and static groups">Auto groups: on</button>
           <button class="btn" type="button" id="tidyBtn" title="Put every box from the code back in its group">Tidy</button>
         </div>
+        <div class="cpu" id="cpu" aria-live="polite"></div>
         <div class="legend" id="legend">
           <button class="lg-t" type="button" id="legendBtn" aria-expanded="true">Key <span aria-hidden="true">&times;</span></button>
           <div class="row"><span class="sw p"></span>address stored in a pointer</div>
@@ -488,6 +537,7 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
       <div class="tabs" role="tablist">
         <button class="tab" role="tab" id="tabInspect" type="button" aria-selected="true">Inspector</button>
         <button class="tab" role="tab" id="tabMap" type="button" aria-selected="false">Memory map</button>
+        <button class="tab" role="tab" id="tabAsm" type="button" aria-selected="false">Assembly</button>
         <button class="hide-btn" type="button" data-panel="r" title="Hide this panel ( ] )" aria-label="Hide the details panel">&raquo;</button>
       </div>
       <div class="pane" id="pane"></div>
@@ -532,7 +582,7 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 var CODE_BASE = 0x1000;
 var BASES = { rodata: 0x2000, global: 0x3000, heap: 0x5000, stack: 0x7000 };
 var REGION_ORDER = ['rodata', 'global', 'heap', 'stack'];
-var REGION_LABEL = { stack: 'Stack', heap: 'Heap', global: 'Globals', rodata: 'Read-only', code: 'Code' };
+var REGION_LABEL = { stack: 'Stack', heap: 'Heap', global: 'Globals', rodata: 'Read-only', code: 'Code', reg: 'Register' };
 var FUNCS = {};      // 'add' -> {name, ret, params:[{type,name}], line, end, addr, fn, sig}
 var BASE_SIZES = { char: 1, bool: 1, short: 2, int: 4, float: 4, long: 8, double: 8, void: 1 };
 var ALIASES = {
@@ -676,6 +726,7 @@ function layout(b) {
 }
 function blockType(b) {
   if (b.kind === 'func') return b.typeName || 'function';
+  if (b.sys) return '8 bytes';
   if (b.kind === 'array') {
     var et = b.slots[0].type, fm = /^(.*?\(\**)(\)\s*\(.*\))$/.exec(et);
     /* an array of function pointers is written int (*[2])(int, int) */
@@ -687,6 +738,7 @@ function blockType(b) {
 }
 function blockTitle(b) {
   if (b.kind === 'func') return b.name + '()';
+  if (b.region === 'reg') return b.name + (b.param ? ' \u2192 ' + b.param : '');
   if (b.name) return b.name;
   if (b.region === 'heap') return 'malloc(' + (b.allocSize || b.size) + ')';
   return '(unnamed)';
@@ -744,8 +796,8 @@ function geom(b) {
       g.slots.push({ x: P + GEO.LW, y: y0 + i * GEO.RH, w: GEO.RW, h: GEO.RH, lx: P, port: 'right' });
     });
   } else {
-    bw = GEO.SW; bh = GEO.SH;
-    g.slots.push({ x: P, y: y0, w: GEO.SW, h: GEO.SH, port: 'right' });
+    bw = b.sys || b.region === 'reg' ? GEO.SW + 44 : GEO.SW; bh = GEO.SH;
+    g.slots.push({ x: P, y: y0, w: bw, h: GEO.SH, port: 'right' });
   }
   g.w = Math.max(GEO.MINW, bw + 2 * P);
   if (b.kind !== 'array') g.slots.forEach(function (s) { s.w = g.w - 2 * P - (b.kind === 'struct' ? GEO.LW : 0); });
@@ -789,7 +841,7 @@ function lookupVar(state, name, onlyFrame) {
   for (var k = state.blocks.length - 1; k >= 0; k--) {
     var b = state.blocks[k];
     if (onlyFrame !== undefined && b.region === 'stack' && (b.frame || '') !== onlyFrame) continue;
-    if (b.name === name && b.region !== 'heap' && b.region !== 'rodata' && b.region !== 'code') return b;
+    if (b.name === name && b.region !== 'heap' && b.region !== 'rodata' && b.region !== 'code' && b.region !== 'reg' && !b.sys) return b;
   }
   return null;
 }
@@ -824,6 +876,8 @@ function charText(c) {
   return null;
 }
 function fmtVal(sl, compact) {
+  if (sl.text) return sl.text;
+  if (sl.hex && sl.value !== null && sl.value !== undefined) return hex(sl.value);
   if (sl.value === null || sl.value === undefined) return '?';
   var t;
   try { t = typeInfo(sl.type); } catch (e) { return String(sl.value); }
@@ -884,7 +938,7 @@ function diffStates(prev, cur) {
     var p = pm[b.id];
     if (!p) {
       res.chg[b.id] = { _new: true };
-      res.lines.push({ k: 'add', t: 'created ' + blockTitle(b) + ' (' + blockType(b) + ') at ' + hex(b.addr) });
+      res.lines.push({ k: 'add', t: b.region === 'reg' ? b.name + ' holds ' + (b.param === 'return value' ? 'the return value' : b.param) + ' = ' + fmtVal(b.slots[0], true) + ' (a register)' : b.sys ? (b.sys === 'ret' ? 'pushed the return address' : 'pushed the saved rbp') + ' at ' + hex(b.addr) : 'created ' + blockTitle(b) + ' (' + blockType(b) + ') at ' + hex(b.addr) + (b.via === 'stack' ? ', passed on the stack' : b.via ? ', copied from ' + b.via : '') });
       return;
     }
     delete pm[b.id];
@@ -902,7 +956,7 @@ function diffStates(prev, cur) {
   });
   Object.keys(pm).forEach(function (id) {
     var o = pm[id];
-    res.lines.push({ k: 'del', t: o.region === 'stack' ? blockTitle(o) + ' went out of scope' : o.region === 'heap' ? 'released ' + blockTitle(o) + ' at ' + hex(o.addr) : 'removed ' + blockTitle(o) });
+    res.lines.push({ k: 'del', t: o.region === 'reg' ? o.name + ' no longer holds ' + (o.param || 'it') + ' (overwritten, or its function returned)' : o.sys ? (o.sys === 'ret' ? 'ret popped the return address' : 'leave popped the saved rbp') : o.region === 'stack' ? blockTitle(o) + ' went out of scope' : o.region === 'heap' ? 'released ' + blockTitle(o) + ' at ' + hex(o.addr) : 'removed ' + blockTitle(o) });
   });
   return res;
 }
@@ -961,7 +1015,7 @@ function setDefs(code) {
     depth[i + 1] = d;
     if (d === 0) {
       var fm = /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;]*$/.exec(ln) || /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;{]*\)\s*\{/.exec(ln);
-      if (fm && !/^\s*(struct|typedef|if|while|for|switch|return)\b/.test(ln)) { curFn = fm[1]; funcs.push({ name: fm[1], line: i + 1 }); fnLine[i + 1] = fm[1]; }
+      if (fm && !/^\s*(typedef|if|while|for|switch|return)\b/.test(ln) && !/^\s*struct\s+\w+\s*\{/.test(ln)) { curFn = fm[1]; funcs.push({ name: fm[1], line: i + 1 }); fnLine[i + 1] = fm[1]; }
     }
     fnAt[i + 1] = d > 0 ? curFn : '';
     var lo = d;
@@ -1356,19 +1410,77 @@ function runTokens(ctx, toks, mode, destType) {
       if (V.blk) throw new Error('passing a struct by value is not simulated: pass a pointer to it');
       return coerce(val(V), pt);
     });
-    F.params.forEach(function (p, k) {
-      makeBlock(st, { name: p.name || ('arg' + k), region: 'stack', kind: 'scalar', slots: [{ label: '', type: p.type, value: vals[k] }], frame: tag, scope: 1 });
-    });
-    var c2 = makeCtx(st, 'stack', tag, 1);
-    c2.onlyFrame = tag; c2.depthCalls = (ctx.depthCalls || 0) + 1; c2.calls = ctx.calls; c2.warned = ctx.warned;
     var caller = CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1] : { fn: ctx.frame ? String(ctx.frame).split('#')[0] : 'main', line: 0 };
     var callerName = caller.fn, callerLine = caller.line;
+    /* ---- the System V AMD64 calling convention ----
+       The first six integer or pointer arguments travel in rdi, rsi, rdx, rcx, r8, r9 (doubles in
+       xmm0-xmm7). The rest are pushed by the caller, right to left, so argument 7 sits at [rbp+16].
+       call pushes the return address; the callee pushes the caller's rbp and points rbp there. */
+    st.rbp = st.rbp || {};
+    var callerTag = ctx.frame || 'main';
+    var callerRbp = /#/.test(callerTag) ? st.rbp[callerTag] : BASES.stack;
+    var fsz = typeof asmFrameSize === 'function' ? asmFrameSize(callerName) : null;
+    var sp = Math.floor(savedSp / 16) * 16;
+    if (callerRbp && fsz !== null) sp = Math.min(sp, callerRbp - fsz);
+    var ICLASS = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9'], ni = 0, nf = 0, how = [];
+    F.params.forEach(function (p, k) {
+      var pt = typeInfo(p.type), isFl = pt.ptr === 0 && !pt.fn && (pt.base === 'double' || pt.base === 'float');
+      if (isFl && nf < 8) how[k] = { reg: 'xmm' + (nf++) };
+      else if (!isFl && ni < 6) how[k] = { reg: ICLASS[ni++] };
+      else how[k] = { stack: true };
+    });
+    var stackIdx = [];
+    how.forEach(function (h, k) { if (h.stack) stackIdx.push(k); });
+    if (stackIdx.length % 2) sp -= 8;
+    for (var sq = stackIdx.length - 1; sq >= 0; sq--) { sp -= 8; how[stackIdx[sq]].addr = sp; }
+    var retSlot = sp - 8, frameRbp = sp - 16;
+    var regN = 0;
+    function regName(r, t) {
+      if (/^xmm/.test(r)) return r;
+      var sz = t.ptr > 0 || t.fn ? 8 : sizeOfInfo(t);
+      var m = { rdi: ['dil', 'di', 'edi', 'rdi'], rsi: ['sil', 'si', 'esi', 'rsi'], rdx: ['dl', 'dx', 'edx', 'rdx'], rcx: ['cl', 'cx', 'ecx', 'rcx'], r8: ['r8b', 'r8w', 'r8d', 'r8'], r9: ['r9b', 'r9w', 'r9d', 'r9'] }[r];
+      return m ? m[{ 1: 0, 2: 1, 4: 2, 8: 3 }[sz] === undefined ? 2 : { 1: 0, 2: 1, 4: 2, 8: 3 }[sz]] : r;
+    }
+    function regBlock(name, type, value, param) {
+      var rb = makeBlock(st, { name: name, region: 'reg', kind: 'scalar', slots: [{ label: '', type: type, value: value }], addr: -0x1000 - (c2depth * 0x400) - (regN++) * 0x40, frame: tag, scope: 0 });
+      rb.param = param;
+      return rb;
+    }
+    var c2depth = (ctx.depthCalls || 0) + 1;
+    /* 1. the call: arguments in registers (or pushed on the stack), then the return address */
+    F.params.slice().reverse().forEach(function (p, kr) {
+      var k = F.params.length - 1 - kr;   /* highest address first, so the board reads top to bottom */
+      if (how[k].stack) makeBlock(st, { name: p.name || ('arg' + k), region: 'stack', kind: 'scalar', slots: [{ label: '', type: p.type, value: vals[k] }], addr: how[k].addr, frame: tag, scope: 1 }).via = 'stack';
+    });
+    var ra = makeBlock(st, { name: 'return address', region: 'stack', kind: 'scalar', slots: [{ label: '', type: 'unsigned long', value: FUNCS[callerName] ? FUNCS[callerName].addr : CODE_BASE, text: callerName + '()' + (callerLine ? ' line ' + callerLine : '') }], addr: retSlot, frame: tag, scope: 0 });
+    ra.sys = 'ret';
+    var c2 = makeCtx(st, 'stack', tag, 1);
+    c2.onlyFrame = tag; c2.depthCalls = c2depth; c2.calls = ctx.calls; c2.warned = ctx.warned;
     if (REC) {
       CALLSTACK.push({ fn: F.name, line: F.line });
-      recSnap(st, F.line, [{ level: 'call', text: 'Entered ' + F.name + '() from ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + '. ' +
-        (F.params.length ? 'A new stack frame holds its parameters, each a copy of the argument passed in: ' + F.params.map(function (p, k) {
-          return p.name + ' = ' + (args[k].src && args[k].src !== showVal(vals[k], typeInfo(p.type)) ? args[k].src + ' = ' : '') + showVal(vals[k], typeInfo(p.type));
-        }).join(', ') + '.' : 'It takes no parameters.') }], 'enter');
+      var passed = F.params.map(function (p, k) {
+        var src = args[k].src && args[k].src !== showVal(vals[k], typeInfo(p.type)) ? args[k].src + ' = ' : '';
+        return how[k].reg ? p.name + ' ← ' + regName(how[k].reg, typeInfo(p.type)) + ' (' + src + showVal(vals[k], typeInfo(p.type)) + ')'
+          : p.name + ' ← the stack at ' + hex(how[k].addr) + ', which is [rbp+' + (how[k].addr - frameRbp) + '] (' + src + showVal(vals[k], typeInfo(p.type)) + ')';
+      });
+      recSnap(st, F.line, [{ level: 'call', text: 'call ' + F.name + ': ' + (F.params.length ? 'the arguments were placed by the calling convention: ' + passed.join(', ') + '. ' : '') +
+        'Then call pushed the return address (where ' + callerName + '() continues) at ' + hex(retSlot) + '. No frame for ' + F.name + '() exists yet.' }], 'enter');
+    }
+    /* 2. the prologue: push rbp; mov rbp, rsp; then gcc -O0 copies each register parameter into the frame */
+    var sr = makeBlock(st, { name: 'saved rbp', region: 'stack', kind: 'scalar', slots: [{ label: '', type: 'unsigned long', value: callerRbp || 0, hex: true }], addr: frameRbp, frame: tag, scope: 0 });
+    sr.sys = 'rbp';
+    st.alloc.stack = frameRbp;
+    st.rbp[tag] = frameRbp;
+    var spills = [];
+    F.params.forEach(function (p, k) {
+      if (!how[k].reg) return;
+      var sb = makeBlock(st, { name: p.name || ('arg' + k), region: 'stack', kind: 'scalar', slots: [{ label: '', type: p.type, value: vals[k] }], frame: tag, scope: 1 });
+      sb.via = how[k].reg;
+      spills.push('mov [rbp' + (sb.addr - frameRbp) + '], ' + regName(how[k].reg, typeInfo(p.type)) + ' puts ' + p.name + ' at ' + hex(sb.addr));
+    });
+    if (REC) {
+      recSnap(st, F.line, [{ level: 'call', text: 'Entered ' + F.name + '(). Prologue: push rbp saves ' + callerName + '()’s base pointer at ' + hex(frameRbp) + ', and mov rbp, rsp makes rbp = ' + hex(frameRbp) + ', the top of this frame.' +
+        (spills.length ? ' Then, because this is unoptimized (-O0) code, each register parameter is copied into the frame so it has an address: ' + spills.join('; ') + '. From here on the function reads them from memory. (With -O1 and up they would usually stay in registers.)' : '') }], 'prologue');
     }
     var mark = 0;
     function fresh() { var m = c2.msgs.slice(mark); mark = c2.msgs.length; return m; }
@@ -1442,7 +1554,13 @@ function runTokens(ctx, toks, mode, destType) {
             if (rv === null) { warn(ctx, F.name + '() returned an uninitialized value'); rv = 0; }
             result = retT ? coerce(rv, retT) : null;
           }
-          snap(n.line, 'return' + (n.toks.length ? ' ' + n.toksText + ': ' + F.name + '() hands back ' + showVal(result, retT) : ': ' + F.name + '() is done') + ', and control goes back to ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + '. Its stack frame is about to be popped.', 'return');
+          var rreg = '';
+          if (REC && retT) {
+            /* the return value travels back in a register too: rax (eax for an int), or xmm0 for a double */
+            var rIsF = retT.ptr === 0 && !retT.fn && (retT.base === 'double' || retT.base === 'float');
+            rreg = rIsF ? 'xmm0' : (retT.ptr > 0 || retT.fn || sizeOfInfo(retT) === 8 ? 'rax' : 'eax');
+          }
+          snap(n.line, 'return' + (n.toks.length ? ' ' + n.toksText + ': ' + F.name + '() puts ' + showVal(result, retT) + ' in ' + (rreg || 'rax') : ': ' + F.name + '() is done') + '. Then leave tears down the frame (rsp = rbp, pop rbp restores ' + callerName + '()’s rbp) and ret pops the return address and jumps back to ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + '.', 'return');
           throw { ctl: 'return' };
       }
     }
@@ -1454,9 +1572,10 @@ function runTokens(ctx, toks, mode, destType) {
     if (!returned) snap(F.end, 'end of ' + F.name + '(): it reaches its closing brace' + (retT ? ' without a return statement, so the caller gets garbage' : '') + ', and control goes back to ' + callerName + '()' + (callerLine ? ' line ' + callerLine : '') + '.', 'return');
     if (REC) CALLSTACK.pop();
     if (!returned && retT) warn(ctx, F.name + '() reached its closing brace without a return statement, so the caller gets garbage');
-    var locals = st.blocks.filter(function (b) { return b.region === 'stack' && b.frame === tag; }).map(function (b) { return b.name; });
-    st.blocks = st.blocks.filter(function (b) { return !(b.region === 'stack' && b.frame === tag); });
+    var locals = st.blocks.filter(function (b) { return b.region === 'stack' && b.frame === tag && !b.sys; }).map(function (b) { return b.name; });
+    st.blocks = st.blocks.filter(function (b) { return !((b.region === 'stack' || b.region === 'reg') && b.frame === tag); });
     st.alloc.stack = savedSp;
+    if (st.rbp) delete st.rbp[tag];
     var seen = {}, kept = 0, inner = 0;
     c2.msgs.forEach(function (m) {
       if (/^called \w+\(\)/.test(m.text)) { inner += 1 + (+((/\[(\d+) more call/.exec(m.text) || [])[1] || 0)); return; }
@@ -2113,7 +2232,8 @@ function runPending(into) {
     /* Step into: every statement inside the call becomes its own step, then the line finishes */
     pushUndo();
     var first = doc.cur + 1;
-    rec.forEach(function (s) { insertStep(recToStep(s, L)); });
+    var prevForCpu = doc.steps[doc.cur], made = [];
+    rec.forEach(function (s) { var ns = recToStep(s, L); made.push(ns); insertStep(ns); });
     if (r.error) {
       doc.steps[doc.cur].crash = true;
       ui.lastResult = { kind: 'err', text: 'Line ' + L + ' crashed inside the call: ' + r.error + ' Step through it to see how it got there.' };
@@ -2121,8 +2241,10 @@ function runPending(into) {
       var fin = { id: uid('s'), line: L, state: r.state, msgs: r.msgs };
       if (rec.truncated) fin.msgs = fin.msgs.concat([{ level: 'warn', text: 'Recording stopped after ' + REC_LIMIT + ' steps; the rest of the call ran without being recorded.' }]);
       insertStep(fin);
+      made.push(fin);
       ui.lastResult = { kind: 'inf', text: 'Stepped into line ' + L + ': ' + rec.length + ' steps inside the call. Press Next (or \u2192) to walk through them.' };
     }
+    try { cpuForSteps(prevForCpu, made, L, true); } catch (e) { made.forEach(function (s) { cpuCopy(prevForCpu, s); }); }
     doc.cur = first;
     pendingLine = null;
     fixSel();
@@ -2143,7 +2265,9 @@ function runPending(into) {
     return;
   }
   pushUndo();
-  insertStep({ id: uid('s'), line: L, state: r.state, msgs: r.msgs });
+  var prevS = doc.steps[doc.cur], newS = { id: uid('s'), line: L, state: r.state, msgs: r.msgs };
+  try { cpuForSteps(prevS, [newS], L, false); } catch (e) { cpuCopy(prevS, newS); }
+  insertStep(newS);
   ui.lastResult = r.msgs.length ? { kind: 'inf', text: r.msgs.map(function (m) { return m.text; }).join(' · ') } : null;
   pendingLine = r.ended ? null : nextLine(L);
   fixSel();
@@ -2152,7 +2276,9 @@ function runPending(into) {
 function newManualStep() {
   pushUndo();
   var L = pendingLine;
-  insertStep({ id: uid('s'), line: L || null, state: cloneState(S()), msgs: [], manual: true });
+  var ms = { id: uid('s'), line: L || null, state: cloneState(S()), msgs: [], manual: true };
+  cpuCopy(S() && doc.steps[doc.cur], ms);
+  insertStep(ms);
   if (L) pendingLine = nextLine(L);
   ui.lastResult = { kind: 'inf', text: 'New step' + (L ? ' for line ' + L : '') + '. It starts as a copy of the previous step, so draw the change by hand.' };
   renderAll(); save();
@@ -2161,13 +2287,16 @@ function runAllFresh() {
   var lines = codeLines(), st = newState();
   doc.steps = [{ id: uid('s'), line: null, state: st, msgs: [] }];
   doc.cur = 0;
+  try { doc.steps[0].cpu = cpuSave(cpuInit()); } catch (e) { /* no code yet */ }
   for (var L = 1; L <= lines.length; L++) {
     if (defs.skip[L] || inOtherFunction(L) || (defs.fnLine && defs.fnLine[L])) continue;
     var r = execLineAt(S(), L);
     if (r.skipped) continue;
     if (r.finished) break;
     if (r.error) { doc.steps.push({ id: uid('s'), line: L, state: cloneState(S()), msgs: [{ level: 'err', text: r.error }] }); doc.cur++; continue; }
-    doc.steps.push({ id: uid('s'), line: L, state: r.state, msgs: r.msgs });
+    var fs0 = { id: uid('s'), line: L, state: r.state, msgs: r.msgs };
+    try { cpuForSteps(doc.steps[doc.cur], [fs0], L, false); } catch (e) { cpuCopy(doc.steps[doc.cur], fs0); }
+    doc.steps.push(fs0);
     doc.cur++;
     if (r.ended) break;
   }
@@ -2432,9 +2561,9 @@ function wrapText(text, n) {
 var cardLabelSink = null;
 function cardSvg(st, b, c, ghost) {
   var g = geom(b), on = !ghost && sel && sel.kind === 'block' && sel.id === b.id;
-  var cls = 'blk r-' + b.region + (b.freed ? ' freed' : '') + (on ? ' sel' : '') + (c._new ? ' isnew' : '') + (ghost ? ' ghost' : '') + (b.leak === 'lost' ? ' leak' : '');
+  var cls = 'blk r-' + b.region + (b.sys ? ' sys' : '') + (b.freed ? ' freed' : '') + (on ? ' sel' : '') + (c._new ? ' isnew' : '') + (ghost ? ' ghost' : '') + (b.leak === 'lost' ? ' leak' : '');
   var h = ['<g class="' + cls + '"' + (ghost ? ' pointer-events="none"' : ' data-b="' + b.id + '"') + ' transform="translate(' + b.x + ' ' + b.y + ')">'];
-  h.push('<title>' + esc(blockTitle(b) + ': ' + blockType(b) + ' at ' + hex(b.addr) + ', ' + b.size + ' bytes, ' + REGION_LABEL[b.region].toLowerCase()) + '</title>');
+  h.push('<title>' + esc(blockTitle(b) + ': ' + blockType(b) + (b.region === 'reg' ? ' in a CPU register (no address), part of this function\u2019s scope' : ' at ' + hex(b.addr) + ', ' + b.size + ' bytes, ' + REGION_LABEL[b.region].toLowerCase())) + '</title>');
   h.push('<rect class="card" width="' + g.w + '" height="' + g.h + '" rx="8"/>');
   h.push('<path class="hd" d="M0 ' + GEO.HEAD + ' V8 a8 8 0 0 1 8 -8 H' + (g.w - 8) + ' a8 8 0 0 1 8 8 V' + GEO.HEAD + ' Z"/>');
   var avail = Math.floor((g.w - 22) / 7.4), title = blockTitle(b), ty = blockType(b);
@@ -2476,8 +2605,8 @@ function cardSvg(st, b, c, ghost) {
     h.push('<text class="sig" x="' + (GEO.PAD + 8) + '" y="' + (g.bodyY + GEO.SH / 2 + 4) + '" pointer-events="none">' + esc(b.sig || b.name + '()') + '</text>');
   }
   var fy = g.h - 8;
-  var right = ghost ? (b.region === 'stack' ? 'OUT OF SCOPE' : 'RELEASED') : b.freed ? 'FREED' : b.leak === 'lost' ? 'LEAKED · ' + b.size + ' B' : b.leak === 'reachable' ? 'STILL REACHABLE' : (b.size + ' B · ' + REGION_LABEL[b.region].toUpperCase());
-  h.push('<text class="ft" x="10" y="' + fy + '">@' + hex(b.addr) + '</text><text class="rg" x="' + (g.w - 10) + '" y="' + fy + '" text-anchor="end">' + esc(right) + '</text>');
+  var right = ghost ? (b.region === 'stack' || b.region === 'reg' ? 'OUT OF SCOPE' : 'RELEASED') : b.freed ? 'FREED' : b.leak === 'lost' ? 'LEAKED · ' + b.size + ' B' : b.leak === 'reachable' ? 'STILL REACHABLE' : (b.region === 'reg' ? 'CPU REGISTER' : b.via === 'stack' ? 'PASSED ON STACK' : b.via ? 'COPY OF ' + b.via.toUpperCase() : b.sys === 'ret' ? 'PUSHED BY CALL' : b.sys ? 'PUSHED BY PROLOGUE' : b.size + ' B · ' + REGION_LABEL[b.region].toUpperCase());
+  h.push('<text class="ft" x="10" y="' + fy + '">' + (b.region === 'reg' ? 'no address' : '@' + hex(b.addr)) + '</text><text class="rg" x="' + (g.w - 10) + '" y="' + fy + '" text-anchor="end">' + esc(right) + '</text>');
   h.push('</g>');
   return h.join('');
 }
@@ -2506,19 +2635,26 @@ function fitView() {
   var topPad = 56, pad = 24;
   if (!b) { view = { x: 40, y: topPad, k: 1 }; renderCanvas(); return; }
   var lg = $('legend'), bottom = lg && !lg.classList.contains('mini') && lg.offsetParent ? lg.offsetHeight + 24 : 52;
-  var k = Math.min(1.15, (s.w - 2 * pad) / b.w, (s.h - topPad - bottom) / b.h);
+  var rp = cpuReserve();
+  var k = Math.min(1.15, (s.w - 2 * pad - rp) / b.w, (s.h - topPad - bottom) / b.h);
   k = Math.max(0.3, k);
   view.k = k;
-  view.x = (s.w - b.w * k) / 2 - b.x * k;
+  view.x = (s.w - rp - b.w * k) / 2 - b.x * k;
   view.y = topPad + Math.max(0, (s.h - topPad - bottom - b.h * k) / 2) - b.y * k;
   renderCanvas(); save();
 }
 /* Keep the boxes a step touches on screen. If what changed (or, when nothing changed, anything at all)
    is completely outside the visible canvas, glide the view over to it; if it would not fit at this zoom, fit. */
+/* room the CPU panel takes on the right of the canvas, so fitting keeps boxes out from under it */
+function cpuReserve() {
+  var c = $('cpu'), s = svgSize();
+  if (!c || !c.offsetParent || getComputedStyle(c).position !== 'absolute' || s.w < 760) return 0;
+  return c.offsetWidth + 16;
+}
 function visibleWorld() {
   var s = svgSize(), lg = $('legend');
   var bottom = lg && !lg.classList.contains('mini') && lg.offsetParent ? lg.offsetHeight + 16 : 48;
-  return { x: -view.x / view.k, y: (52 - view.y) / view.k, w: s.w / view.k, h: Math.max(40, s.h - 52 - bottom) / view.k, sw: s.w };
+  return { x: -view.x / view.k, y: (52 - view.y) / view.k, w: Math.max(80, s.w - cpuReserve()) / view.k, h: Math.max(40, s.h - 52 - bottom) / view.k, sw: s.w };
 }
 function overlaps(r, v) { return r.x < v.x + v.w && r.x + r.w > v.x && r.y < v.y + v.h && r.y + r.h > v.y; }
 function keepInView() {
@@ -2550,7 +2686,8 @@ function keepInView() {
 /* ================= app: panels ================= */
 function renderAll() {
   arrangeAll();
-  renderCanvas(); renderCode(); renderSteps(); renderStepbar(); renderPane();
+  renderCanvas();
+  renderCpu(); renderCode(); renderSteps(); renderStepbar(); renderPane();
   $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
 }
 function lineSteps() {
@@ -2653,7 +2790,12 @@ function editText(sl) {
 function renderPane() {
   $('tabInspect').setAttribute('aria-selected', ui.tab === 'inspect');
   $('tabMap').setAttribute('aria-selected', ui.tab === 'map');
-  $('pane').innerHTML = ui.tab === 'map' ? mapHtml() : inspectorHtml();
+  $('tabAsm').setAttribute('aria-selected', ui.tab === 'asm');
+  $('pane').innerHTML = ui.tab === 'map' ? mapHtml() : ui.tab === 'asm' ? asmHtml() : inspectorHtml();
+  if (ui.tab === 'asm') {
+    var now = $('pane').querySelector('.asm-src.now');
+    if (now && ui.lastAsmLine !== doc.cur) { ui.lastAsmLine = doc.cur; try { now.scrollIntoView({ block: 'center' }); } catch (e) { /* ignore */ } }
+  }
 }
 var TYPE_LIST = ['int', 'char', 'short', 'long', 'float', 'double', 'bool', 'size_t', 'unsigned int', 'int*', 'char*', 'double*', 'void*', 'int**', 'char**'];
 function inspectorHtml() {
@@ -2685,6 +2827,18 @@ function inspectorHtml() {
     return '<div class="field"><span>Group label</span><input id="f-glabel" data-f="glabel" value="' + esc(g.label) + '"></div><p class="hint">Dragging the group by its label moves everything inside it. Drag the corner to resize.</p><div class="actions"><button class="btn danger" type="button" data-a="delsel">Delete group</button></div>';
   }
   var b = findBlock(st, sel.id);
+  if (b.region === 'reg') {
+    return '<h3 class="ins-h mono">' + esc(blockTitle(b)) + '</h3><p class="hint">' + (b.param === 'return value'
+      ? 'A function hands its result back in a register: <span class="mono">rax</span> (<span class="mono">eax</span> for an int), or <span class="mono">xmm0</span> for a double. The caller reads it right after <span class="mono">call</span> returns.'
+      : 'The calling convention (System V AMD64, used on Linux and macOS) passes the first six integer or pointer arguments in <span class="mono">rdi, rsi, rdx, rcx, r8, r9</span>, and doubles in <span class="mono">xmm0</span> to <span class="mono">xmm7</span>. This register carries the value of the parameter <span class="mono">' + esc(b.param || '') + '</span> into the function.') +
+      '</p><p class="hint">A register is inside the CPU, not in memory, so it has no address. It is gone from the board once the next instructions reuse it.</p>';
+  }
+  if (b.sys) {
+    return '<h3 class="ins-h">' + esc(b.name) + '</h3><p class="hint">' + (b.sys === 'ret'
+      ? 'Pushed by the <span class="mono">call</span> instruction: the address of the instruction right after the call. <span class="mono">ret</span> pops it and jumps there, which is how the function gets back to its caller. It sits at <span class="mono">[rbp+8]</span>.'
+      : 'Pushed by the first instruction of the function, <span class="mono">push rbp</span>: the caller\u2019s base pointer. <span class="mono">leave</span> restores it at the end. rbp points right here, so this slot is <span class="mono">[rbp]</span>.') +
+      '</p><p class="hint">Overwriting these (for example with a buffer overflow) is how the program can crash or jump somewhere it should not.</p>';
+  }
   if (b.kind === 'func') {
     var F = FUNCS[b.name];
     return '<h3 class="ins-h mono">' + esc(b.sig || b.name + '()') + '</h3>' +
@@ -2740,7 +2894,7 @@ var SECTIONS = {
   code: { title: 'Code (Text)', regions: [], cls: 'code',
     desc: 'The compiled instructions of your functions. Read-only. The board does not run machine code, so these addresses are illustrative.' }
 };
-function sectionOf(region) { return region === 'heap' ? 'heap' : region === 'stack' ? 'stack' : region === 'code' ? 'code' : 'static'; }
+function sectionOf(region) { return region === 'heap' ? 'heap' : region === 'stack' ? 'stack' : region === 'code' ? 'code' : region === 'reg' ? 'reg' : 'static'; }
 function sectionOrder() { return ui.mapOrder === 'address' ? ['stack', 'heap', 'static', 'code'] : ['heap', 'stack', 'static', 'code']; }
 function growText(sec, long) {
   var lec = ui.mapOrder !== 'address';
@@ -3127,6 +3281,7 @@ ui.autoGroups = true;
 try { if (localStorage.getItem(STORE_KEY + '-auto') === 'off') ui.autoGroups = false; } catch (e) { /* ignore */ }
 
 function agKey(b) {
+  if (b.region === 'reg') return 'stack:' + (b.frame || '');
   if (b.region === 'code') return 'code';
   if (b.region === 'heap') return 'heap';
   if (b.region === 'stack') return 'stack:' + (b.frame || '');
@@ -3135,14 +3290,15 @@ function agKey(b) {
 /* columns, left to right: code (lowest addresses), stack frames (a called function's frame gets its
    own column to the right of its caller's), heap, statics */
 function agDepth(key) { var m = /#(\d+)$/.exec(key); return m ? +m[1] : 0; }
-function agCol(key) { return key === 'code' ? 0 : key === 'heap' ? 100 : key === 'static' ? 101 : 1 + agDepth(key); }
-function agKind(key) { return key === 'heap' ? 'heap' : key === 'static' ? 'static' : key === 'code' ? 'code' : 'stack'; }
+function agCol(key) { return key === 'code' ? 0 : key === 'heap' ? 100 : key === 'static' ? 101 : /^reg:/.test(key) ? 0.5 + agDepth(key) : 1 + agDepth(key); }
+function agKind(key) { return key === 'heap' ? 'heap' : key === 'static' ? 'static' : key === 'code' ? 'code' : /^reg:/.test(key) ? 'reg' : 'stack'; }
 function agLabel(key, gone) {
   if (key === 'heap') return 'Heap (malloc / new)';
   if (key === 'static') return 'Static: globals + literals';
   if (key === 'code') return 'Code (text): functions';
+  if (/^reg:/.test(key)) return 'CPU registers (not memory)';
   var fn = key.slice(6).replace(/#\d+$/, ''), d = agDepth(key);
-  return (fn ? 'Stack frame: ' + fn + '()' : 'Stack') + (d > 1 ? ' \u00b7 depth ' + d : '') + (gone ? (fn ? ', returned' : ', gone') : '');
+  return (fn ? 'Scope: ' + fn + '()' : 'Stack') + (d > 1 ? ' \u00b7 depth ' + d : '') + (gone ? (fn ? ', returned' : ', gone') : '');
 }
 function isAutoBlock(b) { return !!b.auto; }
 
@@ -3235,7 +3391,7 @@ function arrangeAll() {
         var d = agDepth(key), fr = s.stack[d];
         if (fr && fr.fn === key.slice(6).replace(/#\d+$/, '')) {
           state = d === s.stack.length - 1 ? 'running' : 'paused';
-          lbl = 'Frame: ' + fr.fn + '()' + (state === 'running' ? ' \u00b7 running' : ' \u00b7 paused at line ' + fr.line);
+          lbl = 'Scope: ' + fr.fn + '()' + (state === 'running' ? (s.kind === 'enter' ? ' \u00b7 being called' : ' \u00b7 running') : ' \u00b7 paused at line ' + fr.line);
         }
       }
       made.push({ id: 'ag-' + key, auto: key, x: p.x, y: p.y, w: p.w, h: AG.TOP + (info.h[key] || 0) + AG.PADB,
@@ -3431,6 +3587,1625 @@ function setupPrograms() {
     $('progMsg').textContent = added ? 'Added ' + added + (added === 1 ? ' program.' : ' programs.') : 'Nothing new to add: those programs are already here.';
   });
 }
+/* ================= assembly: x86-64 in the style of gcc -O0 =================
+   A small code generator for the same C subset the interpreter runs. Like an unoptimized compiler,
+   every variable lives in memory at a fixed offset from rbp, every expression is computed in rax
+   (rdx and rcx as helpers), and every statement stores its result back to memory. Offsets come out
+   the same as the interpreter's addresses: a frame's rbp is the top of the frame, so x at [rbp-4]
+   is the box at rbp - 4. Not a real compiler: optimized gcc output looks very different. */
+var ASM = { syntax: 'intel', cache: null, key: '' };
+try { if (localStorage.getItem(STORE_KEY + '-asm') === 'att') ASM.syntax = 'att'; } catch (e) { /* ignore */ }
+
+var REGS = {
+  a: ['al', 'ax', 'eax', 'rax'], c: ['cl', 'cx', 'ecx', 'rcx'], d: ['dl', 'dx', 'edx', 'rdx'],
+  di: ['dil', 'di', 'edi', 'rdi'], si: ['sil', 'si', 'esi', 'rsi'],
+  r8: ['r8b', 'r8w', 'r8d', 'r8'], r9: ['r9b', 'r9w', 'r9d', 'r9'], r10: ['r10b', 'r10w', 'r10d', 'r10'],
+  bp: ['bpl', 'bp', 'ebp', 'rbp'], sp: ['spl', 'sp', 'esp', 'rsp']
+};
+var REG_SIZE = {};
+Object.keys(REGS).forEach(function (k) { REGS[k].forEach(function (n, i) { REG_SIZE[n] = [1, 2, 4, 8][i]; }); });
+['xmm0', 'xmm1', 'xmm2', 'xmm3'].forEach(function (n) { REG_SIZE[n] = 16; });
+var ARG_REGS = ['di', 'si', 'd', 'c', 'r8', 'r9'];
+function rn(k, size) { var ix = { 1: 0, 2: 1, 4: 2, 8: 3 }[size]; return REGS[k][ix === undefined ? 2 : ix]; }
+var BUILTIN_RET = { malloc: 'void*', calloc: 'void*', realloc: 'void*', strlen: 'unsigned long', printf: 'int', puts: 'int', putchar: 'int', free: 'void', strcmp: 'int', strcpy: 'char*', memset: 'void*', memcpy: 'void*', exit: 'void', abs: 'int', atoi: 'int' };
+var BUILTIN_ARGS = { malloc: ['unsigned long'], calloc: ['unsigned long', 'unsigned long'], free: ['void*'], strlen: ['char*'], puts: ['char*'], putchar: ['int'], strcmp: ['char*', 'char*'], strcpy: ['char*', 'char*'], exit: ['int'], abs: ['int'], atoi: ['char*'] };
+var VARIADIC = { printf: 1 };
+
+function CgErr(msg) { this.message = msg; }
+
+function compileProgram() {
+  var out = { funcs: [], rodata: [], data: [], errors: [] };
+  var lits = {}, litN = 0, labN = 2;
+  function litLabel(text) {
+    if (lits[text] === undefined) { lits[text] = '.LC' + (litN++); out.rodata.push({ lab: lits[text], text: text }); }
+    return lits[text];
+  }
+  var dblLits = {};
+  function dblLabel(v) {
+    var k = String(v);
+    if (dblLits[k] === undefined) { dblLits[k] = '.LC' + (litN++); out.rodata.push({ lab: dblLits[k], dbl: v }); }
+    return dblLits[k];
+  }
+  /* ---------- globals ---------- */
+  var globals = {};
+  var lines = FUNC_SRC;
+  for (var L = 1; L <= lines.length; L++) {
+    if ((defs.depth[L] || 0) !== 0 || defs.skip[L] || (defs.fnLine && defs.fnLine[L]) || frameFor(L)) continue;
+    var t = (lines[L - 1] || '').trim();
+    if (!t || /^#/.test(t) || /^(typedef|struct\s+\w+\s*\{)/.test(t) || /\)\s*;?\s*$/.test(t) && /\(/.test(t) && !/=/.test(t)) continue;
+    try {
+      splitStatements(tokenize(t)).forEach(function (tk) {
+        var d = parseDeclToks(tk, globals);
+        if (!d) return;
+        d.forEach(function (v) {
+          globals[v.name] = { name: v.name, t: v.t, arr: v.arr, glob: true, size: v.size };
+          out.data.push({ line: L, name: v.name, sym: globals[v.name], init: v.init });
+        });
+      });
+    } catch (e) { out.errors.push({ line: L, msg: e.message }); }
+  }
+  out.data.forEach(function (g) { g.bytes = globalBytes(g, litLabel); });
+
+  /* ---------- functions ---------- */
+  Object.keys(FUNCS).map(function (n) { return FUNCS[n]; }).sort(function (a, b) { return a.line - b.line; }).forEach(function (F) {
+    var fo = { name: F.name, line: F.line, end: F.end, ins: [], frame: 0, leaf: true };
+    out.funcs.push(fo);
+    var CUR = F.line, cur = 0, scopes = [{}], ret = F.ret === 'void' ? null : typeInfo(F.ret), retLab = null, loops = [];
+    function E(op, ops, c, x) { fo.ins.push({ op: op, ops: ops || [], line: CUR, c: c || '', x: x || '' }); }
+    function LBL(n) { fo.ins.push({ lab: n, line: CUR }); }
+    /* invisible marker: where the C-level step for this statement ends (keeps the register emulator in step) */
+    function MK(kind) { fo.ins.push({ mk: kind, line: CUR }); }
+    /* a temporary slot in the frame (like gcc's spill slots), placed below all locals once they are known.
+       Pushing to the stack instead would knock rsp off its 16-byte alignment around calls. */
+    var temps = [];
+    function TMP() { var m = M('rbp', 0, 8, 'temporary'); m.tmp = true; temps.push(m); return m; }
+    function newLab() { return '.L' + (labN++); }
+    function R(k, size) { return { k: 'r', n: rn(k, size) }; }
+    function X(n) { return { k: 'r', n: n }; }
+    function I(v) { return { k: 'i', v: v }; }
+    function M(base, off, size, note, sym) { return { k: 'm', base: base, off: off || 0, size: size, note: note || '', sym: sym || null }; }
+    function LB(n) { return { k: 'l', n: n }; }
+    function lookup(name) {
+      for (var q = scopes.length - 1; q >= 0; q--) if (scopes[q][name]) return scopes[q][name];
+      return globals[name] || null;
+    }
+    function alloc(name, t, arr) {
+      var size = arr ? sizeOfInfo(t) * arr : sizeOfInfo(t), align = alignOfInfo(t);
+      cur = Math.floor((cur - size) / align) * align;
+      var s = { name: name, t: t, arr: arr, off: cur, size: size };
+      scopes[scopes.length - 1][name] = s;
+      return s;
+    }
+    function isF(t) { return !!t && t.ptr === 0 && !t.fn && (t.base === 'double' || t.base === 'float'); }
+    function vsz(t) { return t.ptr > 0 || t.fn || (t.ptr === 0 && t.base === 'long') ? 8 : 4; }
+    function psize(t) { var p = pointee(t); if (p.fn || (p.ptr === 0 && p.base === 'void')) return 1; return sizeOfInfo(p); }
+    function arith(a, b) {
+      if (isF(a) || isF(b)) return typeInfo('double');
+      if (vsz(a) === 8 || vsz(b) === 8) return typeInfo(a.unsigned || b.unsigned ? 'unsigned long' : 'long');
+      return typeInfo(a.unsigned && b.unsigned ? 'unsigned int' : 'int');
+    }
+    function fieldOf(sname, f) {
+      var fs = STRUCTS[sname];
+      if (!fs) throw new CgErr(sname + ' is not defined');
+      var off = 0;
+      for (var q = 0; q < fs.length; q++) {
+        var ft = typeInfo(fs[q].type), a = alignOfInfo(ft);
+        off = Math.ceil(off / a) * a;
+        if (fs[q].name === f) return { off: off, t: ft };
+        off += sizeOfInfo(ft);
+      }
+      throw new CgErr(sname + ' has no field ' + f);
+    }
+    /* ----- types ----- */
+    function typeOf(e) {
+      switch (e.k) {
+        case 'num': return typeInfo(e.t);
+        case 'str': return typeInfo('char*');
+        case 'id': {
+          var s = lookup(e.n);
+          if (s) return s.arr ? ptrTo(s.t) : s.t;
+          if (FUNCS[e.n]) return fnType(FUNCS[e.n].fn, 1);
+          if (e.n === 'NULL') return typeInfo('void*');
+          throw new CgErr('"' + e.n + '" is not declared');
+        }
+        case 'un':
+          if (e.op === '!') return typeInfo('int');
+          if (e.op === '*') { var pt = typeOf(e.a); if (pt.fn) return fnType(pt.fn, 1); return pointee(pt); }
+          if (e.op === '&') { if (e.a.k === 'id' && !lookup(e.a.n) && FUNCS[e.a.n]) return fnType(FUNCS[e.a.n].fn, 1); if (e.a.k === 'id' && lookup(e.a.n) && lookup(e.a.n).arr) return typeOf(e.a); return ptrTo(typeOfLv(e.a)); }
+          var ut = typeOf(e.a); return isF(ut) || vsz(ut) === 8 ? ut : typeInfo('int');
+        case 'pre': case 'post': return typeOf(e.a);
+        case 'bin': {
+          if (['<', '>', '<=', '>=', '==', '!=', '&&', '||'].indexOf(e.op) >= 0) return typeInfo('int');
+          var a = typeOf(e.a), b = typeOf(e.b);
+          if (a.ptr > 0 && b.ptr > 0 && e.op === '-') return typeInfo('long');
+          if (a.ptr > 0) return a;
+          if (b.ptr > 0 && e.op === '+') return b;
+          return arith(a, b);
+        }
+        case 'assign': return typeOfLv(e.a);
+        case 'call': {
+          if (e.f.k === 'id' && FUNCS[e.f.n] && !lookup(e.f.n)) return FUNCS[e.f.n].ret === 'void' ? typeInfo('void') : typeInfo(FUNCS[e.f.n].ret);
+          if (e.f.k === 'id' && BUILTIN_RET[e.f.n] && !lookup(e.f.n)) return typeInfo(BUILTIN_RET[e.f.n]);
+          var ft = typeOf(e.f);
+          if (ft.fn) return typeInfo(ft.fn.ret);
+          throw new CgErr('cannot call ' + (e.f.n || 'this'));
+        }
+        case 'idx': { var at = typeOf(e.a); if (at.ptr === 0) at = typeOf(e.i); return pointee(at); }
+        case 'mem': { var st = typeOfLv(e.a); if (e.arrow) st = pointee(typeOf(e.a)); return fieldOf(st.base, e.f).t; }
+        case 'cast': return e.T;
+        case 'sizeof': return typeInfo('unsigned long');
+      }
+      throw new CgErr('unsupported expression');
+    }
+    function typeOfLv(e) {
+      if (e.k === 'id') { var s = lookup(e.n); if (s) return s.t; }
+      if (e.k === 'mem' && !e.arrow) return fieldOf(typeOfLv(e.a).base, e.f).t;
+      return typeOf(e);
+    }
+    function noteOf(e) {
+      try {
+        if (e.k === 'id') return e.n;
+        if (e.k === 'idx') return noteOf(e.a) + '[' + (e.i.k === 'num' ? e.i.v : noteOf(e.i) || 'i') + ']';
+        if (e.k === 'mem') return noteOf(e.a) + (e.arrow ? '->' : '.') + e.f;
+        if (e.k === 'un' && e.op === '*') return '*' + noteOf(e.a);
+        if (e.k === 'post') return noteOf(e.a);
+      } catch (x) { /* ignore */ }
+      return '';
+    }
+    /* a memory operand for simple lvalues, without emitting code */
+    function memOf(e) {
+      if (e.k === 'id') {
+        var s = lookup(e.n);
+        if (!s || s.arr) return null;
+        if (s.t.struct && s.t.ptr === 0) return null;
+        return s.glob ? M(null, 0, sizeOfInfo(s.t), s.name, s.name) : M('rbp', s.off, sizeOfInfo(s.t), s.name);
+      }
+      if (e.k === 'idx' && e.a.k === 'id' && e.i.k === 'num') {
+        var sa = lookup(e.a.n);
+        if (sa && sa.arr) { var es = sizeOfInfo(sa.t); return sa.glob ? M(null, e.i.v * es, es, noteOf(e), sa.name) : M('rbp', sa.off + e.i.v * es, es, noteOf(e)); }
+      }
+      if (e.k === 'mem' && !e.arrow && e.a.k === 'id') {
+        var ss = lookup(e.a.n);
+        if (ss && !ss.arr && ss.t.struct && ss.t.ptr === 0) {
+          var fi = fieldOf(ss.t.base, e.f);
+          if (fi.t.struct && fi.t.ptr === 0) return null;
+          return ss.glob ? M(null, fi.off, sizeOfInfo(fi.t), noteOf(e), ss.name) : M('rbp', ss.off + fi.off, sizeOfInfo(fi.t), noteOf(e));
+        }
+      }
+      return null;
+    }
+    function leaf(e) {
+      if (e.k === 'num' && !isF(typeInfo(e.t))) return I(e.v);
+      if (e.k === 'id' && e.n === 'NULL' && !lookup('NULL')) return I(0);
+      if (e.k === 'sizeof') return I(sizeofVal(e));
+      var m = memOf(e);
+      if (m && !isF(typeOf(e))) return m;
+      return null;
+    }
+    function sizeofVal(e) {
+      if (e.T) return sizeOfInfo(e.T);
+      var a = e.a;
+      if (a.k === 'id') { var s = lookup(a.n); if (s) return s.arr ? s.size : sizeOfInfo(s.t); }
+      if (a.k === 'str') return a.s.length + 1;
+      var t = typeOfLv(a);
+      return sizeOfInfo(t);
+    }
+    /* ----- loads, stores, conversions ----- */
+    function load(m, t, k) {
+      k = k || 'a';
+      var sz = sizeOfInfo(t);
+      if (isF(t)) { E(t.base === 'float' ? 'movss' : 'movsd', [X(k === 'a' ? 'xmm0' : 'xmm1'), m], '', 'load ' + (m.note || 'the value') + ' into ' + (k === 'a' ? 'xmm0' : 'xmm1') + ', a floating-point register'); return; }
+      if (t.fn || t.ptr > 0) sz = 8;
+      if (sz === 1 || sz === 2) { E(t.unsigned || t.base === 'bool' ? 'movzx' : 'movsx', [R(k, 4), m], '', 'load the ' + sz + '-byte ' + (m.note || 'value') + ' into ' + rn(k, 4) + ', ' + (t.unsigned ? 'filling the upper bits with zeros' : 'copying its sign bit into the upper bits')); return; }
+      E('mov', [R(k, sz === 8 ? 8 : 4), m]);
+    }
+    function store(m, t, k) {
+      k = k || 'a';
+      if (isF(t)) { E(t.base === 'float' ? 'movss' : 'movsd', [m, X('xmm0')]); return; }
+      var sz = t.fn || t.ptr > 0 ? 8 : sizeOfInfo(t);
+      E('mov', [m, R(k, sz)]);
+    }
+    function convert(from, to) {
+      if (!to || (to.ptr === 0 && to.base === 'void')) return;
+      if (isF(to) && !isF(from)) { E(to.base === 'float' ? 'cvtsi2ss' : 'cvtsi2sd', [X('xmm0'), R('a', vsz(from))], '', 'convert the integer in ' + rn('a', vsz(from)) + ' to floating point'); return; }
+      if (!isF(to) && isF(from)) { E(from.base === 'float' ? 'cvttss2si' : 'cvttsd2si', [R('a', vsz(to)), X('xmm0')], '', 'convert to an integer, dropping the fraction'); return; }
+      if (isF(to) || isF(from)) return;
+      if (vsz(from) === 4 && vsz(to) === 8) {
+        if (from.unsigned) E('mov', [R('a', 4), R('a', 4)], '', 'writing eax clears the upper half of rax: zero-extend to 64 bits');
+        else E('cdqe', [], '', 'sign-extend eax into rax (int to long or pointer size)');
+      }
+    }
+    /* ----- addresses ----- */
+    function genAddr(e) {
+      var m = memOf(e);
+      if (m) { E('lea', [R('a', 8), Object.assign({}, m, { size: 0 })], '', 'compute the address of ' + (m.note || 'it') + ' into rax (lea reads no memory)'); return; }
+      if (e.k === 'id') {
+        var s = lookup(e.n);
+        if (!s) throw new CgErr('"' + e.n + '" is not declared');
+        if (s.glob) E('lea', [R('a', 8), M(null, 0, 0, s.name, s.name)]); else E('lea', [R('a', 8), M('rbp', s.off, 0, s.name)], '', 'rax = the address of ' + s.name + (s.arr ? ' (its first element)' : ''));
+        return;
+      }
+      if (e.k === 'un' && e.op === '*') { gen(e.a); return; }
+      if (e.k === 'idx') {
+        var at = typeOf(e.a), base = e.a, idx = e.i;
+        if (at.ptr === 0) { base = e.i; idx = e.a; at = typeOf(base); }
+        var es = psize(at);
+        if (idx.k === 'num') { gen(base); if (idx.v) E('add', [R('a', 8), I(idx.v * es)], '', 'move ' + idx.v + ' elements (' + idx.v * es + ' bytes) forward'); return; }
+        gen(idx); convert(typeOf(idx), typeInfo('long')); scale(es, 'a');
+        E('mov', [R('d', 8), R('a', 8)]);
+        var bl = leaf(base);
+        if (bl && bl.k === 'm') { E('mov', [R('a', 8), bl]); }
+        else { var tb = TMP(); E('mov', [tb, R('d', 8)], '', 'keep the byte offset in a temporary slot'); gen(base); E('mov', [R('d', 8), tb]); }
+        E('add', [R('a', 8), R('d', 8)], '', 'rax = the address of element ' + noteOf(idx) + ': base address + index × ' + es);
+        return;
+      }
+      if (e.k === 'mem') {
+        var st, fi;
+        if (e.arrow) { st = pointee(typeOf(e.a)); gen(e.a); } else { st = typeOfLv(e.a); genAddr(e.a); }
+        fi = fieldOf(st.base, e.f);
+        if (fi.off) E('add', [R('a', 8), I(fi.off)], '', e.f + ' is ' + fi.off + ' bytes into the struct');
+        return;
+      }
+      throw new CgErr('this expression has no address');
+    }
+    /* emit code leaving an address in rax, and return a constant offset still to add (folded into [rax+off]) */
+    function addrParts(e) {
+      if (e.k === 'mem' && !memOf(e)) {
+        var st;
+        if (e.arrow) { st = pointee(typeOf(e.a)); gen(e.a); return fieldOf(st.base, e.f).off; }
+        st = typeOfLv(e.a);
+        return addrParts(e.a) + fieldOf(st.base, e.f).off;
+      }
+      genAddr(e);
+      return 0;
+    }
+    function scale(es, k) {
+      if (es === 1) return;
+      var lg = Math.log2(es);
+      if (Math.floor(lg) === lg) E('sal', [R(k, 8), I(lg)], '', 'multiply by ' + es + ' (shift left ' + lg + '): index to bytes');
+      else E('imul', [R(k, 8), R(k, 8), I(es)], '', 'multiply by ' + es + ', the element size');
+    }
+    /* ----- expressions: the value ends up in eax / rax (or xmm0) ----- */
+    function gen(e) {
+      var t;
+      switch (e.k) {
+        case 'num':
+          t = typeInfo(e.t);
+          if (isF(t)) { var dv = Number.isInteger(e.v) ? e.v.toFixed(1) : String(e.v); E('movsd', [X('xmm0'), M(null, 0, 8, dv, dblLabel(e.v))], '', 'load the constant ' + dv + ' (doubles live in read-only data, not in the instruction)'); return t; }
+          E('mov', [R('a', vsz(t)), I(e.v)]); return t;
+        case 'str': E('lea', [R('a', 8), M(null, 0, 0, JSON.stringify(e.s), litLabel(e.s))], '', 'rax = the address of the string literal ' + JSON.stringify(e.s) + ' in read-only data'); return typeInfo('char*');
+        case 'id': {
+          var s = lookup(e.n);
+          if (!s && FUNCS[e.n]) { E('lea', [R('a', 8), M(null, 0, 0, e.n + '()', e.n)], '', 'rax = the address of the function ' + e.n + '()'); return fnType(FUNCS[e.n].fn, 1); }
+          if (!s && e.n === 'NULL') { E('mov', [R('a', 4), I(0)]); return typeInfo('void*'); }
+          if (!s) throw new CgErr('"' + e.n + '" is not declared');
+          if (s.arr) { genAddr(e); return ptrTo(s.t); }
+          if (s.t.struct && s.t.ptr === 0) throw new CgErr('copying a whole struct is not shown');
+          load(memOf(e), s.t); return s.t;
+        }
+        case 'sizeof': E('mov', [R('a', 4), I(sizeofVal(e))], '', 'sizeof is worked out by the compiler: just the constant'); return typeInfo('unsigned long');
+        case 'cast': { var ft = gen(e.a); convert(ft, e.T); return e.T; }
+        case 'un': {
+          if (e.op === '&') { if (e.a.k === 'id' && !lookup(e.a.n) && FUNCS[e.a.n]) return gen(e.a); genAddr(e.a); return typeOf(e); }
+          if (e.op === '*') {
+            t = typeOf(e.a);
+            if (t.fn) { gen(e.a); return t; }
+            gen(e.a);
+            var pt = pointee(t);
+            if (pt.struct && pt.ptr === 0) return pt;
+            load(M('rax', 0, pt.fn || pt.ptr > 0 ? 8 : sizeOfInfo(pt), noteOf(e)), pt);
+            return pt;
+          }
+          t = gen(e.a);
+          if (e.op === '-') { if (isF(t)) throw new CgErr('negating a double is not shown'); E('neg', [R('a', vsz(t))]); return vsz(t) === 8 ? t : typeInfo('int'); }
+          if (e.op === '~') { E('not', [R('a', vsz(t))]); return t; }
+          if (e.op === '!') { E('cmp', [R('a', vsz(t)), I(0)]); E('sete', [R('a', 1)], '', 'al = 1 if it was zero, else 0'); E('movzx', [R('a', 4), R('a', 1)]); return typeInfo('int'); }
+          if (e.op === '+') return t;
+          break;
+        }
+        case 'pre': case 'post': {
+          t = typeOfLv(e.a);
+          var step = t.ptr > 0 ? psize(t) : 1, m = memOf(e.a), add = e.op === '++' ? 'add' : 'sub', sz = vsz(t);
+          if (m) {
+            if (e.k === 'pre') { E(add, [m, I(step)], '', (e.op === '++' ? 'add ' : 'subtract ') + step + (step > 1 ? ' (one element)' : '') + ' directly in memory'); load(m, t); }
+            else { load(m, t); E('lea', [R('d', sz), M('rax', e.op === '++' ? step : -step, 0)], '', 'rdx = the new value (old ' + (e.op === '++' ? '+ ' : '- ') + step + '); rax keeps the old one for this expression'); E('mov', [m, R('d', sz)]); }
+            return t;
+          }
+          genAddr(e.a); E('mov', [R('c', 8), R('a', 8)]);
+          load(M('rcx', 0, sz === 8 ? 8 : sizeOfInfo(t), noteOf(e.a)), t);
+          E('lea', [R('d', sz), M('rax', e.op === '++' ? step : -step, 0)]);
+          E('mov', [M('rcx', 0, t.ptr > 0 ? 8 : sizeOfInfo(t), noteOf(e.a)), R('d', t.ptr > 0 ? 8 : sizeOfInfo(t))]);
+          if (e.k === 'pre') E('mov', [R('a', sz), R('d', sz)]);
+          return t;
+        }
+        case 'bin': return genBin(e);
+        case 'assign': return genAssign(e);
+        case 'call': return genCall(e);
+        case 'idx': case 'mem': {
+          t = typeOf(e);
+          var mm = memOf(e);
+          if (mm) { if (t.struct && t.ptr === 0) { genAddr(e); return t; } load(mm, t); return t; }
+          if (t.struct && t.ptr === 0) { genAddr(e); return t; }
+          var ao = addrParts(e);
+          load(M('rax', ao, t.fn || t.ptr > 0 ? 8 : sizeOfInfo(t), noteOf(e)), t);
+          return t;
+        }
+      }
+      throw new CgErr('this expression is not translated');
+    }
+    function operandInto(e, k, want) {
+      /* put e in register k (rdx/rcx) without touching rax when possible */
+      var lf = leaf(e), t = typeOf(e);
+      if (e.k === 'id' && lookup(e.n) && lookup(e.n).arr) { var sa = lookup(e.n); E('lea', [R(k, 8), sa.glob ? M(null, 0, 0, sa.name, sa.name) : M('rbp', sa.off, 0, sa.name)]); return t; }
+      if (e.k === 'str') { E('lea', [R(k, 8), M(null, 0, 0, JSON.stringify(e.s), litLabel(e.s))]); return t; }
+      if (lf) {
+        if (lf.k === 'i') { E('mov', [R(k, want), lf]); return t; }
+        var sz = sizeOfInfo(t);
+        if (t.ptr > 0 || t.fn) sz = 8;
+        if (sz === 1 || sz === 2) E(t.unsigned ? 'movzx' : 'movsx', [R(k, 4), lf]);
+        else E('mov', [R(k, sz === 8 ? 8 : 4), lf]);
+        if (want === 8 && vsz(t) === 4) E('movsx', [R(k, 8), R(k, 4)], '', 'sign-extend to 64 bits');
+        return t;
+      }
+      var tm = TMP();
+      E('mov', [tm, R('a', 8)], '', 'keep the left operand in a temporary slot while the right one is computed');
+      gen(e);
+      if (want === 8 && vsz(t) === 4) E('cdqe', []);
+      E('mov', [R(k, 8), R('a', 8)]);
+      E('mov', [R('a', 8), tm], '', 'bring the left operand back');
+      return t;
+    }
+    function genBin(e) {
+      var op = e.op;
+      if (op === '&&' || op === '||') {
+        var f = newLab(), done = newLab();
+        jumpIf(e, f, false, null);
+        E('mov', [R('a', 4), I(1)]); E('jmp', [LB(done)]);
+        LBL(f); E('mov', [R('a', 4), I(0)]); LBL(done);
+        return typeInfo('int');
+      }
+      var ta = typeOf(e.a), tb = typeOf(e.b);
+      var rel = ['<', '>', '<=', '>=', '==', '!='].indexOf(op) >= 0;
+      if (isF(ta) || isF(tb)) {
+        if (rel) throw new CgErr('comparing doubles as a value is not shown');
+        gen(e.b); if (!isF(tb)) convert(tb, typeInfo('double'));
+        var tf = TMP();
+        E('movsd', [tf, X('xmm0')]);
+        gen(e.a); if (!isF(ta)) convert(ta, typeInfo('double'));
+        E('movsd', [X('xmm1'), tf]);
+        var fop = { '+': 'addsd', '-': 'subsd', '*': 'mulsd', '/': 'divsd' }[op];
+        if (!fop) throw new CgErr('"' + op + '" on doubles is not shown');
+        E(fop, [X('xmm0'), X('xmm1')]);
+        return typeInfo('double');
+      }
+      if (rel) {
+        var cmpT = compare(e);
+        var u = cmpT.ptr > 0 || cmpT.unsigned;
+        E('set' + CC[op][u ? 1 : 0], [R('a', 1)], '', 'al = 1 if ' + noteOf(e.a) + ' ' + op + ' ' + (e.b.k === 'num' ? e.b.v : noteOf(e.b)) + ', else 0');
+        E('movzx', [R('a', 4), R('a', 1)]);
+        return typeInfo('int');
+      }
+      var rt = typeOf(e), w = vsz(rt);
+      if (ta.ptr === 0 && tb.ptr > 0 && op === '+') {
+        /* n + p: compute it as p + n */
+        return genBin({ k: 'bin', op: '+', a: e.b, b: e.a });
+      }
+      gen(e.a);
+      if (w === 8 && vsz(ta) === 4) convert(ta, typeInfo('long'));
+      if (ta.ptr > 0 && tb.ptr === 0) {
+        operandInto(e.b, 'd', 8);
+        scale(psize(ta), 'd');
+        E(op === '+' ? 'add' : 'sub', [R('a', 8), R('d', 8)], '', 'pointer ' + op + ' index: the index was already multiplied by the element size (' + psize(ta) + ')');
+        return ta;
+      }
+      if (ta.ptr > 0 && tb.ptr > 0) {
+        operandInto(e.b, 'd', 8);
+        E('sub', [R('a', 8), R('d', 8)], '', 'difference in bytes');
+        var ps = psize(ta), lg = Math.log2(ps);
+        if (ps > 1) { if (Math.floor(lg) === lg) E('sar', [R('a', 8), I(lg)], '', 'divide by ' + ps + ': bytes to elements'); else { E('mov', [R('c', 8), I(ps)]); E('cqo', []); E('idiv', [R('c', 8)]); } }
+        return typeInfo('long');
+      }
+      var bl = leaf(e.b);
+      var simple = bl && (bl.k === 'i' || (sizeOfInfo(tb) === w || (bl.k === 'm' && sizeOfInfo(tb) === 4 && w === 4)));
+      if (op === '/' || op === '%') {
+        operandInto(e.b, 'c', w);
+        E(w === 8 ? 'cqo' : 'cdq', [], '', 'sign-extend ' + rn('a', w) + ' into ' + (w === 8 ? 'rdx:rax' : 'edx:eax') + ', which idiv divides');
+        E(rt.unsigned ? 'div' : 'idiv', [R('c', w)], '', 'divide: the quotient goes in ' + rn('a', w) + ', the remainder in ' + rn('d', w));
+        if (op === '%') E('mov', [R('a', w), R('d', w)], '', 'keep the remainder');
+        return rt;
+      }
+      if (op === '<<' || op === '>>') {
+        operandInto(e.b, 'c', 4);
+        E(op === '<<' ? 'sal' : rt.unsigned ? 'shr' : 'sar', [R('a', w), R('c', 1)]);
+        return rt;
+      }
+      var ins = { '+': 'add', '-': 'sub', '*': 'imul', '&': 'and', '|': 'or', '^': 'xor' }[op];
+      if (!ins) throw new CgErr('"' + op + '" is not translated');
+      if (simple && bl.k === 'm' && sizeOfInfo(tb) >= 4) { E(ins, [R('a', w), bl]); return rt; }
+      if (simple && bl.k === 'i') { E(ins, [R('a', w), bl]); return rt; }
+      operandInto(e.b, 'd', w);
+      E(ins, [R('a', w), R('d', w)]);
+      return rt;
+    }
+    var CC = { '<': ['l', 'b'], '<=': ['le', 'be'], '>': ['g', 'a'], '>=': ['ge', 'ae'], '==': ['e', 'e'], '!=': ['ne', 'ne'] };
+    var NEG = { '<': '>=', '<=': '>', '>': '<=', '>=': '<', '==': '!=', '!=': '==' };
+    function compare(e) {
+      var ta = typeOf(e.a), tb = typeOf(e.b), w = Math.max(vsz(ta), vsz(tb));
+      if (isF(ta) || isF(tb)) throw new CgErr('comparing doubles is not shown');
+      var ma = memOf(e.a), bl = leaf(e.b);
+      if (ma && bl && bl.k === 'i' && sizeOfInfo(ta) >= 4) { E('cmp', [ma, bl], '', 'compare ' + noteOf(e.a) + ' with ' + bl.v); return ta.ptr > 0 ? ta : arith(ta, tb); }
+      gen(e.a);
+      if (w === 8 && vsz(ta) === 4) convert(ta, typeInfo('long'));
+      if (bl && bl.k === 'i') E('cmp', [R('a', w), bl], '', 'compare with ' + bl.v);
+      else if (bl && bl.k === 'm' && sizeOfInfo(tb) === w) E('cmp', [R('a', w), bl], '', 'compare with ' + bl.note);
+      else { operandInto(e.b, 'd', w); E('cmp', [R('a', w), R('d', w)]); }
+      return ta.ptr > 0 || tb.ptr > 0 ? typeInfo('void*') : arith(ta, tb);
+    }
+    /* jump to lab when e is true (onTrue) or false */
+    function jumpIf(e, lab, onTrue, top) {
+      if (top === undefined) top = lab;
+      if (e.k === 'un' && e.op === '!') { jumpIf(e.a, lab, !onTrue, top); return; }
+      if (e.k === 'bin' && (e.op === '&&' || e.op === '||')) {
+        var and = e.op === '&&';
+        if (and !== onTrue) { jumpIf(e.a, lab, onTrue, top); jumpIf(e.b, lab, onTrue, top); return; }
+        var skip = newLab();
+        jumpIf(e.a, skip, !onTrue, top); jumpIf(e.b, lab, onTrue, top); LBL(skip);
+        return;
+      }
+      if (e.k === 'bin' && CC[e.op]) {
+        var ct = compare(e), u = ct.ptr > 0 || ct.unsigned, op = onTrue ? e.op : NEG[e.op];
+        E('j' + CC[op][u ? 1 : 0], [LB(lab)], '', 'jump to ' + lab + ' if ' + noteOf(e.a) + ' ' + op + ' ' + (e.b.k === 'num' ? e.b.v : noteOf(e.b) || 'the other side'));
+        if (lab === top) fo.ins[fo.ins.length - 1].fin = true;
+        return;
+      }
+      var m = memOf(e), t = typeOf(e);
+      if (isF(t)) throw new CgErr('a double as a condition is not shown');
+      if (m && sizeOfInfo(t) >= 4) E('cmp', [m, I(0)], '', 'is ' + m.note + ' zero?');
+      else { gen(e); E('test', [R('a', vsz(t)), R('a', vsz(t))], '', 'is ' + rn('a', vsz(t)) + ' zero? (sets the zero flag)'); }
+      E(onTrue ? 'jne' : 'je', [LB(lab)], '', 'jump to ' + lab + ' if it is ' + (onTrue ? 'not zero (true)' : 'zero (false)'));
+      if (lab === top) fo.ins[fo.ins.length - 1].fin = true;
+    }
+    /* a way to put a simple value in rdx without touching rax, or null */
+    function simpleInto(e, want) {
+      var w = want.ptr > 0 || want.fn || vsz(want) === 8 ? 8 : 4, t = typeOf(e);
+      if (isF(t)) return null;
+      if (e.k === 'un' && e.op === '&' && memOf(e.a)) { var ma = memOf(e.a); return function () { E('lea', [R('d', 8), Object.assign({}, ma, { size: 0 })], '', 'rdx = the address of ' + ma.note); }; }
+      if (e.k === 'id' && lookup(e.n) && lookup(e.n).arr) { var sa = lookup(e.n); return function () { E('lea', [R('d', 8), sa.glob ? M(null, 0, 0, sa.name, sa.name) : M('rbp', sa.off, 0, sa.name)]); }; }
+      if (e.k === 'id' && !lookup(e.n) && FUNCS[e.n]) return function () { E('lea', [R('d', 8), M(null, 0, 0, e.n + '()', e.n)]); };
+      if (e.k === 'str') return function () { E('lea', [R('d', 8), M(null, 0, 0, JSON.stringify(e.s), litLabel(e.s))]); };
+      var mm = memOf(e);
+      if (mm) return function () {
+        var sz = t.ptr > 0 || t.fn ? 8 : sizeOfInfo(t);
+        if (sz < 4) E(t.unsigned ? 'movzx' : 'movsx', [R('d', 4), mm]); else E('mov', [R('d', sz), mm]);
+        if (w === 8 && sz <= 4) E('movsx', [R('d', 8), R('d', 4)]);
+      };
+      return null;
+    }
+    function genAssign(e) {
+      var lt = typeOfLv(e.a), rhs = e.b;
+      if (e.op !== '=') rhs = { k: 'bin', op: e.op.slice(0, -1), a: e.a, b: e.b };
+      var m = memOf(e.a);
+      if (lt.struct && lt.ptr === 0) throw new CgErr('copying a whole struct is not shown');
+      var bl = leaf(rhs);
+      if (bl && bl.k === 'i') {
+        if (!m) { var o1 = addrParts(e.a); m = M('rax', o1, lt.ptr > 0 ? 8 : sizeOfInfo(lt), noteOf(e.a)); }
+        storeImm(Object.assign({}, m, { size: lt.ptr > 0 || lt.fn ? 8 : sizeOfInfo(lt) }), bl.v, 'store ' + bl.v + ' into ' + (m.note || 'memory'));
+        return lt;
+      }
+      if (!m && !isF(lt)) {
+        /* store through a pointer: address in rax, value in rdx, like gcc */
+        var sv = simpleInto(rhs, lt);
+        if (sv) {
+          var o2 = addrParts(e.a);
+          sv();
+          var ssz = lt.ptr > 0 || lt.fn ? 8 : sizeOfInfo(lt);
+          E('mov', [M('rax', o2, ssz, noteOf(e.a)), R('d', ssz)], '', 'store it through the address in rax');
+          return lt;
+        }
+      }
+      var rt = gen(rhs);
+      convert(rt, lt);
+      if (m) { store(m, lt); return lt; }
+      var tv = TMP();
+      if (isF(lt)) E('movsd', [tv, X('xmm0')]); else E('mov', [tv, R('a', 8)], '', 'keep the value in a temporary slot while the address is computed');
+      genAddr(e.a);
+      if (isF(lt)) { E('movsd', [X('xmm0'), tv]); E('movsd', [M('rax', 0, 8, noteOf(e.a)), X('xmm0')]); return lt; }
+      E('mov', [R('d', 8), tv]);
+      E('mov', [M('rax', 0, lt.ptr > 0 || lt.fn ? 8 : sizeOfInfo(lt), noteOf(e.a)), R('d', lt.ptr > 0 || lt.fn ? 8 : sizeOfInfo(lt))], '', 'store it through the address in rax');
+      return lt;
+    }
+    function genCall(e) {
+      fo.leaf = false;
+      var name = e.f.k === 'id' && !lookup(e.f.n) ? e.f.n : null, F2 = name && FUNCS[name];
+      var ptypes, rett, variadic = name && VARIADIC[name];
+      if (F2) { ptypes = F2.params.map(function (p) { return typeInfo(p.type); }); rett = F2.ret === 'void' ? null : typeInfo(F2.ret); }
+      else if (name && BUILTIN_RET[name]) { ptypes = (BUILTIN_ARGS[name] || []).map(function (x) { return typeInfo(x); }); rett = BUILTIN_RET[name] === 'void' ? null : typeInfo(BUILTIN_RET[name]); }
+      else { var ft = typeOf(e.f); if (!ft.fn) throw new CgErr('this is not a function'); ptypes = ft.fn.params.map(function (x) { return typeInfo(x); }); rett = ft.fn.ret === 'void' ? null : typeInfo(ft.fn.ret); name = null; }
+      var stackArgs = e.args.slice(6), allArgs = e.args;
+      var atypes = e.args.map(function (a, q) { return ptypes[q] || (function () { var t0 = typeOf(a); return isF(t0) ? typeInfo('double') : vsz(t0) === 8 ? t0 : typeInfo('int'); })(); });
+      function simpleArg(a) { return !isF(typeOf(a)) && (leaf(a) || a.k === 'str' || (a.k === 'id' && lookup(a.n) && lookup(a.n).arr) || (a.k === 'id' && !lookup(a.n) && FUNCS[a.n]) || (a.k === 'un' && a.op === '&' && memOf(a.a))); }
+      var nf = 0, pad = 0;
+      if (stackArgs.length) {
+        /* arguments 7 and up go on the stack, pushed right to left so argument 7 ends up on top */
+        pad = stackArgs.length % 2 ? 8 : 0;
+        if (pad) E('sub', [X('rsp'), I(8)], '', 'keep rsp a multiple of 16 at the call (an odd number of stack arguments)');
+        for (var sq = allArgs.length - 1; sq >= 6; sq--) {
+          var st0 = gen(allArgs[sq]); convert(st0, atypes[sq]);
+          if (isF(atypes[sq])) E('movq', [R('a', 8), X('xmm0')]);
+          E('push', [R('a', 8)], '', 'argument ' + (sq + 1) + ' goes on the stack (only six fit in registers)');
+        }
+        e = { k: 'call', f: e.f, args: allArgs.slice(0, 6) };
+      }
+      var fx = e.f;
+      while (fx.k === 'un' && fx.op === '*') fx = fx.a;
+      var fmem = !name ? memOf(fx) : null;
+      if (!name && !fmem) { gen(e.f); E('mov', [R('r10', 8), R('a', 8)], '', 'keep the function pointer in r10 while the arguments are set up'); }
+      var hard = e.args.filter(function (a) { return !simpleArg(a); });
+      var allLeaf = hard.length === 0;
+      if (hard.length === 1 && !isF(typeOf(hard[0]))) {
+        /* one argument needs real work: compute it first, then load the simple ones around it */
+        var hq = e.args.indexOf(hard[0]), ht = atypes[hq];
+        convert(gen(hard[0]), ht);
+        E('mov', [R(ARG_REGS[hq], vsz(ht)), R('a', vsz(ht))], '', 'argument ' + (hq + 1) + ' goes in ' + rn(ARG_REGS[hq], vsz(ht)));
+        allLeaf = true;
+      }
+      var regsUsed = [];
+      if (allLeaf) {
+        /* like gcc: evaluate the arguments right to left straight into their registers */
+        for (var q = e.args.length - 1; q >= 0; q--) {
+          var a = e.args[q], at = atypes[q], reg = ARG_REGS[q];
+          if (hard.length === 1 && a === hard[0]) continue;
+          if (isF(at)) { gen(a); if (!isF(typeOf(a))) convert(typeOf(a), at); if (nf) E('movapd', [X('xmm' + nf), X('xmm0')]); nf++; continue; }
+          var w = vsz(at);
+          var lf = leaf(a);
+          if (lf && lf.k === 'i') E('mov', [R(reg, w === 8 && +lf.v >= 0 && +lf.v < 2147483648 ? 4 : w), lf], '', 'argument ' + (q + 1) + ' goes in ' + rn(reg, w) + (w === 8 ? ' (writing ' + rn(reg, 4) + ' also clears the upper half)' : ''));
+          else if (lf) { var tt = typeOf(a); load(lf, tt, reg); if (w === 8 && vsz(tt) === 4) E('movsx', [R(reg, 8), R(reg, 4)]); fo.ins[fo.ins.length - 1].x = 'argument ' + (q + 1) + ' (' + (lf.note || '') + ') goes in ' + rn(reg, w); }
+          else { if (a.k === 'un') genAddr(a.a); else gen(a); E('mov', [R(reg, 8), R('a', 8)], '', 'argument ' + (q + 1) + ' goes in ' + rn(reg, 8)); }
+          regsUsed.push(reg);
+        }
+      } else {
+        var slots = e.args.map(function (a, q) {
+          var at = atypes[q], t0 = gen(a), ts = TMP();
+          if (isF(at)) { if (!isF(t0)) convert(t0, at); E('movsd', [ts, X('xmm0')]); }
+          else { convert(t0, at); E('mov', [ts, R('a', 8)], '', 'keep argument ' + (q + 1) + ' until all of them are computed'); }
+          return ts;
+        });
+        var ri = 0;
+        e.args.forEach(function (a, q2) {
+          if (isF(atypes[q2])) { E('movsd', [X('xmm' + (nf++)), slots[q2]]); return; }
+          E('mov', [R(ARG_REGS[ri], 8), slots[q2]], '', 'argument ' + (q2 + 1) + ' goes in ' + rn(ARG_REGS[ri], 8));
+          ri++;
+        });
+      }
+      if (fmem) E('mov', [R('r10', 8), fmem], '', 'load the function pointer ' + (fmem.note || '') + ' into r10');
+      if (variadic) E('mov', [R('a', 4), I(nf)], '', 'for a variadic function like ' + name + '(), al says how many floating-point arguments are in xmm registers');
+      if (name) E('call', [LB(name)], '', 'push the return address and jump to ' + name + '(); its result comes back in ' + (rett ? (isF(rett) ? 'xmm0' : rn('a', vsz(rett))) : 'nothing (void)'));
+      else E('call', [R('r10', 8)], '', 'call through the function pointer: jump to the address in r10');
+      if (stackArgs.length) E('add', [X('rsp'), I(stackArgs.length * 8 + pad)], '', 'drop the stack arguments');
+      return rett || typeInfo('void');
+    }
+    /* ----- declarations and statements ----- */
+    function declare(v) {
+      var s = alloc(v.name, v.t, v.arr);
+      if (!v.init) return;
+      var es = sizeOfInfo(v.t), note = v.name;
+      if (v.arr) {
+        if (v.init.str !== undefined) {
+          var bytes = []; for (var c = 0; c < v.init.str.length; c++) bytes.push(v.init.str.charCodeAt(c) & 255); bytes.push(0);
+          while (bytes.length < v.arr) bytes.push(0);
+          storeBytes(s.off, bytes.slice(0, v.arr), note);
+          return;
+        }
+        var list = v.init.list || [];
+        for (var q = 0; q < v.arr; q++) {
+          var el = list[q], m = M('rbp', s.off + q * es, es, note + '[' + q + ']');
+          if (!el) { E('mov', [m, I(0)], '', note + '[' + q + '] = 0 (missing initializers become zero)'); continue; }
+          var lf = leaf(el);
+          if (lf && lf.k === 'i') { storeImm(m, lf.v, note + '[' + q + '] = ' + lf.v); continue; }
+          var rt = gen(el); convert(rt, v.t); store(m, v.t);
+        }
+        return;
+      }
+      if (v.t.struct && v.t.ptr === 0) {
+        if (!v.init.list) throw new CgErr('copying a whole struct is not shown');
+        STRUCTS[v.t.base].forEach(function (fd, q) {
+          var fi = fieldOf(v.t.base, fd.name), el = v.init.list[q], m2 = M('rbp', s.off + fi.off, fi.t.ptr > 0 ? 8 : sizeOfInfo(fi.t), note + '.' + fd.name);
+          if (!el) { E('mov', [m2, I(0)]); return; }
+          var lf2 = leaf(el);
+          if (lf2 && lf2.k === 'i') { storeImm(m2, lf2.v); return; }
+          var rt2 = gen(el); convert(rt2, fi.t); store(m2, fi.t);
+        });
+        return;
+      }
+      var init = v.init.list ? v.init.list[0] : v.init.e;
+      genAssign({ k: 'assign', op: '=', a: { k: 'id', n: v.name }, b: init });
+    }
+    function fits32(v) { var n = typeof v === 'string' ? Number(v) : v; return n >= -2147483648 && n <= 2147483647; }
+    function storeImm(m, v, x) {
+      if (m.size === 8 && !fits32(v)) {
+        E('movabs', [R('a', 8), I(v)], '', 'a 64-bit constant cannot go straight to memory: put it in rax first');
+        E('mov', [m, R('a', 8)], '', x || '');
+        return;
+      }
+      E('mov', [m, I(v)], '', x || '');
+    }
+    function storeBytes(off, bytes, note) {
+      /* like gcc: copy a short string into a char array with a few wide immediate stores */
+      var q = 0;
+      while (q < bytes.length) {
+        var n = bytes.length - q >= 8 ? 8 : bytes.length - q >= 4 ? 4 : bytes.length - q >= 2 ? 2 : 1;
+        var v = 0n;
+        for (var b = n - 1; b >= 0; b--) v = (v << 8n) | BigInt(bytes[q + b]);
+        var txt = bytes.slice(q, q + n).map(function (c) { return c ? String.fromCharCode(c) : '\\0'; }).join('');
+        storeImm(M('rbp', off + q, n, note + '[' + q + (n > 1 ? '..' + (q + n - 1) : '') + ']'), n === 8 ? BigInt.asIntN(64, v).toString() : Number(n === 4 ? BigInt.asIntN(32, v) : v), 'store the bytes "' + txt + '" (' + n + ' at once, little-endian)');
+        q += n;
+      }
+    }
+    function stmt(n, last) {
+      if (n.k !== 'block' && n.line) CUR = n.line;
+      switch (n.k) {
+        case 'block':
+          scopes.push({});
+          n.body.forEach(function (c, q) { stmt(c, last && q === n.body.length - 1); });
+          scopes.pop();
+          return;
+        case 'empty': return;
+        case 'simple':
+          try {
+            var d = parseDeclToks(n.toks, null, lookup);
+            if (d) d.forEach(declare);
+            else {
+              var ex = cgParseExpr(n.toks), im = (ex.k === 'post' || ex.k === 'pre') && memOf(ex.a);
+              if (im) {
+                /* x++; on its own: the old value is not needed, so just add in memory */
+                var it = typeOfLv(ex.a), stp = it.ptr > 0 ? psize(it) : 1;
+                E(ex.op === '++' ? 'add' : 'sub', [Object.assign({}, im, { size: it.ptr > 0 ? 8 : sizeOfInfo(it) }), I(stp)], '', (ex.op === '++' ? 'add ' : 'subtract ') + stp + (it.ptr > 0 && stp > 1 ? ' bytes (one ' + pointee(it).str + ')' : '') + ' directly in ' + im.note);
+              } else gen(ex);
+            }
+          } catch (x) {
+            if (!(x instanceof CgErr)) x = new CgErr(x.message);
+            E('#', [], 'not translated: ' + x.message);
+          }
+          MK('s');
+          return;
+        case 'if': {
+          var elseL = newLab();
+          guard(function () { jumpIf(cgParseExpr(n.cond), elseL, false); });
+          MK('c');
+          stmt(n.then);
+          if (n.els) { var endL = newLab(); CUR = n.line; E('jmp', [LB(endL)], '', 'skip the else branch'); LBL(elseL); stmt(n.els); LBL(endL); }
+          else LBL(elseL);
+          return;
+        }
+        case 'while': {
+          var condL = newLab(), bodyL = newLab(), endW = newLab();
+          E('jmp', [LB(condL)], '', 'go check the condition first (it sits after the body, as gcc lays it out)');
+          LBL(bodyL);
+          loops.push({ brk: endW, cont: condL });
+          stmt(n.body);
+          loops.pop();
+          CUR = n.line; LBL(condL);
+          guard(function () { jumpIf(cgParseExpr(n.cond), bodyL, true); });
+          MK('c');
+          LBL(endW);
+          return;
+        }
+        case 'do': {
+          var top = newLab(), cnd = newLab(), endD = newLab();
+          LBL(top);
+          loops.push({ brk: endD, cont: cnd });
+          stmt(n.body);
+          loops.pop();
+          CUR = n.cline || n.line; LBL(cnd);
+          guard(function () { jumpIf(cgParseExpr(n.cond), top, true); });
+          MK('c');
+          LBL(endD);
+          return;
+        }
+        case 'for': {
+          scopes.push({});
+          var fc = newLab(), fb = newLab(), fs = newLab(), fe = newLab();
+          if (n.init.length) { guard(function () { var di = parseDeclToks(n.init, null, lookup); if (di) di.forEach(declare); else gen(cgParseExpr(n.init)); }); MK('i'); }
+          E('jmp', [LB(fc)]);
+          LBL(fb);
+          loops.push({ brk: fe, cont: fs });
+          stmt(n.body);
+          loops.pop();
+          CUR = n.line; LBL(fs);
+          if (n.step.length) { guard(function () { gen(cgParseExpr(n.step)); }); MK('t'); }
+          LBL(fc);
+          if (n.cond.length) { guard(function () { jumpIf(cgParseExpr(n.cond), fb, true); }); MK('c'); } else E('jmp', [LB(fb)]);
+          LBL(fe);
+          scopes.pop();
+          return;
+        }
+        case 'break': if (loops.length) { MK('f'); E('jmp', [LB(loops[loops.length - 1].brk)], '', 'break: jump past the loop'); } return;
+        case 'continue': if (loops.length) { MK('f'); E('jmp', [LB(loops[loops.length - 1].cont)], '', 'continue: jump to the next round'); } return;
+        case 'return':
+          guard(function () {
+            if (n.toks.length) {
+              var e = cgParseExpr(n.toks), lf = leaf(e);
+              if (ret && lf && lf.k === 'i') E('mov', [R('a', vsz(ret)), lf], '', 'the return value goes in ' + rn('a', vsz(ret)));
+              else { var rt = gen(e); convert(rt, ret); }
+            }
+          });
+          MK('r');
+          if (!last) { if (!retLab) retLab = newLab(); E('jmp', [LB(retLab)], '', 'jump to the end of the function, where the frame is torn down'); }
+          return;
+      }
+    }
+    function guard(fn) {
+      try { fn(); } catch (x) { E('#', [], 'not translated: ' + (x.message || x)); }
+    }
+    /* ----- the function ----- */
+    var body;
+    try { body = funcBody(F); } catch (x) { out.errors.push({ line: F.line, msg: x.message }); return; }
+    CUR = F.line;
+    var params = F.params.map(function (p) { return { name: p.name, t: typeInfo(p.type) }; });
+    /* System V: six integer registers and eight xmm registers; the rest arrive on the stack at [rbp+16] and up */
+    var niP = 0, nfP = 0, nsP = 0;
+    params.forEach(function (p) {
+      if (isF(p.t) ? nfP < 8 : niP < 6) { p.reg = isF(p.t) ? 'xmm' + (nfP++) : ARG_REGS[niP++]; alloc(p.name || '?', p.t, null); }
+      else { p.off = 16 + 8 * (nsP++); scopes[0][p.name] = { name: p.name, t: p.t, arr: null, off: p.off, size: sizeOfInfo(p.t) }; }
+    });
+    var bodyStart = fo.ins.length;
+    var lastIsReturn = body.k === 'block' && body.body.length && body.body[body.body.length - 1].k === 'return';
+    stmt(body, true);
+    var bodyIns = fo.ins.splice(bodyStart);
+    temps.forEach(function (m) { cur = Math.floor((cur - 8) / 8) * 8; m.off = cur; });
+    /* prologue, now that the frame size is known */
+    CUR = F.line;
+    var frame = Math.ceil(-cur / 16) * 16;
+    fo.frame = frame;
+    MK('enter');
+    E('push', [X('rbp')], '', 'save the caller’s base pointer (rbp) on the stack');
+    E('mov', [X('rbp'), X('rsp')], '', 'rbp = rsp: this frame’s base. Every local is at a fixed offset below it');
+    if (!fo.leaf && frame) E('sub', [X('rsp'), I(frame)], '', 'reserve ' + frame + ' bytes of stack for locals (a multiple of 16, so calls stay aligned)');
+    var fi = 0;
+    params.forEach(function (p) {
+      var s = scopes[0][p.name || '?'];
+      if (!p.reg) return;   /* passed on the stack: already in memory at [rbp+16] and up, nothing to copy */
+      if (isF(p.t)) { E('movsd', [M('rbp', s.off, 8, p.name), X(p.reg)], '', 'parameter ' + p.name + ' arrives in ' + p.reg + '; -O0 copies it into the frame'); return; }
+      var sz = p.t.ptr > 0 || p.t.fn ? 8 : sizeOfInfo(p.t);
+      E('mov', [M('rbp', s.off, sz, p.name), R(p.reg, sz)], '', 'parameter ' + p.name + ' arrives in ' + rn(p.reg, sz) + '; unoptimized code copies it into the frame so it has an address');
+    });
+    MK('prologue');
+    fo.ins = fo.ins.concat(bodyIns);
+    CUR = F.end;
+    if (!lastIsReturn && F.name === 'main') E('mov', [R('a', 4), I(0)], '', 'main without a return gives 0');
+    if (!lastIsReturn) MK('e');
+    if (retLab) LBL(retLab);
+    if (!fo.leaf && frame) E('leave', [], '', 'tear down the frame: rsp = rbp, then pop the caller’s rbp');
+    else E('pop', [X('rbp')], '', 'restore the caller’s rbp');
+    E('ret', [], '', 'pop the return address and jump back to the caller');
+  });
+  return out;
+
+  function globalBytes(g, lit) {
+    var t = g.sym.t, arr = g.sym.arr, init = g.init, items = [];
+    if (!init) return [{ d: '.zero', v: g.sym.size }];
+    var es = t.ptr > 0 || t.fn ? 8 : sizeOfInfo(t);
+    var dir = { 1: '.byte', 2: '.value', 4: '.long', 8: '.quad' }[es];
+    function one(e) {
+      if (!e) return { d: dir, v: 0 };
+      if (e.k === 'num') return t.ptr === 0 && (t.base === 'double') ? { d: '.double', v: e.v } : { d: dir, v: e.v };
+      if (e.k === 'str') return { d: '.quad', v: lit(e.s) };
+      if (e.k === 'id' && e.n === 'NULL') return { d: '.quad', v: 0 };
+      if (e.k === 'un' && e.op === '&' && e.a.k === 'id') return { d: '.quad', v: e.a.n };
+      if (e.k === 'id' && FUNCS[e.n]) return { d: '.quad', v: e.n };
+      if (e.k === 'un' && e.op === '-' && e.a.k === 'num') return { d: dir, v: -e.a.v };
+      return { d: dir, v: '?' };
+    }
+    if (arr && init.str !== undefined) return [{ d: '.string', v: JSON.stringify(init.str) }].concat(arr > init.str.length + 1 ? [{ d: '.zero', v: arr - init.str.length - 1 }] : []);
+    if (arr) { for (var q = 0; q < arr; q++) items.push(one((init.list || [])[q])); return items; }
+    return [one(init.list ? init.list[0] : init.e)];
+  }
+}
+
+/* ---------- a small parser that builds expression trees ---------- */
+function cgParseExpr(toks) {
+  var i = 0;
+  function peek(k) { return toks[i + (k || 0)]; }
+  function isOp(s, k) { var t = peek(k); return !!t && t.k === 'op' && t.s === s; }
+  function next() { var t = toks[i++]; if (!t) throw new CgErr('the expression ends too early'); return t; }
+  function expect(s) { if (!isOp(s)) throw new CgErr('expected "' + s + '"'); i++; }
+  function typeStart(t) { return !!t && t.k === 'id' && (TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s]); }
+  function typeName() {
+    var w = [];
+    for (;;) {
+      var t = peek();
+      if (t && t.k === 'id' && t.s === 'struct') { next(); w.push('struct ' + next().s); continue; }
+      if (t && t.k === 'id' && (TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s])) { w.push(next().s); continue; }
+      if (t && t.k === 'op' && t.s === '*') { next(); w.push('*'); continue; }
+      break;
+    }
+    return typeInfo(w.join(' ').replace(/ \*/g, '*'));
+  }
+  function assign() {
+    var a = level(0), t = peek();
+    if (t && t.k === 'op' && ASSIGN_OPS.indexOf(t.s) >= 0) { next(); return { k: 'assign', op: t.s, a: a, b: assign() }; }
+    if (t && t.k === 'op' && t.s === '?') throw new CgErr('the ?: operator is not translated');
+    return a;
+  }
+  function level(l) {
+    if (l >= LEVELS.length) return unary();
+    var a = level(l + 1);
+    for (;;) {
+      var t = peek();
+      if (!t || t.k !== 'op' || LEVELS[l].indexOf(t.s) < 0) return a;
+      next();
+      a = { k: 'bin', op: t.s, a: a, b: level(l + 1) };
+    }
+  }
+  function unary() {
+    var t = peek();
+    if (t && t.k === 'op') {
+      if (['-', '+', '!', '~', '*', '&'].indexOf(t.s) >= 0) { next(); var a = unary(); if (t.s === '-' && a.k === 'num') return { k: 'num', v: -a.v, t: a.t }; return { k: 'un', op: t.s, a: a }; }
+      if (t.s === '++' || t.s === '--') { next(); return { k: 'pre', op: t.s, a: unary() }; }
+      if (t.s === '(' && typeStart(peek(1))) { next(); var T = typeName(); expect(')'); return { k: 'cast', T: T, a: unary() }; }
+    }
+    if (t && t.k === 'id' && t.s === 'sizeof') {
+      next();
+      if (isOp('(') && typeStart(peek(1))) { next(); var ST = typeName(); expect(')'); return { k: 'sizeof', T: ST }; }
+      return { k: 'sizeof', a: unary() };
+    }
+    if (t && t.k === 'id' && (t.s === 'new' || t.s === 'delete')) throw new CgErr('C++ new and delete are not translated');
+    return postfix();
+  }
+  function postfix() {
+    var a = primary();
+    for (;;) {
+      if (isOp('[')) { next(); var ix = assign(); expect(']'); a = { k: 'idx', a: a, i: ix }; }
+      else if (isOp('.')) { next(); a = { k: 'mem', a: a, f: next().s, arrow: false }; }
+      else if (isOp('->')) { next(); a = { k: 'mem', a: a, f: next().s, arrow: true }; }
+      else if (isOp('(')) {
+        next(); var args = [];
+        if (!isOp(')')) { do { args.push(assign()); } while (isOp(',') && next()); }
+        expect(')'); a = { k: 'call', f: a, args: args };
+      }
+      else if (isOp('++') || isOp('--')) { a = { k: 'post', op: next().s, a: a }; }
+      else break;
+    }
+    return a;
+  }
+  function primary() {
+    var t = next();
+    if (t.k === 'num') return { k: 'num', v: t.v, t: t.t };
+    if (t.k === 'str') { var s = t.v; while (peek() && peek().k === 'str') s += next().v; return { k: 'str', s: s }; }
+    if (t.k === 'op' && t.s === '(') { var e = assign(); expect(')'); return e; }
+    if (t.k === 'id') {
+      if (t.s === 'true') return { k: 'num', v: 1, t: 'int' };
+      if (t.s === 'false') return { k: 'num', v: 0, t: 'int' };
+      return { k: 'id', n: t.s };
+    }
+    throw new CgErr('unexpected "' + t.s + '"');
+  }
+  var r = assign();
+  while (isOp(',')) { next(); r = assign(); }
+  if (i < toks.length) throw new CgErr('unexpected "' + toks[i].s + '"');
+  return r;
+}
+/* a declaration as a list of {name, t, arr, init:{e}|{list}|{str}}, or null when the tokens are not one */
+function parseDeclToks(toks, globals, lookup) {
+  var i = 0;
+  function peek(k) { return toks[i + (k || 0)]; }
+  function isOp(s, k) { var t = peek(k); return !!t && t.k === 'op' && t.s === s; }
+  var t0 = peek();
+  if (!t0 || t0.k !== 'id') return null;
+  var known = t0.s === 'struct' || t0.s === 'static' || t0.s === 'const' || TYPE_WORDS[t0.s] || ALIASES[t0.s] || TYPEDEFS[t0.s];
+  if (!known || (lookup && lookup(t0.s))) return null;
+  var words = [], isStatic = false;
+  for (;;) {
+    var t = peek();
+    if (!t || t.k !== 'id') break;
+    if (t.s === 'struct') { i++; words.push('struct ' + toks[i++].s); continue; }
+    if (t.s === 'static') { isStatic = true; i++; continue; }
+    if (t.s === 'const' || t.s === 'volatile' || t.s === 'register' || t.s === 'extern' || t.s === 'unsigned' && false) { i++; continue; }
+    if (TYPE_WORDS[t.s] || ALIASES[t.s] || (TYPEDEFS[t.s] && !words.length)) { words.push(t.s); i++; continue; }
+    break;
+  }
+  var base = words.join(' '), out = [];
+  for (;;) {
+    var stars = 0, name, T, arr = null;
+    while (isOp('*')) { i++; stars++; while (peek() && peek().s === 'const') i++; }
+    if (isOp('(') && isOp('*', 1)) {
+      i++; var fs = 0; while (isOp('*')) { i++; fs++; }
+      name = toks[i++].s;
+      if (isOp('[')) { i++; arr = isOp(']') ? -1 : toks[i].v; while (!isOp(']')) i++; i++; }
+      i++; /* ) */
+      var depth = 0, ptxt = [];
+      i++; /* ( */
+      for (;;) { var pt = toks[i++]; if (!pt) break; if (pt.s === '(') depth++; if (pt.s === ')') { if (!depth) break; depth--; } ptxt.push(pt.s); }
+      T = typeInfo(base + new Array(stars + 1).join('*') + ' (' + new Array(fs + 1).join('*') + ')(' + ptxt.join(' ').replace(/ ,/g, ',') + ')');
+    } else {
+      var nt = toks[i++];
+      if (!nt || nt.k !== 'id') return null;
+      name = nt.s;
+      T = typeInfo(base + new Array(stars + 1).join('*'));
+      if (isOp('[')) {
+        i++;
+        if (isOp(']')) arr = -1;
+        else { var dt = []; while (!isOp(']')) dt.push(toks[i++]); var de = cgParseExpr(dt); if (de.k !== 'num') throw new CgErr('array sizes must be constants'); arr = de.v; }
+        i++;
+      }
+    }
+    var init = null;
+    if (isOp('=')) {
+      i++;
+      if (isOp('{')) {
+        i++; var list = [], cur = [], d = 0;
+        while (i < toks.length) {
+          var tk = toks[i++];
+          if (tk.k === 'op' && (tk.s === '(' || tk.s === '[' || tk.s === '{')) d++;
+          if (tk.k === 'op' && (tk.s === ')' || tk.s === ']' || tk.s === '}')) { if (d === 0 && tk.s === '}') break; d--; }
+          if (tk.k === 'op' && tk.s === ',' && d === 0) { if (cur.length) list.push(cgParseExpr(cur)); cur = []; continue; }
+          cur.push(tk);
+        }
+        if (cur.length) list.push(cgParseExpr(cur));
+        init = { list: list };
+      } else if (arr !== null && peek() && peek().k === 'str') {
+        var sv = ''; while (peek() && peek().k === 'str') sv += toks[i++].v;
+        init = { str: sv };
+      } else {
+        var et = [], d2 = 0;
+        while (i < toks.length) {
+          var tk2 = toks[i];
+          if (tk2.k === 'op' && (tk2.s === '(' || tk2.s === '[' || tk2.s === '{')) d2++;
+          if (tk2.k === 'op' && (tk2.s === ')' || tk2.s === ']' || tk2.s === '}')) d2--;
+          if (tk2.k === 'op' && tk2.s === ',' && d2 === 0) break;
+          et.push(tk2); i++;
+        }
+        init = { e: cgParseExpr(et) };
+      }
+    }
+    if (arr === -1) arr = init ? (init.list ? init.list.length : init.str !== undefined ? init.str.length + 1 : 0) : 0;
+    out.push({ name: name, t: T, arr: arr, init: init, isStatic: isStatic, size: arr ? sizeOfInfo(T) * arr : sizeOfInfo(T) });
+    if (!isOp(',')) break;
+    i++;
+  }
+  return out;
+}
+
+/* ---------- printing in Intel or AT&T syntax ---------- */
+var SZW = { 1: 'BYTE', 2: 'WORD', 4: 'DWORD', 8: 'QWORD' }, SFX = { 1: 'b', 2: 'w', 4: 'l', 8: 'q' };
+function fmtOp(o, att, noSize) {
+  if (o.k === 'r') return (att ? '%' : '') + o.n;
+  if (o.k === 'i') return (att ? '$' : '') + o.v;
+  if (o.k === 'l') return o.n;
+  if (att) {
+    if (o.sym) return o.sym + (o.off ? (o.off > 0 ? '+' : '') + o.off : '') + '(%rip)';
+    return (o.off ? o.off : '') + '(%' + o.base + ')';
+  }
+  var sz = !noSize && o.size && SZW[o.size] ? SZW[o.size] + ' PTR ' : '';
+  if (o.sym) return sz + o.sym + (o.off ? (o.off > 0 ? '+' : '') + o.off : '') + '[rip]';
+  return sz + '[' + o.base + (o.off > 0 ? '+' + o.off : o.off < 0 ? o.off : '') + ']';
+}
+function fmtIns(ins, att) {
+  if (ins.op === '#') return { text: '# ' + ins.c, cls: 'na' };
+  var ops = ins.ops, op = ins.op;
+  if (!att) {
+    /* Intel shows the size only when no register gives it away */
+    var bare = op === 'lea';
+    return { text: op + (ops.length ? ' ' + ops.map(function (o) { return fmtOp(o, false, bare); }).join(', ') : '') };
+  }
+  var regSize = 0, memSize = 0;
+  ops.forEach(function (o) { if (o.k === 'r' && REG_SIZE[o.n] <= 8 && !regSize) regSize = REG_SIZE[o.n]; if (o.k === 'm' && o.size) memSize = o.size; });
+  var mn = op;
+  if (op === 'movsx' || op === 'movzx') {
+    var src = ops[1], dst = ops[0], ss = src.k === 'r' ? REG_SIZE[src.n] : src.size, ds = REG_SIZE[dst.n];
+    mn = (op === 'movsx' ? 'movs' : 'movz') + SFX[ss] + SFX[ds];
+  } else if (op === 'cdqe') mn = 'cltq';
+  else if (op === 'cdq') mn = 'cltd';
+  else if (op === 'cqo') mn = 'cqto';
+  else if (op === 'movabs') mn = 'movabsq';
+  else if (/^(mov|add|sub|imul|and|or|xor|cmp|neg|not|sal|sar|shr|test|lea|push|pop|idiv|div)$/.test(op)) {
+    var sz2 = op === 'push' || op === 'pop' || op === 'lea' ? (regSize || 8) : (op === 'sal' || op === 'sar' || op === 'shr') ? (ops[0].k === 'r' ? REG_SIZE[ops[0].n] : memSize) : (regSize || memSize);
+    if (op === 'mov' && ops.some(function (o) { return o.k === 'r' && /xmm/.test(o.n); })) sz2 = 0;
+    mn = op + (SFX[sz2] || '');
+  } else if (op === 'cvtsi2sd' || op === 'cvtsi2ss') mn = op + SFX[REG_SIZE[ops[1].n]];
+  var shown = ops.slice().reverse().map(function (o) { return fmtOp(o, true); });
+  if (op === 'call' && ops[0].k === 'r') shown = ['*' + shown[0]];
+  return { text: mn + (shown.length ? ' ' + shown.join(', ') : '') };
+}
+
+/* ---------- the whole program as assembler source ---------- */
+function asmSource(att) {
+  var P = asmProgram(), out = [];
+  out.push(att ? '\t.att_syntax' : '\t.intel_syntax noprefix');
+  out.push('# MemoryDojo: x86-64 in the style of gcc -O0 (a teaching model, not real compiler output)');
+  if (P.rodata.length) {
+    out.push('\t.section .rodata');
+    P.rodata.forEach(function (r) { out.push(r.lab + ':'); out.push('\t' + (r.dbl !== undefined ? '.double ' + r.dbl : '.string ' + JSON.stringify(r.text))); });
+  }
+  if (P.data.length) {
+    out.push('\t.data');
+    P.data.forEach(function (g) { out.push('\t.globl ' + g.name); out.push('\t.align 8'); out.push(g.name + ':'); g.bytes.forEach(function (b) { out.push('\t' + b.d + ' ' + b.v); }); });
+  }
+  out.push('\t.text');
+  P.funcs.forEach(function (fo) {
+    out.push('\t.globl ' + fo.name);
+    out.push(fo.name + ':');
+    var last = -1, src = codeLines();
+    fo.ins.forEach(function (ins) {
+      if (ins.mk) return;
+      if (ins.line !== last) { out.push('# ' + ins.line + ': ' + blankComments(src[ins.line - 1] || '').trim()); last = ins.line; }
+      if (ins.lab) { out.push(ins.lab + ':'); return; }
+      var f = fmtIns(ins, att);
+      out.push('\t' + f.text);
+    });
+  });
+  out.push('\t.section .note.GNU-stack,"",@progbits');
+  return out.join('\n') + '\n';
+}
+window.MemoryDojoAsm = asmSource;
+/* ---------- the Assembly tab ---------- */
+function asmProgram() {
+  var key = doc.code;
+  if (ASM.key !== key || !ASM.cache) {
+    try { ASM.cache = compileProgram(); } catch (e) { ASM.cache = { funcs: [], rodata: [], data: [], errors: [{ line: 0, msg: e.message || String(e) }] }; }
+    ASM.key = key;
+  }
+  return ASM.cache;
+}
+function asmHtml() {
+  var P = asmProgram(), att = ASM.syntax === 'att', s = doc.steps[doc.cur], h = [];
+  var curLine = s.line, stackLines = {};
+  if (s.stack) s.stack.slice(0, -1).forEach(function (f) { stackLines[f.line] = 1; });
+  var lines = codeLines();
+  h.push('<div class="asm-top"><span class="seg" role="group" aria-label="Assembly syntax"><button type="button" data-asm="intel" aria-pressed="' + !att + '">Intel</button><button type="button" data-asm="att" aria-pressed="' + att + '">AT&amp;T</button></span>' +
+    '<span class="hint" style="margin:0">x86-64, gcc -O0 style</span><button class="btn sm" type="button" data-asmcopy="1" title="Copy the whole program as assembler source you can build with gcc">Copy</button></div>');
+  /* which frame are we looking at, and where is its rbp */
+  var fnNow = s.stack ? s.stack[s.stack.length - 1].fn : (curLine ? frameFor(curLine) : '') || 'main';
+  var rbp = asmRbp(s);
+  if (rbp) h.push('<div class="asm-frame">In this step <b class="mono">' + esc(fnNow) + '()</b> has <span class="mono">rbp = ' + hex(rbp) + '</span>. So <span class="mono">[rbp-4]</span> is address <span class="mono">' + hex(rbp - 4) + '</span>: the offsets below are the boxes on the canvas.</div>');
+  if (!P.funcs.length) { h.push('<p class="hint">Put your code inside functions (like <code>int main() { ... }</code>) to see its assembly.</p>'); return h.join(''); }
+  var rows = [];
+  function grp(line) { return line ? '<div class="asm-src' + (line === curLine ? ' now' : stackLines[line] ? ' waiting' : '') + '" data-aline="' + line + '"><span class="ln">' + line + '</span>' + esc(blankComments(lines[line - 1] || '').trim()) + '</div>' : ''; }
+  if (P.rodata.length) {
+    rows.push('<div class="asm-dir">.section .rodata</div>');
+    P.rodata.forEach(function (r) { rows.push('<div class="asm-lab">' + r.lab + ':</div><div class="asm-ins dir">' + (r.dbl !== undefined ? '.double ' + r.dbl : '.string ' + esc(JSON.stringify(r.text))) + '</div>'); });
+  }
+  if (P.data.length) {
+    rows.push('<div class="asm-dir">.data</div>');
+    P.data.forEach(function (g) {
+      rows.push(grp(g.line) + '<div class="asm-lab">' + esc(g.name) + ':</div>');
+      g.bytes.forEach(function (b) { rows.push('<div class="asm-ins dir" data-aline="' + g.line + '">' + b.d + ' ' + esc(String(b.v)) + '</div>'); });
+    });
+  }
+  rows.push('<div class="asm-dir">.text</div>');
+  P.funcs.forEach(function (fo) {
+    rows.push('<div class="asm-fn"><span class="asm-lab">' + esc(fo.name) + ':</span><span class="hint" style="margin:0">frame ' + fo.frame + ' bytes' + (fo.leaf ? ', leaf (calls nothing)' : '') + '</span></div>');
+    var last = -1;
+    fo.ins.forEach(function (ins) {
+      if (ins.mk) return;
+      if (ins.line !== last) { rows.push(grp(ins.line)); last = ins.line; }
+      var on = ins.line === curLine ? ' now' : stackLines[ins.line] ? ' waiting' : '';
+      if (ins.lab) { rows.push('<div class="asm-lab' + on + '" data-aline="' + ins.line + '">' + ins.lab + ':</div>'); return; }
+      var f = fmtIns(ins, att), notes = [];
+      ins.ops.forEach(function (o) { if (o.k === 'm' && o.note && !o.sym) notes.push(o.note + (rbp && o.base === 'rbp' && fnNow === fo.name ? ' @ ' + hex(rbp + o.off) : '')); else if (o.k === 'm' && o.note) notes.push(o.note); });
+      var tip = ins.x || explainIns(ins);
+      rows.push('<div class="asm-ins' + on + (f.cls ? ' ' + f.cls : '') + '" data-aline="' + ins.line + '" title="' + esc(tip) + '"><span class="op">' + esc(f.text) + '</span>' + (notes.length ? '<span class="cm">' + (att ? '# ' : '; ') + esc(notes.join(', ')) + '</span>' : '') + '</div>');
+    });
+  });
+  if (P.errors.length) rows.push('<div class="asm-ins na"># ' + esc(P.errors.map(function (e) { return 'line ' + e.line + ': ' + e.msg; }).join(' · ')) + '</div>');
+  h.push('<div class="asm" id="asmList">' + rows.join('') + '</div>');
+  h.push('<p class="hint">Hover an instruction for what it does. Highlighted: the line this step ran' + (s.stack ? '; tinted: calls waiting to return' : '') + '. Parameters are shown at the top of each frame, the way the board lays them out (gcc puts them below the locals). This is a teaching model of unoptimized code, not the output of a real compiler.</p>');
+  return h.join('');
+}
+function asmFrameSize(name) {
+  try {
+    var f = asmProgram().funcs.filter(function (x) { return x.name === name; })[0];
+    return f && !f.leaf ? f.frame : null;
+  } catch (e) { return null; }
+}
+function asmRbp(s) {
+  if (!s) return 0;
+  var fn = s.stack ? s.stack[s.stack.length - 1].fn : (s.line ? frameFor(s.line) : '') || 'main';
+  if (s.stack && s.stack.length > 1) {
+    var tag = fn + '#' + (s.stack.length - 1);
+    return (s.state.rbp && s.state.rbp[tag]) || 0;
+  }
+  return fn === 'main' ? BASES.stack : 0;
+}
+function explainIns(ins) {
+  var o = ins.ops, op = ins.op, d = o[0] ? fmtOp(o[0], false) : '', sN = o[1] ? (o[1].note || fmtOp(o[1], false)) : '', dN = o[0] ? (o[0].note || d) : '';
+  switch (op) {
+    case 'mov': return o[0].k === 'm' ? 'store ' + sN + ' into ' + dN : o[1].k === 'm' ? 'load ' + sN + ' into ' + d : 'copy ' + sN + ' into ' + d;
+    case 'lea': return 'compute an address into ' + d + ' (lea does not read memory)';
+    case 'add': return d + ' += ' + sN;
+    case 'sub': return d + ' -= ' + sN;
+    case 'imul': return d + ' *= ' + sN;
+    case 'and': case 'or': case 'xor': return 'bitwise ' + op + ': ' + d + ' = ' + d + ' ' + op + ' ' + sN;
+    case 'cmp': return 'compare ' + dN + ' with ' + sN + ' (sets the flags the next jump reads)';
+    case 'jmp': return 'always jump to ' + d;
+    case 'push': return 'push ' + d + ' onto the stack (rsp goes down 8)';
+    case 'pop': return 'pop the top of the stack into ' + d + ' (rsp goes up 8)';
+    case 'movzx': case 'movsx': return 'load and widen to ' + d;
+    case 'neg': return d + ' = -' + d;
+    case 'not': return d + ' = ~' + d;
+  }
+  return op;
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-asm]');
+  if (b) setAsmSyntax(b.getAttribute('data-asm'));
+  var c = e.target.closest && e.target.closest('[data-asmcopy]');
+  if (c) {
+    var txt = asmSource(ASM.syntax === 'att');
+    try { navigator.clipboard.writeText(txt).then(function () { toast('Copied. Save it as prog.s and build it with: gcc prog.s -o prog'); }, function () { toast('Could not copy here. Your browser blocked the clipboard.', true); }); }
+    catch (x) { toast('Could not copy here. Your browser blocked the clipboard.', true); }
+  }
+});
+function setAsmSyntax(v) {
+  ASM.syntax = v;
+  try { localStorage.setItem(STORE_KEY + '-asm', v); } catch (e) { /* ignore */ }
+  renderPane();
+}
+/* ================= CPU: an x86-64 emulator for the generated assembly =================
+   Registers are not guessed: every step runs the actual instructions of the Assembly tab, one by
+   one, on a register file that carries over from step to step. Memory reads come from the board's
+   memory (the step before), so the instructions see exactly the values the boxes show. A register
+   only changes when an instruction writes it. Each step remembers the full CPU state.
+   Invisible markers in the generated code say where each C-level step ends, which keeps the two in
+   lockstep: a statement, a condition, a call entering a function, its prologue, a return. */
+var GPR = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15'];
+var CALLER_SAVED = ['rax', 'rcx', 'rdx', 'rsi', 'rdi', 'r8', 'r9', 'r10', 'r11'];
+var SUBREG = {};
+(function () {
+  var t = {
+    rax: ['al', 'ax', 'eax'], rbx: ['bl', 'bx', 'ebx'], rcx: ['cl', 'cx', 'ecx'], rdx: ['dl', 'dx', 'edx'], rsi: ['sil', 'si', 'esi'], rdi: ['dil', 'di', 'edi'],
+    rbp: ['bpl', 'bp', 'ebp'], rsp: ['spl', 'sp', 'esp']
+  };
+  GPR.forEach(function (r) {
+    SUBREG[r] = { base: r, size: 8 };
+    var names = t[r] || [r + 'b', r + 'w', r + 'd'];
+    SUBREG[names[0]] = { base: r, size: 1 }; SUBREG[names[1]] = { base: r, size: 2 }; SUBREG[names[2]] = { base: r, size: 4 };
+  });
+  for (var k = 0; k < 8; k++) SUBREG['xmm' + k] = { base: 'xmm' + k, size: 16 };
+})();
+var ARG_ORDER = ['rdi', 'rsi', 'rdx', 'rcx', 'r8', 'r9'];
+var M64 = (1n << 64n) - 1n;
+function mask(v, size) { return v === null ? null : BigInt.asUintN(size * 8, v); }
+function sx(v, size) { return v === null ? null : BigInt.asIntN(size * 8, v); }
+
+/* a fresh CPU, as if main's prologue just ran */
+function cpuInit() {
+  var c = { r: {}, x: {}, tag: {}, flags: null, frames: [], ip: null, note: '' };
+  GPR.forEach(function (r) { c.r[r] = null; });
+  var fs = asmFrameSize('main');
+  c.r.rbp = BigInt(BASES.stack);
+  c.r.rsp = BigInt(BASES.stack - (fs || 0));
+  c.frames = [{ fn: 'main', depth: 0 }];
+  return c;
+}
+function cpuClone(c) {
+  var o = { r: {}, x: {}, tag: {}, flags: c.flags ? Object.assign({}, c.flags) : null, frames: c.frames.map(function (f) { return Object.assign({}, f); }), ip: c.ip ? Object.assign({}, c.ip) : null, note: '' };
+  Object.keys(c.r).forEach(function (k) { o.r[k] = c.r[k]; });
+  Object.keys(c.x).forEach(function (k) { o.x[k] = c.x[k]; });
+  Object.keys(c.tag).forEach(function (k) { o.tag[k] = c.tag[k]; });
+  return o;
+}
+/* saved on each step as plain JSON (BigInt as hex strings) */
+function cpuSave(c, prev) {
+  var r = {}, chg = [];
+  GPR.forEach(function (k) {
+    r[k] = c.r[k] === null ? null : '0x' + c.r[k].toString(16);
+    if (prev && prev.r && prev.r[k] !== r[k]) chg.push(k);
+  });
+  var x = {};
+  Object.keys(c.x).forEach(function (k) { x[k] = c.x[k]; if (prev && prev.x && prev.x[k] !== c.x[k]) chg.push(k); });
+  return { r: r, x: x, tag: JSON.parse(JSON.stringify(c.tag)), flags: c.flags ? { a: String(c.flags.a), b: String(c.flags.b), size: c.flags.size } : null,
+    frames: c.frames.map(function (f) { return { fn: f.fn, depth: f.depth }; }), ip: c.ip ? { fn: c.ip.fn, line: c.ip.line } : null, chg: chg, note: c.note || '' };
+}
+function cpuLoad(s) {
+  if (!s) return null;
+  var c = { r: {}, x: {}, tag: s.tag ? JSON.parse(JSON.stringify(s.tag)) : {}, flags: s.flags ? { a: s.flags.a === 'null' ? null : BigInt(s.flags.a), b: s.flags.b === 'null' ? null : BigInt(s.flags.b), size: s.flags.size } : null,
+    frames: (s.frames || [{ fn: 'main', depth: 0 }]).map(function (f) { return Object.assign({}, f); }), ip: null, note: '' };
+  GPR.forEach(function (k) { c.r[k] = s.r && s.r[k] ? BigInt(s.r[k]) : null; });
+  Object.keys(s.x || {}).forEach(function (k) { c.x[k] = s.x[k]; });
+  return c;
+}
+
+/* ---------- running instructions ---------- */
+function emuRun(c, opts) {
+  /* opts: {mem: state to read memory from, post: state after the step (literal and heap addresses),
+     stopAll: stop at markers in any function (Step into) or only back in the starting function,
+     overlay: bytes written so far in this session} */
+  var P = asmProgram(), funcs = {};
+  P.funcs.forEach(function (f) { funcs[f.name] = f; });
+  var labels = {};
+  function labIndex(fn, lab) {
+    var key = fn + ' ' + lab;
+    if (labels[key] === undefined) { var ins = funcs[fn].ins; labels[key] = -1; for (var q = 0; q < ins.length; q++) if (ins[q].lab === lab) { labels[key] = q; break; } }
+    return labels[key];
+  }
+  var ov = opts.overlay, mem = opts.mem, post = opts.post || opts.mem;
+  var newHeap = opts.newHeap;
+  function readByte(a) {
+    if (ov[a] !== undefined) return ov[a];
+    var r = findAt(mem, a) || (post !== mem ? findAt(post, a) : null);
+    if (!r || r.i < 0) return null;
+    var sl = r.b.slots[r.i], bs = bytesOf(sl);
+    if (!bs) return null;
+    return bs[a - slotAddr(r.b, r.i)];
+  }
+  function memRead(addr, size) {
+    if (addr === null) return null;
+    var a = Number(addr);
+    if (a < 0x1000) throw { fault: 'read from ' + hex(a) + ' (a NULL or invalid pointer)' };
+    var v = 0n;
+    for (var q = size - 1; q >= 0; q--) { var b = readByte(a + q); if (b === null || b === undefined) return null; v = (v << 8n) | BigInt(b); }
+    return v;
+  }
+  function memWrite(addr, size, v) {
+    if (addr === null) return;
+    var a = Number(addr);
+    if (a < 0x1000) throw { fault: 'write to ' + hex(a) + ' (a NULL or invalid pointer)' };
+    for (var q = 0; q < size; q++) ov[a + q] = v === null ? null : Number((v >> BigInt(8 * q)) & 255n);
+  }
+  function symAddr(sym) {
+    if (FUNCS[sym]) return BigInt(FUNCS[sym].addr);
+    var lit = P.rodata.filter(function (r) { return r.lab === sym; })[0];
+    if (lit && lit.text !== undefined) {
+      var lb = post.blocks.filter(function (b) { return b.region === 'rodata' && b.strText === lit.text; })[0] || mem.blocks.filter(function (b) { return b.region === 'rodata' && b.strText === lit.text; })[0];
+      return lb ? BigInt(lb.addr) : null;
+    }
+    var gb = post.blocks.filter(function (b) { return b.region === 'global' && b.name === sym; })[0];
+    return gb ? BigInt(gb.addr) : null;
+  }
+  function dblConst(sym) { var lit = P.rodata.filter(function (r) { return r.lab === sym && r.dbl !== undefined; })[0]; return lit ? lit.dbl : undefined; }
+  function getReg(n) {
+    var s = SUBREG[n];
+    if (!s) return null;
+    if (s.size === 16) return null;
+    var v = c.r[s.base];
+    return v === null ? null : mask(v, s.size);
+  }
+  function setReg(n, v, keepTag) {
+    var s = SUBREG[n];
+    if (!s) return;
+    if (!keepTag) delete c.tag[s.base];
+    if (v === null) { c.r[s.base] = s.size >= 4 ? null : c.r[s.base] === null ? null : null; return; }
+    v = mask(v, s.size >= 8 ? 8 : s.size);
+    if (s.size === 8 || s.size === 4) c.r[s.base] = v;   /* a 32-bit write clears the upper half */
+    else {
+      var old = c.r[s.base];
+      if (old === null) { c.r[s.base] = null; return; }
+      var m = (1n << BigInt(8 * s.size)) - 1n;
+      c.r[s.base] = (old & ~m & M64) | v;
+    }
+  }
+  function addrOf(o) {
+    if (o.sym) { var b = symAddr(o.sym); return b === null ? null : b + BigInt(o.off || 0); }
+    var base = getReg(o.base);
+    return base === null ? null : mask(base + BigInt(o.off || 0), 8);
+  }
+  function opSize(o) { return o.k === 'r' ? (SUBREG[o.n] ? SUBREG[o.n].size : 8) : o.size || 8; }
+  function read(o, size) {
+    if (o.k === 'i') return mask(BigInt(o.v), size || 8);
+    if (o.k === 'r') return getReg(o.n);
+    if (o.k === 'm') {
+      if (o.sym && dblConst(o.sym) !== undefined) { var dv = new DataView(new ArrayBuffer(8)); dv.setFloat64(0, dblConst(o.sym), true); return dv.getBigUint64(0, true); }
+      return memRead(addrOf(o), size || o.size || 8);
+    }
+    return null;
+  }
+  function write(o, v, size) {
+    if (o.k === 'r') setReg(o.n, v);
+    else if (o.k === 'm') memWrite(addrOf(o), size || o.size || 8, v === null ? null : mask(v, size || o.size || 8));
+  }
+  function f64(bits) { if (bits === null || bits === undefined) return null; var dv = new DataView(new ArrayBuffer(8)); dv.setBigUint64(0, BigInt.asUintN(64, bits), true); return dv.getFloat64(0, true); }
+  function bits(d) { if (d === null || d === undefined) return null; var dv = new DataView(new ArrayBuffer(8)); dv.setFloat64(0, d, true); return dv.getBigUint64(0, true); }
+  function cond(cc) {
+    var f = c.flags;
+    if (!f || f.a === null || f.b === null) return null;
+    var sa = sx(f.a, f.size), sb = sx(f.b, f.size), ua = mask(f.a, f.size), ub = mask(f.b, f.size);
+    switch (cc) {
+      case 'e': return ua === ub; case 'ne': return ua !== ub;
+      case 'l': return sa < sb; case 'le': return sa <= sb; case 'g': return sa > sb; case 'ge': return sa >= sb;
+      case 'b': return ua < ub; case 'be': return ua <= ub; case 'a': return ua > ub; case 'ae': return ua >= ub;
+    }
+    return null;
+  }
+  function push(v) { c.r.rsp = mask(c.r.rsp - 8n, 8); memWrite(c.r.rsp, 8, v); }
+  function pop() { var v = memRead(c.r.rsp, 8); c.r.rsp = mask(c.r.rsp + 8n, 8); return v; }
+  function strAt(a) {
+    var s = '';
+    for (var q = 0; q < 512; q++) { var b = readByte(Number(a) + q); if (b === null || b === undefined) return null; if (!b) return s; s += String.fromCharCode(b); }
+    return s;
+  }
+  function builtin(name) {
+    var ret = null;
+    try {
+      if (name === 'strlen') { var s = c.r.rdi === null ? null : strAt(c.r.rdi); ret = s === null ? null : BigInt(s.length); }
+      else if (name === 'malloc' || name === 'calloc' || name === 'realloc') { var nb = newHeap.shift(); ret = nb ? BigInt(nb.addr) : 0n; }
+      else if (name === 'printf') {
+        var fmt = c.r.rdi === null ? null : strAt(c.r.rdi);
+        if (fmt !== null) {
+          var regs = ['rsi', 'rdx', 'rcx', 'r8', 'r9'], vals = [];
+          (fmt.match(/%[-+ 0#]*\d*(?:\.\d+)?(?:hh|h|ll|l|z)?[diuxXcspf]/g) || []).forEach(function (sp, q) {
+            var rv = c.r[regs[q]];
+            vals.push(/[sp]$/.test(sp) ? (rv === null ? 0 : Number(rv)) : rv === null ? 0 : /l[diux]$/.test(sp) ? Number(sx(rv, 8)) : Number(sx(rv, 4)));
+          });
+          ret = BigInt(cFormat(post, fmt, vals).length);
+        }
+      } else if (name === 'puts') { var ps = c.r.rdi === null ? null : strAt(c.r.rdi); ret = ps === null ? null : BigInt(ps.length + 1); }
+      else if (name === 'putchar') ret = c.r.rdi;
+      else if (name === 'abs') ret = c.r.rdi === null ? null : mask(BigInt(Math.abs(Number(sx(c.r.rdi, 4)))), 4);
+    } catch (e) { ret = null; }
+    /* the C library may use any caller-saved register: their values are unknown afterwards */
+    CALLER_SAVED.forEach(function (k) { if (k !== 'rax') { c.r[k] = null; c.tag[k] = { clob: name }; } });
+    for (var k = 0; k < 8; k++) delete c.x['xmm' + k];
+    c.r.rax = ret;
+    c.tag.rax = { ret: name, builtin: true };
+  }
+  /* where to start: the first instruction of the line, unless we are already mid-call */
+  if (!c.ip) {
+    var fn0 = opts.fn, fo0 = funcs[fn0];
+    if (!fo0) return 'nocode';
+    var at = -1;
+    for (var q = 0; q < fo0.ins.length; q++) if (fo0.ins[q].line === opts.line && !fo0.ins[q].lab && (fo0.ins[q].op || fo0.ins[q].mk) && fo0.ins[q].mk !== 'enter' && fo0.ins[q].mk !== 'prologue') { at = q; break; }
+    if (at < 0) return 'nocode';
+    c.ip = { fn: fn0, idx: at, line: opts.line };
+  }
+  var startDepth = c.frames.length, guard = 0;
+  for (;;) {
+    if (++guard > 200000) { c.note = 'stopped after 200000 instructions'; return 'limit'; }
+    var fo = funcs[c.ip.fn], ins = fo && fo.ins[c.ip.idx];
+    if (!ins) return 'end';
+    c.ip.line = ins.line;
+    if (ins.mk) {
+      c.ip.idx++;
+      if (opts.stopAll || c.frames.length <= startDepth) { c.ip.mk = ins.mk; return 'mark'; }
+      continue;
+    }
+    if (ins.lab || ins.op === '#') { c.ip.idx++; continue; }
+    var o = ins.ops, op = ins.op, next = c.ip.idx + 1, sz;
+    try {
+      switch (op) {
+        case 'mov': case 'movabs':
+          sz = o[0].k === 'm' ? o[0].size : opSize(o[0]);
+          write(o[0], read(o[1], sz), sz); break;
+        case 'movsx': case 'movzx': {
+          var ss = opSize(o[1]), v = read(o[1], ss);
+          write(o[0], v === null ? null : op === 'movsx' ? mask(sx(v, ss), 8) : v);
+          break;
+        }
+        case 'lea': write(o[0], addrOf(o[1])); break;
+        case 'add': case 'sub': case 'imul': case 'and': case 'or': case 'xor': {
+          sz = opSize(o[0]);
+          var a = o.length === 3 ? read(o[1], sz) : read(o[0], sz), b = read(o.length === 3 ? o[2] : o[1], sz), r = null;
+          if (a !== null && b !== null) r = op === 'add' ? a + b : op === 'sub' ? a - b : op === 'imul' ? sx(a, sz) * sx(b, sz) : op === 'and' ? a & b : op === 'or' ? a | b : a ^ b;
+          if (o[0].k === 'r' && o[0].n === 'rsp') c.r.rsp = mask(r, 8);
+          else write(o[0], r === null ? null : mask(r, sz), sz);
+          break;
+        }
+        case 'neg': case 'not': { sz = opSize(o[0]); var nv = read(o[0], sz); write(o[0], nv === null ? null : mask(op === 'neg' ? -nv : ~nv, sz), sz); break; }
+        case 'sal': case 'sar': case 'shr': {
+          sz = opSize(o[0]);
+          var sv = read(o[0], sz), cnt = read(o[1], 1);
+          var res = sv === null || cnt === null ? null : op === 'sal' ? sv << (cnt & 63n) : op === 'sar' ? sx(sv, sz) >> (cnt & 63n) : mask(sv, sz) >> (cnt & 63n);
+          write(o[0], res === null ? null : mask(res, sz), sz);
+          break;
+        }
+        case 'cdqe': setReg('rax', c.r.rax === null ? null : mask(sx(c.r.rax, 4), 8)); break;
+        case 'cdq': setReg('edx', c.r.rax === null ? null : (sx(c.r.rax, 4) < 0n ? 0xffffffffn : 0n)); break;
+        case 'cqo': setReg('rdx', c.r.rax === null ? null : (sx(c.r.rax, 8) < 0n ? M64 : 0n)); break;
+        case 'idiv': case 'div': {
+          sz = opSize(o[0]);
+          var dvs = read(o[0], sz), num = c.r.rax;
+          if (dvs === null || num === null || dvs === 0n) { setReg(sz === 8 ? 'rax' : 'eax', null); setReg(sz === 8 ? 'rdx' : 'edx', null); break; }
+          var n0 = op === 'idiv' ? sx(num, sz) : mask(num, sz), d0 = op === 'idiv' ? sx(dvs, sz) : dvs;
+          setReg(sz === 8 ? 'rax' : 'eax', mask(n0 / d0, sz)); setReg(sz === 8 ? 'rdx' : 'edx', mask(n0 % d0, sz));
+          break;
+        }
+        case 'cmp': sz = o[0].k === 'm' ? o[0].size : opSize(o[0]); c.flags = { a: read(o[0], sz), b: read(o[1], sz), size: sz }; break;
+        case 'test': { sz = opSize(o[0]); var t1 = read(o[0], sz), t2 = read(o[1], sz); c.flags = { a: t1 === null || t2 === null ? null : t1 & t2, b: 0n, size: sz }; break; }
+        case 'jmp': next = labIndex(c.ip.fn, o[0].n); break;
+        case 'push': push(o[0].k === 'r' ? getReg(o[0].n) : read(o[0], 8)); break;
+        case 'pop': { var pv = pop(); if (o[0].n === 'rbp') c.r.rbp = pv; else setReg(o[0].n, pv); break; }
+        case 'leave': c.r.rsp = c.r.rbp; c.r.rbp = pop(); break;
+        case 'ret': {
+          var fr = c.frames.pop();
+          c.r.rsp = mask(c.r.rsp + 8n, 8);
+          if (fr && fr.ret) {
+            if (fr.retType) c.tag.rax = { ret: fr.fn, rtype: fr.retType };
+            c.ip = { fn: fr.ret.fn, idx: fr.ret.idx, line: 0 };
+            continue;
+          }
+          return 'end';
+        }
+        case 'call': {
+          var target = o[0].k === 'l' ? o[0].n : null;
+          if (!target) { var fa = getReg(o[0].n); var Ff = fa === null ? null : funcAt(Number(fa)); target = Ff ? Ff.name : null; if (!Ff) throw { fault: 'call through an invalid function pointer' }; }
+          var F2 = FUNCS[target], fo2 = funcs[target];
+          if (F2 && fo2) {
+            /* a call to one of your functions: push the return address, jump to it */
+            c.r.rsp = mask(c.r.rsp - 8n, 8);
+            memWrite(c.r.rsp, 8, BigInt(FUNCS[c.ip.fn] ? FUNCS[c.ip.fn].addr : CODE_BASE));
+            var ni = 0, nfp = 0;
+            F2.params.forEach(function (p, k) {
+              var pt = typeInfo(p.type), isFl = pt.ptr === 0 && !pt.fn && (pt.base === 'double' || pt.base === 'float');
+              if (isFl) { if (nfp < 8) c.tag['xmm' + nfp] = { arg: k + 1, fn: target, param: p.name, ptype: p.type, depth: c.frames.length }; nfp++; return; }
+              if (ni < 6) c.tag[ARG_ORDER[ni]] = { arg: k + 1, fn: target, param: p.name, ptype: p.type, depth: c.frames.length };
+              ni++;
+            });
+            c.frames.push({ fn: target, depth: c.frames.length, ret: { fn: c.ip.fn, idx: next }, retType: F2.ret === 'void' ? null : F2.ret });
+            c.ip = { fn: target, idx: 0, line: F2.line };
+            continue;
+          }
+          builtin(target);
+          break;
+        }
+        case 'movsd': case 'movss': case 'movq': case 'movapd': {
+          var src = o[1], dst = o[0], val;
+          if (src.k === 'r' && /^xmm/.test(src.n)) val = bits(c.x[src.n]); else val = read(src, 8);
+          if (dst.k === 'r' && /^xmm/.test(dst.n)) { c.x[dst.n] = f64(val); delete c.tag[dst.n]; }
+          else write(dst, val, 8);
+          break;
+        }
+        case 'cvtsi2sd': case 'cvtsi2ss': { var iv = read(o[1], opSize(o[1])); c.x[o[0].n] = iv === null ? null : Number(sx(iv, opSize(o[1]))); break; }
+        case 'cvttsd2si': case 'cvttss2si': { var fv = c.x[o[1].n]; write(o[0], fv === null || fv === undefined ? null : mask(BigInt(Math.trunc(fv)), opSize(o[0]))); break; }
+        case 'addsd': case 'subsd': case 'mulsd': case 'divsd': {
+          var x0 = c.x[o[0].n], x1 = o[1].k === 'r' ? c.x[o[1].n] : f64(read(o[1], 8));
+          c.x[o[0].n] = x0 === null || x1 === null || x0 === undefined || x1 === undefined ? null : op === 'addsd' ? x0 + x1 : op === 'subsd' ? x0 - x1 : op === 'mulsd' ? x0 * x1 : x0 / x1;
+          break;
+        }
+        default:
+          if (/^set/.test(op)) { var cv = cond(op.slice(3)); write(o[0], cv === null ? null : cv ? 1n : 0n, 1); break; }
+          if (/^j/.test(op)) {
+            var taken = cond(op.slice(1));
+            if (taken) next = labIndex(c.ip.fn, o[0].n);
+            if (taken && ins.fin && (opts.stopAll || c.frames.length <= startDepth)) { c.ip.idx = next; c.ip.mk = 'c'; return 'mark'; }
+            break;
+          }
+      }
+    } catch (e) {
+      if (e && e.fault) { c.note = 'the CPU faulted here: ' + e.fault; return 'fault'; }
+      throw e;
+    }
+    c.ip.idx = next;
+  }
+}
+
+/* registers that hold a function's arguments (or its result) become boxes in that function's scope */
+function regBoxes(st, c) {
+  st.blocks = st.blocks.filter(function (b) { return b.region !== 'reg'; });
+  var frameTags = {};
+  st.blocks.forEach(function (b) { if (b.region === 'stack' && b.frame) frameTags[b.frame] = 1; });
+  var n = 0;
+  Object.keys(c.tag).forEach(function (reg) {
+    var t = c.tag[reg];
+    if (!t || (!t.arg && !(t.ret && !t.builtin) && !t.retv)) return;
+    var v = /^xmm/.test(reg) ? c.x[reg] : c.r[reg];
+    if (v === null || v === undefined) return;
+    var fn, depth, label, type;
+    if (t.arg) { fn = t.fn; depth = t.depth; label = t.param; type = t.ptype; }
+    else {
+      var top = c.frames[c.frames.length - 1];
+      fn = top.fn; depth = top.depth;
+      label = t.retv ? 'return value' : t.ret + '() returned';
+      type = t.rtype || t.type || 'long';
+    }
+    var tag = depth ? fn + '#' + depth : fn;
+    if (!frameTags[tag]) return;
+    var ti; try { ti = typeInfo(type); } catch (e) { ti = typeInfo('long'); }
+    var size = ti.ptr > 0 || ti.fn ? 8 : sizeOfInfo(ti);
+    var name = /^xmm/.test(reg) ? reg : (function () { var s = SUBREG[reg]; var nm = Object.keys(SUBREG).filter(function (k) { return SUBREG[k].base === reg && SUBREG[k].size === (size === 8 ? 8 : size === 4 ? 4 : size === 2 ? 2 : size === 1 ? 1 : 8); })[0]; return nm || reg; })();
+    var value = /^xmm/.test(reg) ? v : (ti.ptr > 0 || ti.fn ? Number(v) : Number(BigInt.asIntN(size * 8, v)));
+    var b = makeBlock(st, { id: 'reg-' + tag + '-' + reg, name: name, region: 'reg', kind: 'scalar', slots: [{ label: '', type: type, value: value }], addr: -0x1000 - (n++) * 0x40 - depth * 0x400, frame: tag, scope: 0 });
+    b.param = label; b.auto = true; b.code = true;
+  });
+}
+
+/* run the CPU for a list of new steps created by one Run line / Step into, starting at line L */
+function cpuForSteps(prevStep, steps, L, into) {
+  var c = cpuLoad(prevStep && prevStep.cpu) || cpuInit();
+  c.ip = null;
+  var fn = frameFor(L) || 'main';
+  var ov = {}, prevState = prevStep ? prevStep.state : steps[0].state;
+  var out = 'ok';
+  steps.forEach(function (s, k) {
+    var before = k === 0 ? prevState : steps[k - 1].state;
+    var known = {};
+    before.blocks.forEach(function (b) { known[b.id] = 1; });
+    var nh = s.state.blocks.filter(function (b) { return b.region === 'heap' && !known[b.id]; }).sort(function (a, b) { return a.addr - b.addr; });
+    var prevSaved = k === 0 ? (prevStep && prevStep.cpu) : steps[k - 1].cpu;
+    var res = out === 'ok' || out === 'mark' ? emuRun(c, { mem: before, post: s.state, overlay: ov, newHeap: nh, fn: fn, line: L, stopAll: !!into }) : out;
+    out = res;
+    if (res === 'mark' && c.ip && c.ip.mk === 'r') {
+      /* about to return: rax now holds the result */
+      var top = c.frames[c.frames.length - 1], F = FUNCS[top.fn];
+      if (F && F.ret !== 'void') c.tag[/double|float/.test(F.ret) && F.ret.indexOf('*') < 0 ? 'xmm0' : 'rax'] = { retv: top.fn, rtype: F.ret };
+    }
+    s.cpu = cpuSave(c, prevSaved);
+    s.cpu.ip = { fn: c.ip ? c.ip.fn : fn, line: c.ip ? c.ip.line : L };
+    if (res === 'fault' || res === 'limit') s.cpu.note = c.note;
+    regBoxes(s.state, c);
+  });
+  /* back at the caller's line: the next Run starts fresh from whatever line is chosen */
+  return out;
+}
+function cpuCopy(prevStep, step) {
+  step.cpu = prevStep && prevStep.cpu ? JSON.parse(JSON.stringify(prevStep.cpu)) : null;
+  if (step.cpu) step.cpu.chg = [];
+}
+
+/* ---------- the registers panel ---------- */
+var CPU_ROWS = ['rax', 'rbx', 'rcx', 'rdx', 'rsi', 'rdi', 'rbp', 'rsp', 'r8', 'r9', 'r10', 'r11', 'r12', 'r13', 'r14', 'r15'];
+function regRole(name, cpu, st) {
+  var t = cpu.tag && cpu.tag[name];
+  if (name === 'rsp') return { cls: 'sys', text: 'stack top' };
+  if (name === 'rbp') {
+    /* whose frame does rbp point at right now? (between call and push rbp it is still the caller's) */
+    var rv = cpu.r.rbp ? Number(BigInt(cpu.r.rbp)) : null, who = rv === BASES.stack ? 'main' : null;
+    if (rv !== null && st.rbp) Object.keys(st.rbp).forEach(function (t) { if (st.rbp[t] === rv) who = t.split('#')[0]; });
+    return { cls: 'sys', text: who ? 'frame base of ' + who + '()' : 'frame base' };
+  }
+  if (!t) return cpu.r[name] === null ? { cls: 'na', text: '' } : { cls: '', text: 'scratch' };
+  if (t.arg) {
+    var live = (cpu.frames || []).some(function (f) { return f.fn === t.fn && f.depth === t.depth; });
+    return live ? { cls: 'arg', text: 'arg ' + t.arg + ' of ' + t.fn + '() → ' + t.param } : { cls: '', text: 'was arg ' + t.arg + ' of ' + t.fn + '() (returned)' };
+  }
+  if (t.retv) return { cls: 'ret', text: t.retv + '() return value' };
+  if (t.ret) return { cls: 'ret', text: t.ret + '() returned this' };
+  if (t.clob) return { cls: 'na', text: 'clobbered by ' + t.clob + '()' };
+  return { cls: '', text: '' };
+}
+function regValue(name, cpu, st) {
+  var h = cpu.r[name];
+  if (!h) return { v: '?', d: '' };
+  var v = BigInt(h), t = cpu.tag && cpu.tag[name], d = '';
+  var asPtr = t && t.ptype ? isPtrType(t.ptype) : v >= 0x1000n && v < 0x8000n;
+  if (asPtr) {
+    var tt = targetText(st, Number(v));
+    if (/^points to/.test(tt)) d = '→ ' + tt.replace(/^points to /, '');
+    else if (v >= BigInt(CODE_BASE) && v < 0x2000n) { var f = funcAt(Number(v)); d = f ? '→ ' + f.name + '()' : ''; }
+  } else {
+    var s32 = BigInt.asIntN(32, v);
+    if (v < 0x100000000n) d = String(s32);
+    else d = String(BigInt.asIntN(64, v));
+  }
+  return { v: h, d: d };
+}
+function cpuHtml() {
+  var s = doc.steps[doc.cur], cpu = s.cpu;
+  var h = ['<div class="cpu-h"><button type="button" class="cpu-t" id="cpuToggle" aria-expanded="' + !ui.cpuMin + '">CPU registers</button>' +
+    (cpu && cpu.ip ? '<span class="cpu-ip" title="rip: the next instruction to run">rip → ' + esc(cpu.ip.fn) + '() line ' + cpu.ip.line + '</span>' : '') + '</div>'];
+  if (ui.cpuMin) return h.join('');
+  if (!cpu) {
+    h.push('<p class="cpu-empty">Run a line to start the CPU. Register values come from executing the instructions in the Assembly tab.</p>');
+    return h.join('');
+  }
+  var chg = {}; (cpu.chg || []).forEach(function (k) { chg[k] = 1; });
+  h.push('<table class="cpu-t2"><tbody>');
+  CPU_ROWS.forEach(function (r) {
+    var rv = regValue(r, cpu, s.state), role = regRole(r, cpu, s.state);
+    if (/^r1[2-5]$/.test(r) && !cpu.r[r]) return;
+    h.push('<tr class="' + (chg[r] ? 'chg ' : '') + 'k-' + role.cls + '"><th>' + r + '</th><td class="v">' + esc(rv.v) + '</td><td class="d">' + esc(rv.d) + '</td><td class="role">' + esc(role.text) + '</td></tr>');
+  });
+  Object.keys(cpu.x || {}).sort().forEach(function (x) {
+    var role = regRole(x, cpu, s.state), xv = cpu.x[x];
+    h.push('<tr class="' + ((cpu.chg || []).indexOf(x) >= 0 ? 'chg ' : '') + 'k-' + role.cls + '"><th>' + x + '</th><td class="v">' + (xv === null || xv === undefined ? '?' : esc(String(xv))) + '</td><td class="d">double</td><td class="role">' + esc(role.text) + '</td></tr>');
+  });
+  h.push('</tbody></table>');
+  h.push('<p class="cpu-foot">r12–r15 are not used by this code. <b>?</b> means no instruction has set it yet, or a library call left it unknown.' + (cpu.note ? ' <span class="bad">' + esc(cpu.note) + '</span>' : '') + '</p>');
+  return h.join('');
+}
+function renderCpu() {
+  var el = $('cpu');
+  if (!el) return;
+  el.innerHTML = cpuHtml();
+  el.classList.toggle('min', !!ui.cpuMin);
+}
+try { ui.cpuMin = localStorage.getItem(STORE_KEY + '-cpu') === 'min'; } catch (e) { /* ignore */ }
+document.addEventListener('click', function (e) {
+  if (e.target.closest && e.target.closest('#cpuToggle')) {
+    ui.cpuMin = !ui.cpuMin;
+    try { localStorage.setItem(STORE_KEY + '-cpu', ui.cpuMin ? 'min' : 'open'); } catch (x) { /* ignore */ }
+    renderCpu();
+  }
+});
 /* ================= app: panel layout (resize, collapse, expand code) ================= */
 var LAYOUT_KEY = STORE_KEY + '-layout';
 var LAY_DEFAULT = { lw: 310, rw: 330, lOpen: true, rOpen: true, codeH: 0, wide: false, prev: null };
@@ -3846,6 +5621,7 @@ function setup() {
   $('redo').addEventListener('click', redo);
   $('tabInspect').addEventListener('click', function () { ui.tab = 'inspect'; renderPane(); });
   $('tabMap').addEventListener('click', function () { ui.tab = 'map'; renderPane(); });
+  $('tabAsm').addEventListener('click', function () { ui.tab = 'asm'; ui.lastAsmLine = -1; renderPane(); });
 
   var exSel = $('examples');
   setupPrograms();
@@ -3870,6 +5646,7 @@ function setup() {
     clearTimeout(armTimer); clearBtn.classList.remove('armed'); clearBtn.textContent = 'Clear';
     pushUndo();
     doc.steps = [{ id: uid('s'), line: null, state: newState(), msgs: [] }];
+    try { doc.steps[0].cpu = cpuSave(cpuInit()); } catch (e) { /* ignore */ }
     doc.cur = 0; sel = null; ui.lastResult = null; pendingLine = firstLine();
     view = { x: 40, y: 56, k: 1 }; doc.autoPos = {};
     renderAll(); save();
