@@ -616,7 +616,7 @@ var ALIASES = {
   int32_t: 'int', uint32_t: 'unsigned int', int64_t: 'long', uint64_t: 'unsigned long', _Bool: 'bool'
 };
 var TYPE_WORDS = { unsigned: 1, signed: 1, long: 1, short: 1, int: 1, char: 1, float: 1, double: 1, void: 1, bool: 1,
-  _Bool: 1, const: 1, volatile: 1, static: 1, register: 1, extern: 1, struct: 1 };
+  _Bool: 1, const: 1, volatile: 1, static: 1, register: 1, extern: 1, struct: 1, union: 1 };
 var STRUCTS = {};   // 'struct Node' -> [{name, type}]
 var CODE_STRUCTS = {}; // 'struct Node' -> line where the code defines it
 var TYPEDEFS = {};  // 'Node' -> 'struct Node'
@@ -627,7 +627,7 @@ function uid(p) { return (p || 'b') + (NEXT_ID++); }
 function hex(n) { return '0x' + Number(n).toString(16); }
 
 function mkType(base, ptr, uns) {
-  var o = { base: base, ptr: ptr, unsigned: !!uns, struct: /^struct /.test(base) };
+  var o = { base: base, ptr: ptr, unsigned: !!uns, struct: /^(struct|union) /.test(base), union: /^union /.test(base) };
   o.str = (o.unsigned ? 'unsigned ' : '') + base + new Array(ptr + 1).join('*');
   return o;
 }
@@ -655,7 +655,7 @@ function typeInfo(str) {
     var t = typeInfo(alias);
     out = t.fn ? fnType(t.fn, t.ptr + ptr) : mkType(t.base, t.ptr + ptr, t.unsigned || uns);
   } else {
-    if (!/^struct \w+$/.test(s) && BASE_SIZES[s] === undefined) throw new Error('unknown type "' + s + '"');
+    if (!/^(struct|union) \w+$/.test(s) && BASE_SIZES[s] === undefined) throw new Error('unknown type "' + s + '"');
     out = mkType(s, ptr, uns);
   }
   TI_CACHE[key] = out;
@@ -691,18 +691,107 @@ function normParam(p) {
   try { type = typeInfo(type).str; } catch (e) { /* keep as written */ }
   return { type: type, name: name };
 }
-function structLayout(name) {
+/* struct and union layout. A union puts every member at offset 0 and is as big as its largest
+   member; a struct or union member that is itself a struct or union is laid out inside it. */
+function isUnionName(n) { return /^union /.test(n); }
+function aggKind(n) { return isUnionName(n) ? 'union' : 'struct'; }
+function aggLayout(name, seen) {
   var f = STRUCTS[name];
-  if (!f) throw new Error(name + ' is not defined. Put its definition in the code, or create it with the Struct tool.');
-  var off = 0, al = 1;
+  if (!f) throw new Error(name + ' is not defined. Put its definition in the code' + (isUnionName(name) ? '.' : ', or create it with the Struct tool.'));
+  seen = seen || {};
+  if (seen[name]) throw new Error(name + ' contains itself, which would make it infinitely big: use a pointer (' + name + ' *) instead');
+  seen[name] = 1;
+  var uni = isUnionName(name), off = 0, big = 0, al = 1, out = [];
   f.forEach(function (fd) {
-    var t = typeInfo(fd.type);
-    if (t.struct && t.ptr === 0) throw new Error('a struct inside a struct is not supported (field ' + fd.name + ')');
-    var sz = sizeOfInfo(t), a = alignOfInfo(t);
-    off = Math.ceil(off / a) * a + sz;
+    var t = typeInfo(fd.type), sz, a;
+    if (t.struct && t.ptr === 0) { var L = aggLayout(t.base, seen); sz = L.size; a = L.align; }
+    else { sz = sizeOfInfo(t); a = alignOfInfo(t); }
+    var o = uni ? 0 : Math.ceil(off / a) * a;
+    out.push({ name: fd.name, type: fd.type, t: t, off: o, size: sz, anon: !!fd.anon });
+    if (uni) big = Math.max(big, sz); else off = o + sz;
     if (a > al) al = a;
   });
-  return { size: Math.ceil(off / al) * al || al, align: al };
+  delete seen[name];
+  return { size: Math.ceil((uni ? big : off) / al) * al || al, align: al, fields: out, union: uni };
+}
+function structLayout(name) { return aggLayout(name); }
+/* every member that holds a value, with nested names written the C way (value.d), plus the nested
+   structs and unions themselves (subs) so a.value can be used on its own */
+function aggFlat(name) {
+  var leaves = [], subs = [];
+  (function walk(n, pre, base) {
+    aggLayout(n).fields.forEach(function (fd) {
+      if (fd.t.struct && fd.t.ptr === 0) {
+        var p2 = fd.anon ? pre : pre + fd.name + '.', first = leaves.length;
+        var sub = { path: fd.anon ? null : pre + fd.name, pre: p2, type: fd.t.base, off: base + fd.off, size: fd.size, union: !!fd.t.union };
+        subs.push(sub);
+        walk(fd.t.base, p2, base + fd.off);
+        sub.from = first; sub.to = leaves.length - 1;
+      } else leaves.push({ label: pre + fd.name, type: fd.type, off: base + fd.off, size: fd.size });
+    });
+  })(name, '', 0);
+  return { leaves: leaves, subs: subs, union: isUnionName(name) };
+}
+function aggLeaves(name) { return aggFlat(name).leaves.map(function (l) { return { name: l.label, type: l.type }; }); }
+/* a member by name, looking inside anonymous structs and unions */
+function aggMember(name, field) {
+  var L = aggLayout(name);
+  for (var q = 0; q < L.fields.length; q++) {
+    var fd = L.fields[q];
+    if (fd.anon) { var inner = aggMember(fd.t.base, field); if (inner) return { t: inner.t, off: fd.off + inner.off, type: inner.type }; }
+    else if (fd.name === field) return { t: fd.t, off: fd.off, type: fd.type };
+  }
+  return null;
+}
+/* which leaves a { } initializer list sets: in order, nested lists for nested members, and only the
+   first member of a union. Returns [{label, v}] */
+function aggInitPlan(name, items) {
+  var plan = [];
+  function walk(n, pre, list, pos) {
+    var L = aggLayout(n), fs = L.union ? L.fields.slice(0, 1) : L.fields;
+    for (var q = 0; q < fs.length && pos < list.length; q++) {
+      var fd = fs[q], item = list[pos], p2 = fd.anon ? pre : pre + fd.name + '.';
+      if (fd.t.struct && fd.t.ptr === 0) {
+        if (item && item.list) { walk(fd.t.base, p2, item.list, 0); pos++; }
+        else pos = walk(fd.t.base, p2, list, pos);
+      } else {
+        while (item && item.list) item = item.list[0];
+        if (item) plan.push({ label: pre + fd.name, v: item });
+        pos++;
+      }
+    }
+    return pos;
+  }
+  var used = walk(name, '', items, 0);
+  return { plan: plan, extra: items.length > used };
+}
+function bytesToValue(type, bs) {
+  var t = typeInfo(type), dv = new DataView(new ArrayBuffer(8));
+  bs.forEach(function (x, k) { dv.setUint8(k, x); });
+  if (t.ptr === 0 && t.base === 'float') return dv.getFloat32(0, true);
+  if (t.ptr === 0 && t.base === 'double') return dv.getFloat64(0, true);
+  var big = 0n;
+  for (var k = bs.length - 1; k >= 0; k--) big = (big << 8n) | BigInt(bs[k]);
+  if (!t.unsigned && t.ptr === 0) big = BigInt.asIntN(bs.length * 8, big);
+  return t.base === 'bool' && t.ptr === 0 ? (big ? 1 : 0) : Number(big);
+}
+/* members of a union share bytes: after one is written, every member that overlaps it is read back
+   from those bytes. A member with bytes nobody has written yet stays unknown (?). Returns the
+   indices that changed. */
+function syncOverlaps(b, i) {
+  var out = [];
+  if (b.kind !== 'struct' || !b.uni) return out;
+  var w = b.slots[i], wb = bytesOf(w);
+  b.slots.forEach(function (o, j) {
+    if (j === i || o.off == null) return;
+    var lo = Math.max(o.off, w.off), hi = Math.min(o.off + o.size, w.off + w.size);
+    if (lo >= hi) return;
+    var ob = bytesOf(o) || new Array(o.size).fill(null);
+    for (var a = lo; a < hi; a++) ob[a - o.off] = wb ? wb[a - w.off] : null;
+    var nv = ob.some(function (x) { return x === null; }) ? null : bytesToValue(o.type, ob);
+    if (nv !== o.value) { o.value = nv; out.push(j); }
+  });
+  return out;
 }
 function sizeOfInfo(t) {
   if (t.ptr > 0) return 8;
@@ -739,6 +828,19 @@ function cloneState(s) { return JSON.parse(JSON.stringify(s)); }
 
 function layout(b) {
   if (b.kind === 'func') { b.size = 0x40; b.align = 16; return; }
+  if (b.kind === 'struct' && STRUCTS[b.typeName]) {
+    try {
+      var F = aggFlat(b.typeName), AL = aggLayout(b.typeName);
+      if (F.leaves.length === b.slots.length && F.leaves.every(function (l, k) { return l.label === b.slots[k].label; })) {
+        b.slots.forEach(function (sl, k) { sl.off = F.leaves[k].off; sl.size = F.leaves[k].size; });
+        b.size = AL.size; b.align = AL.align;
+        b.uni = F.union || F.subs.some(function (x) { return x.union; });
+        if (!b.uni) delete b.uni;
+        return;
+      }
+    } catch (e) { /* fall back to laying the fields out one after another */ }
+  }
+  delete b.uni;
   var off = 0, maxA = 1;
   b.slots.forEach(function (sl) {
     var t = typeInfo(sl.type), sz = sizeOfInfo(t), a = alignOfInfo(t);
@@ -858,9 +960,11 @@ function makeBlock(state, o) {
   return b;
 }
 function structSlots(typeName, value) {
-  var f = STRUCTS[typeName];
-  if (!f) structLayout(typeName); // throws a helpful error
-  return f.map(function (fd) { return { label: fd.name, type: fd.type, value: value === undefined ? null : value }; });
+  return aggFlat(typeName).leaves.map(function (l) { return { label: l.label, type: l.type, value: value === undefined ? null : value }; });
+}
+function blockSubs(b) {
+  if (b.kind !== 'struct' || !STRUCTS[b.typeName]) return [];
+  try { return aggFlat(b.typeName).subs; } catch (e) { return []; }
 }
 function lookupVar(state, name, onlyFrame) {
   for (var k = state.blocks.length - 1; k >= 0; k--) {
@@ -1016,21 +1120,56 @@ function setDefs(code) {
   var src = blankComments(code || ''), m;
   var skip = {};
   function lineOf(idx) { return src.slice(0, idx).split('\n').length; }
-  var re = /(typedef\s+)?struct\s*(\w+)?\s*\{([^}]*)\}\s*(\w+)?\s*;/g;
-  while ((m = re.exec(src))) {
-    var tag = m[2] || m[4];
-    if (!tag) continue;
-    STRUCTS['struct ' + tag] = parseFields(m[3]);
-    CODE_STRUCTS['struct ' + tag] = lineOf(m.index);
-    if (m[1] && m[4]) TYPEDEFS[m[4]] = 'struct ' + tag;
-    for (var L = lineOf(m.index); L <= lineOf(m.index + m[0].length - 1); L++) skip[L] = true;
+  /* struct and union definitions, matched brace for brace so members can be structs or unions too */
+  var ANON = 0;
+  function matchBrace(text, at) {
+    for (var k = at, dd = 0; k < text.length; k++) { if (text[k] === '{') dd++; else if (text[k] === '}' && --dd === 0) return k; }
+    return -1;
   }
-  var re2 = /typedef\s+struct\s+(\w+)\s+(\w+)\s*;/g;
-  while ((m = re2.exec(src))) TYPEDEFS[m[2]] = 'struct ' + m[1];
+  function defBody(body, line) {
+    var out = [], parts = [], cur = '', dd = 0;
+    for (var k = 0; k < body.length; k++) {
+      var ch = body[k];
+      if (ch === '{') dd++; else if (ch === '}') dd--;
+      if (ch === ';' && dd === 0) { parts.push(cur); cur = ''; } else cur += ch;
+    }
+    if (cur.trim()) parts.push(cur);
+    parts.forEach(function (part) {
+      var nm = /^\s*(struct|union)\s*(\w+)?\s*\{/.exec(part);
+      if (!nm) { out = out.concat(parseFields(part)); return; }
+      var open = part.indexOf('{', nm.index), close = matchBrace(part, open);
+      if (close < 0) return;
+      var tname = nm[1] + ' ' + (nm[2] || ('anon_' + (++ANON)));
+      STRUCTS[tname] = defBody(part.slice(open + 1, close), line);
+      if (nm[2]) CODE_STRUCTS[tname] = line;
+      var rest = part.slice(close + 1).trim();
+      if (!rest) out.push({ name: '', type: tname, anon: true });
+      else out = out.concat(parseFields(tname + ' ' + rest));
+    });
+    return out;
+  }
+  var re = /(typedef\s+)?\b(struct|union)\s*(\w+)?\s*\{/g;
+  while ((m = re.exec(src))) {
+    var open = m.index + m[0].length - 1, close = matchBrace(src, open);
+    if (close < 0) break;
+    var after = /^\s*(\w+)?\s*;/.exec(src.slice(close + 1));
+    if (!after) continue; /* e.g. a declaration with an initializer: not a definition */
+    var tag = m[3] || after[1];
+    re.lastIndex = close + 1;
+    if (!tag) continue;
+    var kw = m[2], tn = kw + ' ' + tag;
+    STRUCTS[tn] = defBody(src.slice(open + 1, close), lineOf(m.index));
+    CODE_STRUCTS[tn] = lineOf(m.index);
+    if (m[1] && after[1]) TYPEDEFS[after[1]] = tn;
+    var endIdx = close + 1 + after[0].length - 1;
+    for (var L = lineOf(m.index); L <= lineOf(endIdx); L++) skip[L] = true;
+  }
+  var re2 = /typedef\s+(struct|union)\s+(\w+)\s+(\w+)\s*;/g;
+  while ((m = re2.exec(src))) TYPEDEFS[m[3]] = m[1] + ' ' + m[2];
   var re4 = /typedef\s+([A-Za-z_][\w ]*?\**)\s*\(\s*(\*+)\s*(\w+)\s*\)\s*\(([^)]*)\)\s*;/g;
   while ((m = re4.exec(src))) { TYPEDEFS[m[3]] = m[1].trim() + ' (' + m[2] + ')(' + m[4] + ')'; for (var L4 = lineOf(m.index); L4 <= lineOf(m.index + m[0].length - 1); L4++) skip[L4] = true; }
   var re3 = /typedef\s+([A-Za-z_][\w ]*?\**)\s*(\w+)\s*;/g;
-  while ((m = re3.exec(src))) if (!/^struct\b/.test(m[1])) TYPEDEFS[m[2]] = m[1];
+  while ((m = re3.exec(src))) if (!/^(struct|union)\b/.test(m[1])) TYPEDEFS[m[2]] = m[1];
   Object.keys(EXTRA_STRUCTS).forEach(function (k) { if (!STRUCTS[k]) STRUCTS[k] = EXTRA_STRUCTS[k]; });
   /* brace depth before each line (1-based) */
   /* braces inside string and character literals do not open or close anything */
@@ -1040,7 +1179,7 @@ function setDefs(code) {
     depth[i + 1] = d;
     if (d === 0) {
       var fm = /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;]*$/.exec(ln) || /^\s*(?:[A-Za-z_]\w*[\s*]+)+([A-Za-z_]\w*)\s*\([^;{]*\)\s*\{/.exec(ln);
-      if (fm && !/^\s*(typedef|if|while|for|switch|return)\b/.test(ln) && !/^\s*struct\s+\w+\s*\{/.test(ln)) { curFn = fm[1]; funcs.push({ name: fm[1], line: i + 1 }); fnLine[i + 1] = fm[1]; }
+      if (fm && !/^\s*(typedef|if|while|for|switch|return)\b/.test(ln) && !/^\s*(struct|union)\s+\w+\s*\{/.test(ln)) { curFn = fm[1]; funcs.push({ name: fm[1], line: i + 1 }); fnLine[i + 1] = fm[1]; }
     }
     fnAt[i + 1] = d > 0 ? curFn : '';
     var lo = d;
@@ -1347,18 +1486,21 @@ function runTokens(ctx, toks, mode, destType) {
     if (b.freed) warn(ctx, 'use after free: writing to ' + slotName(b, L.lv.i) + ' after its block was freed');
     if (srcV && t.ptr > 0 && srcV.t.ptr === 0 && value !== 0) warn(ctx, 'assigning a plain number to the pointer ' + slotName(b, L.lv.i));
     sl.value = coerce(value, t);
+    if (b.uni) syncOverlaps(b, L.lv.i);
     return sl.value;
   }
   function fieldOf(V, name) {
     if (V.ne && V.t.struct && V.t.ptr === 0) {
-      var fs = STRUCTS[V.t.base] || [];
-      for (var q = 0; q < fs.length; q++) if (fs[q].name === name) return { t: typeInfo(fs[q].type), v: 0, ne: true };
+      var mb = STRUCTS[V.t.base] ? aggMember(V.t.base, name) : null;
+      if (mb) return { t: mb.t, v: 0, ne: true };
       throw new Error(V.t.base + ' has no field "' + name + '"');
     }
-    if (!V.blk) throw new Error('"' + name + '" is a field, but the left side is not a struct (type ' + V.t.str + ')');
-    var b = V.blk;
-    for (var k = 0; k < b.slots.length; k++) if (b.slots[k].label === name) return { t: typeInfo(b.slots[k].type), lv: { b: b, i: k } };
-    throw new Error(blockType(b) + ' has no field "' + name + '"');
+    if (!V.blk) throw new Error('"' + name + '" is a field, but the left side is not a struct or union (type ' + V.t.str + ')');
+    var b = V.blk, pre = V.pre || '', want = pre + name;
+    for (var k = 0; k < b.slots.length; k++) if (b.slots[k].label === want) return { t: typeInfo(b.slots[k].type), lv: { b: b, i: k } };
+    var subs = blockSubs(b);
+    for (var q2 = 0; q2 < subs.length; q2++) if (subs[q2].path === want) return { t: typeInfo(subs[q2].type), blk: b, pre: subs[q2].pre, off: subs[q2].off };
+    throw new Error((V.pre ? V.t.base : blockType(b)) + ' has no field "' + name + '"');
   }
   function derefV(a) {
     var t = a.t;
@@ -1371,8 +1513,14 @@ function runTokens(ctx, toks, mode, destType) {
     if (addr === 0) throw new Error('Segmentation fault: dereferenced a NULL pointer');
     var r = findAt(st, addr);
     if (pt.ptr === 0 && pt.struct) {
-      if (!r || r.b.kind !== 'struct' || r.b.addr !== addr) throw new Error('Segmentation fault: there is no ' + pt.base + ' at ' + hex(addr));
-      return { t: pt, blk: r.b };
+      if (r && r.b.kind === 'struct') {
+        var rel = addr - r.b.addr;
+        if (rel === 0 && r.b.typeName === pt.base) return { t: pt, blk: r.b };
+        var sbs = blockSubs(r.b);
+        for (var q3 = 0; q3 < sbs.length; q3++) if (sbs[q3].off === rel && sbs[q3].type === pt.base) return { t: pt, blk: r.b, pre: sbs[q3].pre, off: rel };
+        if (rel === 0) return { t: pt, blk: r.b };
+      }
+      throw new Error('Segmentation fault: there is no ' + pt.base + ' at ' + hex(addr));
     }
     if (!r || r.i < 0) throw new Error('Segmentation fault: no memory at ' + hex(addr));
     if (addr !== slotAddr(r.b, r.i)) throw new Error(hex(addr) + ' is in the middle of ' + slotName(r.b, r.i) + ' (out of bounds or misaligned): this visualizer cannot show a partial overwrite');
@@ -1381,7 +1529,7 @@ function runTokens(ctx, toks, mode, destType) {
   function addrOf(a) {
     if (a.ne) return { t: ptrTo(a.t), v: 0 };
     if (a.lv) return { t: ptrTo(typeInfo(slotOf(a).type)), v: slotAddr(a.lv.b, a.lv.i) };
-    if (a.blk) return { t: ptrTo(a.t), v: a.blk.addr };
+    if (a.blk) return { t: ptrTo(a.t), v: a.blk.addr + (a.off || 0) };
     if (a.arrBlk) return { t: a.t, v: a.v, arrBlk: a.arrBlk };
     if (a.fnDes) return { t: a.t, v: a.v };
     throw new Error('cannot take the address of a temporary value');
@@ -1429,7 +1577,7 @@ function runTokens(ctx, toks, mode, destType) {
       var t = peek();
       if (!t) break;
       if (t.k === 'id') {
-        if (t.s === 'struct') { next(); words.push('struct ' + next().s); continue; }
+        if (t.s === 'struct' || t.s === 'union') { var kw0 = next().s; words.push(kw0 + ' ' + next().s); continue; }
         if (TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s]) { words.push(t.s); next(); continue; }
         break;
       }
@@ -1939,15 +2087,15 @@ function runTokens(ctx, toks, mode, destType) {
   function isDeclStart() {
     var t = peek();
     if (!t || t.k !== 'id' || t.s === 'sizeof' || t.s === 'new' || t.s === 'delete') return false;
-    if (t.s === 'struct') return peek(1) && peek(1).k === 'id' && !isOp('{', 2);
+    if (t.s === 'struct' || t.s === 'union') return peek(1) && peek(1).k === 'id' && !isOp('{', 2);
     return isTypeStart(t);
   }
   function parseBraceList() {
     expectOp('{');
     var out = [];
     while (!isOp('}')) {
-      if (isOp('{')) throw new Error('nested { } initializers are not supported');
-      out.push(parseAssign());
+      if (isOp('{')) out.push({ list: parseBraceList() });
+      else out.push(parseAssign());
       if (!isOp(',')) break;
       next();
     }
@@ -1959,7 +2107,7 @@ function runTokens(ctx, toks, mode, destType) {
     for (;;) {
       var t = peek();
       if (!t || t.k !== 'id') break;
-      if (t.s === 'struct') { next(); words.push('struct ' + next().s); continue; }
+      if (t.s === 'struct' || t.s === 'union') { var kw1 = next().s; words.push(kw1 + ' ' + next().s); continue; }
       if (t.s === 'static') { isStatic = true; next(); continue; }
       if (t.s === 'const' || t.s === 'volatile' || t.s === 'register' || t.s === 'extern') { next(); continue; }
       if (TYPE_WORDS[t.s] || ALIASES[t.s] || (TYPEDEFS[t.s] && !words.length)) { words.push(t.s); next(); continue; }
@@ -2007,7 +2155,8 @@ function runTokens(ctx, toks, mode, destType) {
     }
   }
   function declare(name, tstr, T, dims, init, region) {
-    var zero = region === 'global', kind, slots, typeName = '';
+    var zero = region === 'global', kind, slots, typeName = '', initSets = null;
+    if (init && init.list && !(T.struct && T.ptr === 0 && dims === null) && init.list.some(function (V) { return V && V.list; })) throw new Error('nested { } lists only initialize structs and unions here');
     var dflt = zero ? 0 : null;
     if (dims !== null) {
       var vals = null;
@@ -2024,8 +2173,17 @@ function runTokens(ctx, toks, mode, destType) {
     } else if (T.struct && T.ptr === 0) {
       kind = 'struct'; typeName = T.base;
       slots = structSlots(T.base, dflt);
-      if (init && init.list) init.list.forEach(function (V, k) { if (slots[k]) slots[k].value = coerce(val(fin(V, typeInfo(slots[k].type))), typeInfo(slots[k].type)); });
-      else if (init) throw new Error('a struct needs a { } list to initialize it');
+      if (init && init.list) {
+        /* members the list leaves out start at zero */
+        slots.forEach(function (sl) { sl.value = 0; });
+        var ip = aggInitPlan(T.base, init.list);
+        if (ip.extra) warn(ctx, 'too many initializers for ' + T.base + (T.union ? ': a union initializer sets only its first member' : ''));
+        initSets = ip.plan.map(function (pl) {
+          for (var k = 0; k < slots.length; k++) if (slots[k].label === pl.label) { var ST = typeInfo(slots[k].type); slots[k].value = coerce(val(fin(pl.v, ST)), ST); return k; }
+          return -1;
+        });
+      }
+      else if (init) throw new Error('a ' + aggKind(T.base) + ' needs a { } list to initialize it');
     } else {
       kind = 'scalar';
       var v = dflt;
@@ -2048,9 +2206,11 @@ function runTokens(ctx, toks, mode, destType) {
       ex.kind = kind; ex.slots = slots; ex.typeName = typeName; ex.freed = false;
       layout(ex);
       if (ex.size > oldSize) ex.addr = allocAddr(st, region, ex.size, ex.align);
+      if (initSets && ex.uni) initSets.forEach(function (k) { if (k >= 0) syncOverlaps(ex, k); });
       note(ctx, name + ' already existed, so it was reused (as it would be on another pass through a loop)');
     } else {
-      makeBlock(st, { name: name, region: region, kind: kind, typeName: typeName, slots: slots, frame: region === 'stack' ? ctx.frame : '', scope: region === 'stack' ? ctx.depth : 0 });
+      var nb2 = makeBlock(st, { name: name, region: region, kind: kind, typeName: typeName, slots: slots, frame: region === 'stack' ? ctx.frame : '', scope: region === 'stack' ? ctx.depth : 0 });
+      if (initSets && nb2.uni) initSets.forEach(function (k) { if (k >= 0) syncOverlaps(nb2, k); });
     }
   }
 
@@ -2078,7 +2238,7 @@ function classifyLine(raw) {
   var t = blankComments(raw).trim();
   if (!t) return { skip: 'blank line' };
   if (/^#/.test(t)) return { skip: 'preprocessor line: nothing happens at run time' };
-  if (/^(typedef\s+)?struct\s*\w*\s*\{/.test(t) || /^\}\s*\w*\s*;\s*$/.test(t)) return { skip: 'struct definition: it is registered automatically' };
+  if (/^(typedef\s+)?(struct|union)\s*\w*\s*\{/.test(t) || /^\}\s*\w*\s*;\s*$/.test(t)) return { skip: (/union/.test(t) ? 'union' : 'struct') + ' definition: it is registered automatically' };
   if (/^typedef\b/.test(t)) return { skip: 'typedef: registered automatically' };
   var core = t.replace(/^[}\s]+/, '').replace(/[{\s]+$/, '');
   if (!core) return { skip: 'brace only' };
@@ -2223,6 +2383,7 @@ function resyncBlock(st, o, fields) {
     if (!p && old[i] && !byLabel[fd.name] && isPtrType(old[i].type) === (t.ptr > 0) && !fields.some(function (f) { return f.name === old[i].label; })) p = old[i];
     return { label: fd.name, type: fd.type, value: p ? coerce(p.value, t) : null };
   });
+  o.typeName = o.typeName || '';
   var oldSize = o.size;
   layout(o);
   if (o.size > oldSize) o.addr = allocAddr(st, o.region, o.size, o.align, o.allocSize || o.size);
@@ -2231,7 +2392,8 @@ function syncAllStructs() {
   var n = 0;
   doc.steps.forEach(function (s) {
     s.state.blocks.forEach(function (o) {
-      var f = o.kind === 'struct' ? STRUCTS[o.typeName] : null;
+      var f = null;
+      if (o.kind === 'struct' && STRUCTS[o.typeName]) { try { f = aggLeaves(o.typeName); } catch (e) { f = null; } }
       if (f && !sameFields(o, f)) { try { resyncBlock(s.state, o, f); n++; } catch (e) { /* leave it */ } }
     });
   });
@@ -2603,8 +2765,47 @@ function laneArrow(p, b, tr, lane) {
   var pts = [{ x: start.x, y: start.y }, { x: laneX, y: start.y }, { x: laneX, y: topY }, { x: c.x + 1, y: topY }, { x: c.x + 1, y: c.y }];
   return { d: roundedPath(pts, 9), start: start };
 }
+/* Arrows into a struct end on the top-left corner of the field they point at (for a pointer to the
+   whole struct that is the first field). The curve comes in from the left when it can, and from above
+   when the pointer sits to the right of the target, so it never cuts across the fields. */
+function structArrow(p, b, tr) {
+  var card = blockRect(tr.r.b), c = { x: tr.rect.x, y: tr.rect.y }, g = geom(b);
+  var srcL = b.x, srcR = b.x + g.w, self = tr.r.b === b;
+  var a, start = p;
+  if (!self && srcR < card.x - 20) {
+    /* pointer to the left: straight in from the left */
+    a = { x: c.x, y: c.y, nx: -1, ny: -0.15 };
+  } else if (self || (srcL < card.x + card.w && srcR > card.x)) {
+    /* same column (like a list node's next pointing at the node below): swing around the left side */
+    start = { x: srcL, y: p.y, dx: -1, dy: 0 };
+    a = { x: c.x, y: c.y, nx: -1, ny: -0.15 };
+  } else {
+    /* pointer to the right: come down onto the corner from above */
+    start = { x: srcL, y: p.y, dx: -1, dy: 0 };
+    a = { x: c.x, y: c.y, nx: -0.35, ny: -1 };
+  }
+  var d = Math.hypot(a.x - start.x, a.y - start.y), k = Math.max(40, Math.min(140, d * 0.45));
+  if (start.dx === -1 && a.nx === -1) k = Math.max(k, 46 + Math.abs(a.y - start.y) * 0.18);
+  return { d: 'M' + start.x + ' ' + start.y + ' C' + (start.x + start.dx * k) + ' ' + (start.y + start.dy * k) + ' ' + (a.x + a.nx * k) + ' ' + (a.y + a.ny * k) + ' ' + a.x + ' ' + a.y, start: start };
+}
+/* Arrows that land on the same spot (or within a few pixels) are fanned out a little along the edge
+   they arrive at, so each arrowhead stays visible. Reset at every redraw. */
+var ARROW_ENDS = {};
+function spreadOff(x, y, side) {
+  var key = side + ':' + Math.round(x / 6) + ':' + Math.round(y / 6);
+  var n = ARROW_ENDS[key] = (ARROW_ENDS[key] || 0) + 1;
+  if (n === 1) return 0;
+  var k = Math.floor(n / 2) * 7;           /* 0, +7, -7, +14, -14, ... */
+  return n % 2 ? -k : k;
+}
+function spreadEnd(a) {
+  var side = a.nx ? 'v' : 'h', off = spreadOff(a.x, a.y, side);
+  if (!off) return a;
+  return side === 'v' ? { x: a.x, y: a.y + off, nx: a.nx, ny: a.ny } : { x: a.x + off, y: a.y, nx: a.nx, ny: a.ny };
+}
 function arrowPath(st, p, b, tr, lane, midX) {
   var card = blockRect(tr.r.b), c = { x: tr.rect.x, y: tr.rect.y }, g = geom(b), self = tr.r.b === b;
+  if (tr.rowCell) c.y += spreadOff(c.x, c.y, 'v'); else c.x += Math.abs(spreadOff(c.x, c.y, 'h'));
   if (ARROW_STYLE === 'lane' && !self && !tr.rowCell) return laneArrow(p, b, tr, lane);
   var leftEdge = { x: b.x, y: p.y, dx: -1, dy: 0 };
   var around = !self && !tr.rowCell && p.y > c.y - 6 && c.x < b.x + g.w - 12;
@@ -2721,6 +2922,7 @@ function renderCanvas() {
   });
   var labels = [];
   cardLabelSink = labels;
+  ARROW_ENDS = {};
   var prev = prevState();
   if (prev) {
     var alive = {};
@@ -2768,7 +2970,7 @@ function renderCanvas() {
         /* a whole variable, a struct, or a struct field: the original freehand curve to the nearest side */
         var orect = (tr.r.i < 0 || tr.r.b.kind === 'scalar' || (tr.r.b.kind === 'struct' && v === tr.r.b.addr)) ? blockRect(tr.r.b) : slotRect(tr.r.b, tr.r.i);
         if (p.dx === 1 && orect.x + orect.w < b.x - 12 && tr.r.b !== b) p = { x: b.x, y: p.y, dx: -1, dy: 0 };
-        ar = { d: curve(p, anchorOn(orect, p)), start: p };
+        ar = { d: curve(p, spreadEnd(anchorOn(orect, p))), start: p };
       }
       p = ar.start;
       var bad = tr.r.b.freed;
@@ -2848,10 +3050,11 @@ function cardSvg(st, b, c, ghost) {
         h.push('<text class="ad" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h + 11) + '" text-anchor="middle" pointer-events="none">' + ad + '</text>');
       }
     } else {
-      if (b.kind === 'struct') h.push('<text class="lb" x="' + s.lx + '" y="' + (s.y + s.h / 2 + 4) + '" pointer-events="none">' + esc(trunc(sl.label, 9)) + '</text>');
+      if (b.kind === 'struct') h.push('<text class="lb" x="' + (s.lx + (b.uni ? 6 : 0)) + '" y="' + (s.y + s.h / 2 + 4) + '" pointer-events="none">' + esc(trunc(sl.label, b.uni ? 8 : 9)) + '</text>');
       h.push('<text class="' + vcls + '" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h / 2 + 1) + '" pointer-events="none">' + esc(trunc(txt, maxc)) + '</text>');
     }
   });
+  if (b.kind === 'struct' && b.uni) h.push(unionMarks(b, g));
   if (b.kind === 'func') {
     h.push('<rect class="slot codebody" x="' + GEO.PAD + '" y="' + g.bodyY + '" width="' + (g.w - 2 * GEO.PAD) + '" height="' + GEO.SH + '" rx="4"><title>The machine code of ' + esc(b.name) + '(). A function pointer holds this address.</title></rect>');
     h.push('<text class="sig" x="' + (GEO.PAD + 8) + '" y="' + (g.bodyY + GEO.SH / 2 + 4) + '" pointer-events="none">' + esc(b.sig || b.name + '()') + '</text>');
@@ -2861,6 +3064,22 @@ function cardSvg(st, b, c, ghost) {
   h.push('<text class="ft" x="10" y="' + fy + '">' + (b.region === 'reg' ? 'no address' : '@' + hex(b.addr)) + '</text><text class="rg" x="' + (g.w - 10) + '" y="' + fy + '" text-anchor="end">' + esc(right) + '</text>');
   h.push('</g>');
   return h.join('');
+}
+
+/* a union's members share the same bytes: a bracket on the left joins their rows */
+function unionMarks(b, g) {
+  var out = [], marks = [];
+  if (isUnionName(b.typeName)) marks.push({ from: 0, to: b.slots.length - 1, type: b.typeName, depth: 0 });
+  blockSubs(b).forEach(function (x) { if (x.union && x.to >= x.from) marks.push({ from: x.from, to: x.to, type: x.type, path: x.path, depth: 1 }); });
+  marks.forEach(function (m) {
+    var a = g.slots[m.from], z = g.slots[m.to];
+    if (!a || !z) return;
+    var x = 4 + (m.depth ? 0 : 0), y1 = a.y + 3, y2 = z.y + z.h - 3;
+    var names = b.slots.slice(m.from, m.to + 1).map(function (s) { return s.label.split('.').pop(); }).join(', ');
+    out.push('<g class="umark"><path d="M' + (x + 5) + ' ' + y1 + ' H' + x + ' V' + y2 + ' H' + (x + 5) + '" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/>' +
+      '<rect x="' + (x - 3) + '" y="' + y1 + '" width="9" height="' + (y2 - y1) + '" fill="transparent"><title>' + esc((m.path ? m.path + ' is ' : '') + m.type + ': ' + names + ' share the same bytes at offset ' + b.slots[m.from].off + '. Writing one changes what the others read.') + '</title></rect></g>');
+  });
+  return out.join('');
 }
 
 /* view */
@@ -3122,6 +3341,7 @@ function inspectorHtml() {
     var fields = b.slots.map(function (s) { return fieldDecl(s.type, s.label); }).join('\n');
     var inCode = CODE_STRUCTS[b.typeName], def = STRUCTS[b.typeName];
     h.push('<div class="field"><span>Struct type</span><input id="f-tname" data-f="tname" class="mono-in" value="' + esc(b.typeName) + '"></div>');
+    if (def) { try { def = aggLeaves(b.typeName); } catch (e) { def = null; } }
     if (def && !sameFields(b, def)) {
       h.push('<div class="result err" style="margin:0 0 10px">This box\'s fields do not match ' + esc(b.typeName) + (inCode ? ' as defined on line ' + inCode + ' of your code' : '') + ' (' + esc(def.map(function (f) { return f.name; }).join(', ')) + '). <button class="btn sm" type="button" data-a="syncstruct" style="margin-top:6px">Match the definition</button></div>');
     }
@@ -3142,6 +3362,16 @@ function inspectorHtml() {
     h.push('<tr class="' + (sel.slot === i ? 'on' : '') + '"><td class="l">' + esc(lab) + '<div class="tgt mut">' + esc(sl.type) + '</div></td><td><input class="vin" id="f-sv' + i + '" data-f="sv" data-i="' + i + '" value="' + esc(editText(sl)) + '" placeholder="? (uninitialized)" aria-label="Value of ' + esc(slotName(b, i)) + '">' + tgt + '</td></tr>');
   });
   h.push('</tbody></table>');
+  if (b.uni) {
+    var us = [];
+    if (isUnionName(b.typeName)) us.push({ path: b.name || 'this union', type: b.typeName, from: 0, to: b.slots.length - 1 });
+    blockSubs(b).forEach(function (x) { if (x.union) us.push(x); });
+    us.forEach(function (u) {
+      var mem = b.slots.slice(u.from, u.to + 1), sz = 0;
+      try { sz = aggLayout(u.type).size; } catch (e) { /* ignore */ }
+      h.push('<p class="hint" style="margin-top:-6px"><b>' + esc(u.path || 'The anonymous union') + '</b> is a <span class="mono">' + esc(u.type) + '</span>: ' + esc(mem.map(function (s) { return s.label; }).join(', ')) + ' all start at offset ' + (mem[0] ? mem[0].off : 0) + ' and share its ' + sz + ' bytes. Writing one member reinterprets those bytes for the others (little-endian); <b>?</b> means some of its bytes were never written.</p>');
+    });
+  }
   h.push('<p class="hint" style="margin-top:-6px">Values take C expressions: <code>42</code>, <code>\'A\'</code>, <code>&amp;x</code>, <code>arr + 2</code>, <code>NULL</code>, <code>malloc(8)</code>. Leave empty for uninitialized.</p>');
   h.push('<div class="actions"><button class="btn" type="button" data-a="dup">Duplicate</button>' +
     (b.region === 'heap' ? '<button class="btn" type="button" data-a="togglefree">' + (b.freed ? 'Un-free' : 'Free it') + '</button>' : '') +
@@ -3344,6 +3574,7 @@ function setSlotFromText(b, i, text) {
   var cur = doc.steps[doc.cur];
   var nb = findBlock(r.state, b.id);
   nb.slots[i].value = r.value;
+  if (nb.uni) syncOverlaps(nb, i);
   cur.state = r.state;
   if (r.msgs && r.msgs.length) toast(r.msgs.map(function (m) { return m.text; }).join(' · '));
 }
@@ -3920,7 +4151,7 @@ function compileProgram() {
   for (var L = 1; L <= lines.length; L++) {
     if ((defs.depth[L] || 0) !== 0 || defs.skip[L] || (defs.fnLine && defs.fnLine[L]) || frameFor(L)) continue;
     var t = (lines[L - 1] || '').trim();
-    if (!t || /^#/.test(t) || /^(typedef|struct\s+\w+\s*\{)/.test(t) || /\)\s*;?\s*$/.test(t) && /\(/.test(t) && !/=/.test(t)) continue;
+    if (!t || /^#/.test(t) || /^(typedef|(struct|union)\s+\w+\s*\{)/.test(t) || /\)\s*;?\s*$/.test(t) && /\(/.test(t) && !/=/.test(t)) continue;
     try {
       splitStatements(tokenize(t)).forEach(function (tk) {
         var d = parseDeclToks(tk, globals);
@@ -3973,16 +4204,10 @@ function compileProgram() {
       return typeInfo(a.unsigned && b.unsigned ? 'unsigned int' : 'int');
     }
     function fieldOf(sname, f) {
-      var fs = STRUCTS[sname];
-      if (!fs) throw new CgErr(sname + ' is not defined');
-      var off = 0;
-      for (var q = 0; q < fs.length; q++) {
-        var ft = typeInfo(fs[q].type), a = alignOfInfo(ft);
-        off = Math.ceil(off / a) * a;
-        if (fs[q].name === f) return { off: off, t: ft };
-        off += sizeOfInfo(ft);
-      }
-      throw new CgErr(sname + ' has no field ' + f);
+      if (!STRUCTS[sname]) throw new CgErr(sname + ' is not defined');
+      var mb = aggMember(sname, f);
+      if (!mb) throw new CgErr(sname + ' has no field ' + f);
+      return { off: mb.off, t: mb.t };
     }
     /* ----- types ----- */
     function typeOf(e) {
@@ -4082,21 +4307,30 @@ function compileProgram() {
     function load(m, t, k) {
       k = k || 'a';
       var sz = sizeOfInfo(t);
-      if (isF(t)) { E(t.base === 'float' ? 'movss' : 'movsd', [X(k === 'a' ? 'xmm0' : 'xmm1'), m], '', 'load ' + (m.note || 'the value') + ' into ' + (k === 'a' ? 'xmm0' : 'xmm1') + ', a floating-point register'); return; }
+      if (isF(t)) {
+        var xr = X(k === 'a' ? 'xmm0' : 'xmm1');
+        E(t.base === 'float' ? 'movss' : 'movsd', [xr, m], '', 'load ' + (m.note || 'the value') + ' into ' + xr.n + ', a floating-point register');
+        /* this model does float arithmetic in double precision, the way C promotes float in mixed expressions */
+        if (t.base === 'float') E('cvtss2sd', [xr, xr], '', 'widen the 4-byte float to a double for the arithmetic');
+        return;
+      }
       if (t.fn || t.ptr > 0) sz = 8;
       if (sz === 1 || sz === 2) { E(t.unsigned || t.base === 'bool' ? 'movzx' : 'movsx', [R(k, 4), m], '', 'load the ' + sz + '-byte ' + (m.note || 'value') + ' into ' + rn(k, 4) + ', ' + (t.unsigned ? 'filling the upper bits with zeros' : 'copying its sign bit into the upper bits')); return; }
       E('mov', [R(k, sz === 8 ? 8 : 4), m]);
     }
     function store(m, t, k) {
       k = k || 'a';
-      if (isF(t)) { E(t.base === 'float' ? 'movss' : 'movsd', [m, X('xmm0')]); return; }
+      if (isF(t)) {
+        if (t.base === 'float') { E('cvtsd2ss', [X('xmm0'), X('xmm0')], '', 'round the double back to a 4-byte float'); E('movss', [m, X('xmm0')]); return; }
+        E('movsd', [m, X('xmm0')]); return;
+      }
       var sz = t.fn || t.ptr > 0 ? 8 : sizeOfInfo(t);
       E('mov', [m, R(k, sz)]);
     }
     function convert(from, to) {
       if (!to || (to.ptr === 0 && to.base === 'void')) return;
-      if (isF(to) && !isF(from)) { E(to.base === 'float' ? 'cvtsi2ss' : 'cvtsi2sd', [X('xmm0'), R('a', vsz(from))], '', 'convert the integer in ' + rn('a', vsz(from)) + ' to floating point'); return; }
-      if (!isF(to) && isF(from)) { E(from.base === 'float' ? 'cvttss2si' : 'cvttsd2si', [R('a', vsz(to)), X('xmm0')], '', 'convert to an integer, dropping the fraction'); return; }
+      if (isF(to) && !isF(from)) { E('cvtsi2sd', [X('xmm0'), R('a', vsz(from))], '', 'convert the integer in ' + rn('a', vsz(from)) + ' to floating point'); return; }
+      if (!isF(to) && isF(from)) { E('cvttsd2si', [R('a', vsz(to)), X('xmm0')], '', 'convert to an integer, dropping the fraction'); return; }
       if (isF(to) || isF(from)) return;
       if (vsz(from) === 4 && vsz(to) === 8) {
         if (from.unsigned) E('mov', [R('a', 4), R('a', 4)], '', 'writing eax clears the upper half of rax: zero-extend to 64 bits');
@@ -4397,7 +4631,7 @@ function compileProgram() {
       var tv = TMP();
       if (isF(lt)) E('movsd', [tv, X('xmm0')]); else E('mov', [tv, R('a', 8)], '', 'keep the value in a temporary slot while the address is computed');
       genAddr(e.a);
-      if (isF(lt)) { E('movsd', [X('xmm0'), tv]); E('movsd', [M('rax', 0, 8, noteOf(e.a)), X('xmm0')]); return lt; }
+      if (isF(lt)) { E('movsd', [X('xmm0'), tv]); store(M('rax', 0, sizeOfInfo(lt), noteOf(e.a)), lt); return lt; }
       E('mov', [R('d', 8), tv]);
       E('mov', [M('rax', 0, lt.ptr > 0 || lt.fn ? 8 : sizeOfInfo(lt), noteOf(e.a)), R('d', lt.ptr > 0 || lt.fn ? 8 : sizeOfInfo(lt))], '', 'store it through the address in rax');
       return lt;
@@ -4496,12 +4730,26 @@ function compileProgram() {
       }
       if (v.t.struct && v.t.ptr === 0) {
         if (!v.init.list) throw new CgErr('copying a whole struct is not shown');
-        STRUCTS[v.t.base].forEach(function (fd, q) {
-          var fi = fieldOf(v.t.base, fd.name), el = v.init.list[q], m2 = M('rbp', s.off + fi.off, fi.t.ptr > 0 ? 8 : sizeOfInfo(fi.t), note + '.' + fd.name);
-          if (!el) { E('mov', [m2, I(0)]); return; }
+        /* every member gets a value: the listed ones in order (only the first member of a union),
+           the rest zero */
+        var plan = aggInitPlan(v.t.base, v.init.list).plan, byLab = {};
+        plan.forEach(function (pl) { byLab[pl.label] = pl.v; });
+        var fl = aggFlat(v.t.base), doneB = {};
+        fl.leaves.forEach(function (lf0) {
+          var el = byLab[lf0.label], ft = typeInfo(lf0.type);
+          if (!el) {
+            /* a union member shares bytes with the one being set: skip its zero unless nothing sets them */
+            var shared = fl.leaves.some(function (o) { return o !== lf0 && byLab[o.label] && o.off < lf0.off + lf0.size && lf0.off < o.off + o.size; });
+            var fresh = false;
+            for (var bb = lf0.off; bb < lf0.off + lf0.size; bb++) if (!doneB[bb]) fresh = true;
+            if (shared || !fresh) return;
+          }
+          for (var b2 = lf0.off; b2 < lf0.off + lf0.size; b2++) doneB[b2] = 1;
+          var m2 = M('rbp', s.off + lf0.off, ft.ptr > 0 ? 8 : sizeOfInfo(ft), note + '.' + lf0.label);
+          if (!el) { E('mov', [m2, I(0)], '', note + '.' + lf0.label + ' = 0 (missing initializers become zero)'); return; }
           var lf2 = leaf(el);
-          if (lf2 && lf2.k === 'i') { storeImm(m2, lf2.v); return; }
-          var rt2 = gen(el); convert(rt2, fi.t); store(m2, fi.t);
+          if (lf2 && lf2.k === 'i' && !isF(ft)) { storeImm(m2, lf2.v); return; }
+          var rt2 = gen(el); convert(rt2, ft); store(m2, ft);
         });
         return;
       }
@@ -4653,6 +4901,7 @@ function compileProgram() {
     params.forEach(function (p) {
       var s = scopes[0][p.name || '?'];
       if (!p.reg) return;   /* passed on the stack: already in memory at [rbp+16] and up, nothing to copy */
+      if (isF(p.t) && p.t.base === 'float') { E('cvtsd2ss', [X(p.reg), X(p.reg)], '', 'this model passes floating-point values as doubles: round it to a float'); E('movss', [M('rbp', s.off, 4, p.name), X(p.reg)], '', 'parameter ' + p.name + ' arrives in ' + p.reg + '; -O0 copies it into the frame'); return; }
       if (isF(p.t)) { E('movsd', [M('rbp', s.off, 8, p.name), X(p.reg)], '', 'parameter ' + p.name + ' arrives in ' + p.reg + '; -O0 copies it into the frame'); return; }
       var sz = p.t.ptr > 0 || p.t.fn ? 8 : sizeOfInfo(p.t);
       E('mov', [M('rbp', s.off, sz, p.name), R(p.reg, sz)], '', 'parameter ' + p.name + ' arrives in ' + rn(p.reg, sz) + '; unoptimized code copies it into the frame so it has an address');
@@ -4702,7 +4951,7 @@ function cgParseExpr(toks) {
     var w = [];
     for (;;) {
       var t = peek();
-      if (t && t.k === 'id' && t.s === 'struct') { next(); w.push('struct ' + next().s); continue; }
+      if (t && t.k === 'id' && (t.s === 'struct' || t.s === 'union')) { var kw = next().s; w.push(kw + ' ' + next().s); continue; }
       if (t && t.k === 'id' && (TYPE_WORDS[t.s] || ALIASES[t.s] || TYPEDEFS[t.s])) { w.push(next().s); continue; }
       if (t && t.k === 'op' && t.s === '*') { next(); w.push('*'); continue; }
       break;
@@ -4780,13 +5029,13 @@ function parseDeclToks(toks, globals, lookup) {
   function isOp(s, k) { var t = peek(k); return !!t && t.k === 'op' && t.s === s; }
   var t0 = peek();
   if (!t0 || t0.k !== 'id') return null;
-  var known = t0.s === 'struct' || t0.s === 'static' || t0.s === 'const' || TYPE_WORDS[t0.s] || ALIASES[t0.s] || TYPEDEFS[t0.s];
+  var known = t0.s === 'struct' || t0.s === 'union' || t0.s === 'static' || t0.s === 'const' || TYPE_WORDS[t0.s] || ALIASES[t0.s] || TYPEDEFS[t0.s];
   if (!known || (lookup && lookup(t0.s))) return null;
   var words = [], isStatic = false;
   for (;;) {
     var t = peek();
     if (!t || t.k !== 'id') break;
-    if (t.s === 'struct') { i++; words.push('struct ' + toks[i++].s); continue; }
+    if (t.s === 'struct' || t.s === 'union') { i++; words.push(t.s + ' ' + toks[i++].s); continue; }
     if (t.s === 'static') { isStatic = true; i++; continue; }
     if (t.s === 'const' || t.s === 'volatile' || t.s === 'register' || t.s === 'extern' || t.s === 'unsigned' && false) { i++; continue; }
     if (TYPE_WORDS[t.s] || ALIASES[t.s] || (TYPEDEFS[t.s] && !words.length)) { words.push(t.s); i++; continue; }
@@ -4822,14 +5071,29 @@ function parseDeclToks(toks, globals, lookup) {
       i++;
       if (isOp('{')) {
         i++; var list = [], cur = [], d = 0;
+        var item = function (tk2) {
+          /* a nested { } list initializes a member that is a struct or union */
+          if (tk2[0].k === 'op' && tk2[0].s === '{' && tk2[tk2.length - 1].s === '}') {
+            var inner = [], c2 = [], d2 = 0;
+            tk2.slice(1, -1).forEach(function (x) {
+              if (x.k === 'op' && (x.s === '(' || x.s === '[' || x.s === '{')) d2++;
+              if (x.k === 'op' && (x.s === ')' || x.s === ']' || x.s === '}')) d2--;
+              if (x.k === 'op' && x.s === ',' && d2 === 0) { if (c2.length) inner.push(item(c2)); c2 = []; return; }
+              c2.push(x);
+            });
+            if (c2.length) inner.push(item(c2));
+            return { list: inner };
+          }
+          return cgParseExpr(tk2);
+        };
         while (i < toks.length) {
           var tk = toks[i++];
-          if (tk.k === 'op' && (tk.s === '(' || tk.s === '[' || tk.s === '{')) d++;
           if (tk.k === 'op' && (tk.s === ')' || tk.s === ']' || tk.s === '}')) { if (d === 0 && tk.s === '}') break; d--; }
-          if (tk.k === 'op' && tk.s === ',' && d === 0) { if (cur.length) list.push(cgParseExpr(cur)); cur = []; continue; }
+          if (tk.k === 'op' && tk.s === ',' && d === 0) { if (cur.length) list.push(item(cur)); cur = []; continue; }
+          if (tk.k === 'op' && (tk.s === '(' || tk.s === '[' || tk.s === '{')) d++;
           cur.push(tk);
         }
-        if (cur.length) list.push(cgParseExpr(cur));
+        if (cur.length) list.push(item(cur));
         init = { list: list };
       } else if (arr !== null && peek() && peek().k === 'str') {
         var sv = ''; while (peek() && peek().k === 'str') sv += toks[i++].v;
@@ -5333,6 +5597,8 @@ function emuRun(c, opts) {
           break;
         }
         case 'cvtsi2sd': case 'cvtsi2ss': { var iv = read(o[1], opSize(o[1])); c.x[o[0].n] = iv === null ? null : Number(sx(iv, opSize(o[1]))); break; }
+        case 'cvtsd2ss': { var dv0 = c.x[o[1].n]; c.x[o[0].n] = dv0 === null || dv0 === undefined ? null : Math.fround(dv0); break; }
+        case 'cvtss2sd': { c.x[o[0].n] = c.x[o[1].n]; break; }
         case 'cvttsd2si': case 'cvttss2si': { var fv = c.x[o[1].n]; write(o[0], fv === null || fv === undefined ? null : mask(BigInt(Math.trunc(fv)), opSize(o[0]))); break; }
         case 'addsd': case 'subsd': case 'mulsd': case 'divsd': {
           var x0 = c.x[o[0].n], x1 = o[1].k === 'r' ? c.x[o[1].n] : f64(read(o[1], 8));
