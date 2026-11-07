@@ -210,6 +210,28 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .endban b { font-weight: 600; }
 .endnote { flex: 1 1 100%; font-size: 12.5px; line-height: 1.45; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 6px; padding: 6px 10px; }
 .endnote b { font-weight: 600; }
+/* output console (bottom of the canvas) */
+.console { background: #0b0d10; color: #d7f5ec; border: 1px solid #23262d; border-left: 4px solid var(--r-global); border-radius: 8px; }
+.tab .dot { position: absolute; top: 5px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--r-global); }
+.stepinfo { display: grid; gap: 10px; }
+.stepinfo .callstack, .stepinfo .stepnote, .stepinfo .endnote { flex: none; }
+.stepinfo .chg { margin: 0; }
+.stepinfo h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.con-h { display: flex; align-items: baseline; gap: 10px; padding: 5px 10px; }
+.con-t { border: 0; background: none; padding: 0; font-weight: 600; font-size: 12px; letter-spacing: .04em; color: #5eead4; }
+.con-t::before { content: "\25BE  "; } .console.min .con-t::before { content: "\25B8  "; }
+.con-t.con-quiet::before { content: ""; }
+.con-s { font: 11px var(--font-mono); color: #8b949e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.con-b { margin: 0; padding: 2px 12px 10px; min-height: 120px; max-height: 60vh; overflow: auto; font: 12.5px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; }
+.con-b .new { background: rgba(94, 234, 212, .18); color: #ffffff; border-radius: 3px; box-shadow: 0 0 0 2px rgba(94, 234, 212, .18); }
+.con-b .con-e { color: #6b7280; }
+.con-b .caret { display: inline-block; width: 7px; height: 13px; background: #5eead4; vertical-align: -2px; opacity: .7; }
+.outchip { font: 600 10px var(--font-mono); color: var(--r-global); background: var(--r-global-bg); border-radius: 4px; padding: 0 4px; }
+.dbg { display: inline-flex; align-items: center; gap: 6px; margin-left: 2px; }
+.btn.dbgb { border-color: var(--r-global); color: var(--r-global); font-weight: 600; }
+.dbgi { font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.legend .arrows-row { gap: 6px; flex-wrap: wrap; }
+.legend .arrows-row .seg button { font-size: 11px; padding: 2px 7px; }
 /* CPU registers panel (on the canvas, top right) */
 .cpu { position: absolute; top: 52px; right: 10px; z-index: 3; width: 360px; max-width: calc(100% - 20px); max-height: calc(100% - 130px); overflow: auto; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--line); border-left: 4px solid var(--r-reg); border-radius: 8px; box-shadow: 0 4px 14px var(--shadow); font-size: 12px; }
 .cpu.min { width: auto; }
@@ -333,8 +355,8 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .hatchbg { fill: var(--uninit-bg); } .hatchln { stroke: var(--uninit); stroke-opacity: .35; stroke-width: 1.5; }
 
 /* inspector + map */
-.tabs { display: flex; gap: 4px; padding: 10px 16px 0; border-bottom: 1px solid var(--line); }
-.tab { border: 0; background: none; padding: 7px 10px; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 500; }
+.tabs { display: flex; gap: 2px; padding: 10px 10px 0; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tab { position: relative; border: 0; background: none; padding: 7px 6px; font-size: 13px; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 500; }
 .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 .pane { padding: 14px 16px; overflow: auto; min-height: 0; flex: 1; }
 .field { display: grid; gap: 4px; margin-bottom: 10px; }
@@ -521,6 +543,7 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
           <div class="row"><span class="sw c"></span>changed in this step</div>
           <div class="row"><span class="sw x"></span>dangling or freed</div>
           <div class="row"><span class="sw" style="border-color:var(--muted);border-style:dashed;opacity:.5"></span>just went out of scope</div>
+          <div class="row arrows-row">Arrows into arrays <span class="seg"><button type="button" data-arrows="top" aria-pressed="true" title="The original curved arrows">Classic</button><button type="button" data-arrows="lane" aria-pressed="false" title="Leave from the left and run down a lane beside the array">Left lane</button></span></div>
         </div>
         <div class="zoom">
           <button class="btn" type="button" id="zout" aria-label="Zoom out">&minus;</button>
@@ -535,8 +558,10 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
     <div class="resizer" id="rzR" role="separator" aria-orientation="vertical" aria-controls="rightPanel" aria-label="Resize the details panel. Arrow keys resize, Enter hides or shows." tabindex="0"><button class="rail-btn" type="button" aria-label="Show the details panel" tabindex="-1">&lsaquo;</button></div>
     <aside class="side right" id="rightPanel" aria-label="Details">
       <div class="tabs" role="tablist">
-        <button class="tab" role="tab" id="tabInspect" type="button" aria-selected="true">Inspector</button>
-        <button class="tab" role="tab" id="tabMap" type="button" aria-selected="false">Memory map</button>
+        <button class="tab" role="tab" id="tabInspect" type="button" aria-selected="true">Inspect</button>
+        <button class="tab" role="tab" id="tabStep" type="button" aria-selected="false" title="What this step did, and the call stack">Step</button>
+        <button class="tab" role="tab" id="tabOut" type="button" aria-selected="false" title="What the program printed so far">Output</button>
+        <button class="tab" role="tab" id="tabMap" type="button" aria-selected="false">Memory</button>
         <button class="tab" role="tab" id="tabAsm" type="button" aria-selected="false">Assembly</button>
         <button class="hide-btn" type="button" data-panel="r" title="Hide this panel ( ] )" aria-label="Hide the details panel">&raquo;</button>
       </div>
@@ -1165,11 +1190,17 @@ function funcBody(F) {
    While REC is an array, every statement a called function runs is saved as its own snapshot:
    {line, state, msgs, stack, kind}. CALLSTACK is the chain of active calls, innermost last. */
 var REC = null, CALLSTACK = [], REC_LIMIT = 400;
+/* what the program printed: each step keeps the text printed since the previous step */
+var OUT = { buf: '', mark: 0 };
+function outReset() { OUT = { buf: '', mark: 0 }; }
+function outTake() { var s = OUT.buf.slice(OUT.mark); OUT.mark = OUT.buf.length; return s; }
 function recSnap(st, line, msgs, kind) {
   if (!REC) return;
+  /* stepping over calls: only the outer function's statements become steps */
+  if (REC.over && CALLSTACK.length > 1 && kind !== 'end') return;
   if (REC.length >= REC_LIMIT) { REC.truncated = true; return; }
   if (CALLSTACK.length) CALLSTACK[CALLSTACK.length - 1].line = line;
-  REC.push({ line: line, state: cloneState(st), msgs: (msgs || []).filter(function (m) { return m && m.text; }), stack: CALLSTACK.map(function (c) { return { fn: c.fn, line: c.line }; }), kind: kind || 'stmt' });
+  REC.push({ line: line, state: cloneState(st), msgs: (msgs || []).filter(function (m) { return m && m.text; }), stack: CALLSTACK.map(function (c) { return { fn: c.fn, line: c.line }; }), kind: kind || 'stmt', out: outTake() });
 }
 function showVal(v, t) {
   if (v === null || v === undefined) return '?';
@@ -1178,7 +1209,33 @@ function showVal(v, t) {
   if (t && (t.base === 'double' || t.base === 'float')) return String(Number(Number(v).toPrecision(7)));
   return String(v);
 }
+/* the C string at addr, or null when it runs off the end of memory */
+function cString(st, addr) {
+  var s = '';
+  for (var n = 0; n < 4096; n++) {
+    var r = findAt(st, addr + n);
+    if (!r || r.i < 0) return null;
+    var c = r.b.slots[r.i].value;
+    if (c === null) return null;
+    if (!c) return s;
+    s += String.fromCharCode(c);
+  }
+  return s;
+}
 /* printf-style formatting, for showing what a print statement would print */
+/* run the whole program from the start of main, recording every step */
+function traceProgram(stepInto, limit, initial) {
+  var st = initial ? cloneState(initial) : newState(), ctx = makeCtx(st, 'stack', '', 1);
+  ctx.traceMain = true;
+  var saved = REC_LIMIT;
+  REC_LIMIT = limit || 1500;
+  REC = []; REC.over = !stepInto; CALLSTACK = []; outReset();
+  var err = null;
+  try { runTokens(ctx, tokenize('main()'), 'stmt'); } catch (e) { err = e.message || String(e); }
+  var rec = REC;
+  REC = null; CALLSTACK = []; REC_LIMIT = saved;
+  return { rec: rec, error: err, truncated: !!rec.truncated };
+}
 function cFormat(st, fmt, vals) {
   var k = 0;
   return fmt.replace(/%([-+ 0#]*)(\d*)(?:\.(\d+))?(hh|h|ll|l|z)?([diuxXcspf%])/g, function (m, fl, w, prec, len, c) {
@@ -1410,6 +1467,7 @@ function runTokens(ctx, toks, mode, destType) {
       if (V.blk) throw new Error('passing a struct by value is not simulated: pass a pointer to it');
       return coerce(val(V), pt);
     });
+    if (F.name === 'main' && ctx.traceMain) return runMain(F);
     var caller = CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1] : { fn: ctx.frame ? String(ctx.frame).split('#')[0] : 'main', line: 0 };
     var callerName = caller.fn, callerLine = caller.line;
     /* ---- the System V AMD64 calling convention ----
@@ -1595,6 +1653,87 @@ function runTokens(ctx, toks, mode, destType) {
       (inner ? ' [' + inner + ' more call' + (inner === 1 ? '' : 's') + ' happened inside it.]' : ''));
     return retT ? { t: retT, v: result } : { t: typeInfo('void*'), v: 0, isVoid: true };
   }
+  /* the whole program, debugger style: main runs statement by statement, following every loop and branch */
+  function runMain(F) {
+    ctx.traceMain = false;
+    st.alloc.stack = BASES.stack;
+    var c2 = makeCtx(st, 'stack', 'main', 1);
+    c2.onlyFrame = 'main'; c2.depthCalls = 0; c2.calls = 0; c2.warned = ctx.warned;
+    CALLSTACK.push({ fn: 'main', line: F.line });
+    var mark = 0;
+    function fresh() { var m = c2.msgs.slice(mark); mark = c2.msgs.length; return m; }
+    function snap(line, extra, kind) { if (REC) recSnap(st, line, fresh().concat(extra ? [{ level: 'flow', text: extra }] : []), kind); }
+    var returned = false, steps = 0, lastLine = F.line, retVal = null;
+    function cond(n, what, yes, no, line) {
+      var R = runTokens(c2, n.cond, 'expr');
+      if (R.blk) throw new Error('a whole struct cannot be used as a condition');
+      var v = R.v !== undefined ? R.v : R.lv ? R.lv.b.slots[R.lv.i].value : 0;
+      if (v === null) { warn(c2, 'a condition reads an uninitialized value'); v = 0; }
+      var text = n.condText, isCmp = n.cond.some(function (t) { return t.k === 'op' && ['<', '>', '<=', '>=', '==', '!=', '&&', '||', '!'].indexOf(t.s) >= 0; });
+      var vars = [];
+      n.cond.forEach(function (t, q) {
+        if (t.k !== 'id' || (n.cond[q + 1] && n.cond[q + 1].s === '(')) return;
+        var vb = lookupVar(st, t.s, 'main');
+        if (vb && vb.kind === 'scalar' && vars.indexOf(t.s) < 0) vars.push(t.s + ' = ' + showVal(vb.slots[0].value, typeInfo(vb.slots[0].type)));
+      });
+      var mid = isCmp ? (vars.length ? 'with ' + vars.join(', ') + ', it is ' : 'it is ') : (text === showVal(v, R.t) ? '' : text + ' is ' + showVal(v, R.t) + ', which counts as ');
+      var nth = iter[n.line] !== undefined && (n.k === 'while' || n.k === 'for') ? ' [check ' + (iter[n.line] + 1) + ']' : '';
+      snap(line || n.line, what + ' (' + text + ')' + nth + ': ' + mid + (v ? 'true, so ' + yes : 'false, so ' + no) + '.', 'cond');
+      return !!v;
+    }
+    function loopCtl(e) { if (e && e.ctl === 'break') { snap(lastLine, 'break: leave the loop', 'flow'); return 'break'; } if (e && e.ctl === 'continue') { snap(lastLine, 'continue: skip to the next round of the loop', 'flow'); return 'continue'; } throw e; }
+    function exec(n) {
+      try { exec1(n); } catch (e) {
+        if (e && !e.ctl && !e.recorded && REC) { e.recorded = true; recSnap(st, n.k === 'block' ? F.line : n.line, fresh().concat([{ level: 'err', text: e.message || String(e) }]), 'crash'); }
+        throw e;
+      }
+    }
+    var iter = {};
+    function exec1(n) {
+      if (++steps > 20000) throw new Error('main() ran more than 20000 statements: is there an infinite loop?');
+      if (n.k !== 'block') { lastLine = n.line; CALLSTACK[0].line = n.line; }
+      switch (n.k) {
+        case 'block': n.body.forEach(exec); return;
+        case 'simple': runTokens(c2, n.toks, 'stmt'); snap(n.line); return;
+        case 'empty': return;
+        case 'if': if (cond(n, 'if', 'the if body runs', n.els ? 'the else branch runs' : 'the if body is skipped')) exec(n.then); else if (n.els) exec(n.els); return;
+        case 'while':
+          iter[n.line] = 0;
+          while (cond(n, 'while', 'round ' + (iter[n.line] + 1) + ' of the loop body runs', 'the loop ends after ' + iter[n.line] + (iter[n.line] === 1 ? ' round' : ' rounds'))) {
+            iter[n.line]++;
+            try { exec(n.body); } catch (e) { if (loopCtl(e) === 'break') break; }
+          }
+          return;
+        case 'do':
+          do { try { exec(n.body); } catch (e) { if (loopCtl(e) === 'break') break; } } while (cond(n, 'do ... while', 'the loop runs again', 'the loop ends', n.cline));
+          return;
+        case 'for':
+          if (n.init.length) { runTokens(c2, n.init, 'stmt'); snap(n.line, 'for loop starts: ' + n.initText); }
+          iter[n.line] = 0;
+          for (;;) {
+            if (n.cond.length && !cond(n, 'for', 'round ' + (iter[n.line] + 1) + ' of the loop body runs', 'the loop ends after ' + iter[n.line] + (iter[n.line] === 1 ? ' round' : ' rounds'))) break;
+            iter[n.line]++;
+            try { exec(n.body); } catch (e) { if (loopCtl(e) === 'break') break; }
+            if (n.step.length) { lastLine = n.line; CALLSTACK[0].line = n.line; runTokens(c2, n.step, 'expr'); snap(n.line, 'end of round ' + iter[n.line] + ': ' + n.stepText); }
+          }
+          return;
+        case 'break': throw { ctl: 'break' };
+        case 'continue': throw { ctl: 'continue' };
+        case 'return':
+          if (n.toks.length) { var R = runTokens(c2, n.toks, 'expr'); retVal = R.v !== undefined ? R.v : R.lv ? R.lv.b.slots[R.lv.i].value : 0; }
+          snap(n.line, 'return' + (n.toks.length ? ' ' + n.toksText + ': main() puts ' + retVal + ' in eax' : '') + ' and returns to the C runtime, which ends the program with that exit status.', 'return');
+          throw { ctl: 'return' };
+      }
+    }
+    try { exec(funcBody(F)); } catch (e) {
+      if (e && e.ctl === 'return') returned = true;
+      else if (e && e.ctl) throw new Error('"' + e.ctl + '" outside of a loop in main()');
+      else throw e;
+    }
+    var info = endProgram(st, returned ? 'main returned' : 'main reached its closing brace');
+    if (REC) recSnap(st, F.end, fresh().concat([{ level: 'call', text: endMessage(info) }]), 'end');
+    return num(retVal || 0, 'int');
+  }
   function callValue(fv, args, via) {
     if (NE) return num(0, 'int');
     var addr = val(fv);
@@ -1610,14 +1749,28 @@ function runTokens(ctx, toks, mode, destType) {
       var fargs = parseArgs();
       return callValue({ t: typeInfo(vb.slots[0].type), lv: { b: vb, i: 0 } }, fargs, 'the pointer ' + name);
     }
-    if (FUNCS[name] && name !== 'main') return callUser(FUNCS[name], parseArgs());
+    if (FUNCS[name] && (name !== 'main' || ctx.traceMain)) return callUser(FUNCS[name], parseArgs());
     var args = parseArgs();
     if (NE) return num(0, 'int');
-    if (name === 'printf' && args.length && args[0].arrBlk && args[0].arrBlk.strText !== undefined) {
-      var shown = cFormat(st, args[0].arrBlk.strText, args.slice(1).map(function (A) { return val(fin(A, null)); }));
+    if (name === 'printf' && args.length) {
+      var fmtText = null, A0 = args[0];
+      if (A0.arrBlk && A0.arrBlk.strText !== undefined && A0.v === A0.arrBlk.addr) fmtText = A0.arrBlk.strText;
+      else if (A0.t.ptr > 0 && pointee(A0.t).base === 'char') fmtText = cString(st, val(A0));
+      if (fmtText === null || fmtText === undefined) {
+        var bad = val(A0);
+        warn(ctx, 'printf needs a format string first, but got ' + (A0.t.ptr > 0 ? 'a pointer that is not to a string' : 'the ' + A0.t.str + ' value ' + bad) + '. Real C would treat ' + bad + ' as the address of a string and almost certainly crash. You probably meant printf("%d\\n", ...). Nothing was printed.');
+        return num(0, 'int');
+      }
+      var shown = cFormat(st, fmtText, args.slice(1).map(function (A) { return val(fin(A, null)); }));
+      OUT.buf += shown;
       note(ctx, 'printf prints: ' + JSON.stringify(shown.replace(/\n$/, '')).slice(1, -1).replace(/\\"/g, '"') + '. Printing does not change memory.');
       return num(shown.length, 'int');
     }
+    if (name === 'puts' && args.length) {
+      var ps = cString(st, val(args[0]));
+      if (ps !== null) { OUT.buf += ps + '\n'; note(ctx, 'puts prints: ' + ps + ' (and a newline).'); return num(ps.length + 1, 'int'); }
+    }
+    if (name === 'putchar' && args.length) { var pc = val(args[0]) & 255; OUT.buf += String.fromCharCode(pc); note(ctx, 'putchar prints ' + (charText(pc) || pc) + '.'); return num(pc, 'int'); }
     if (name === 'malloc') {
       if (args.length !== 1) throw new Error('malloc takes one argument');
       var V = { t: typeInfo('void*'), pending: { size: val(args[0]), zero: false } };
@@ -2052,7 +2205,7 @@ function prevState() { return doc.cur > 0 ? doc.steps[doc.cur - 1].state : null;
 function codeLines() { return doc.code.split('\n'); }
 function regionFor(line) { return (defs.depth[line] || 0) > 0 ? 'stack' : 'global'; }
 function frameFor(line) { return (defs.fnAt && defs.fnAt[line]) || ''; }
-function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, auto: doc.autoPos || {}, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
+function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, auto: doc.autoPos || {}, tk: doc.traceKey || null, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
 /* ---------- keep struct boxes in line with their struct definitions ---------- */
 function fieldDecl(type, name) { var m = /^(.*?)\s*(\**)$/.exec(type); return m[1] + ' ' + m[2] + name + ';'; }
 function sameFields(b, fields) {
@@ -2089,7 +2242,7 @@ function restore(json) {
   if (!d || !Array.isArray(d.steps) || !d.steps.length) throw new Error('that text is not a saved whiteboard');
   EXTRA_STRUCTS = d.extra || {};
   NEXT_ID = d.nextId || 1000;
-  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1), autoPos: d.auto || {} };
+  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1), autoPos: d.auto || {}, traceKey: d.tk || null };
   defs = setDefs(doc.code);
   syncAllStructs();
 }
@@ -2210,7 +2363,84 @@ function lineCallsUser(L) {
   });
 }
 function inCall() { return !!doc.steps[doc.cur].stack; }
-function recToStep(s, L) { return { id: uid('s'), line: s.line, state: s.state, msgs: s.msgs, stack: s.stack, kind: s.kind, callLine: L }; }
+function recToStep(s, L) { return { id: uid('s'), line: s.line, state: s.state, msgs: s.msgs, stack: s.stack, kind: s.kind, callLine: L, out: s.out || '' }; }
+/* Debug: run the whole program from the top of main and record every step, following loops and branches */
+/* ================= one execution engine =================
+   The program runs the way a CPU would: from the top of main, through every loop round, branch and
+   call. Every statement, condition check, call and return is recorded as a step. Run jumps to the
+   end (the complete output is in the Output tab); Step into / over / out walk through the same
+   recording like a debugger. The recording is redone whenever the code changes. */
+function recordProgram() {
+  if (!FUNCS.main) return false;
+  /* globals and their initializers exist before main starts */
+  var st0 = newState(), lines = codeLines(), gerr = null;
+  for (var L = 1; L <= lines.length; L++) {
+    if ((defs.depth[L] || 0) !== 0 || frameFor(L) || defs.skip[L] || (defs.fnLine && defs.fnLine[L])) continue;
+    var gr = execLineAt(st0, L);
+    if (gr.error && !gerr) gerr = 'line ' + L + ': ' + gr.error;
+    if (gr.state) st0 = gr.state;
+  }
+  var res = traceProgram(true, 2000, st0);
+  if (gerr && !res.error) res.error = gerr;
+  var mainF = FUNCS.main;
+  var start = { id: uid('s'), line: mainF.line, state: cloneState(st0), msgs: [{ level: 'call', text: 'The start of main(). Run plays the whole program; Step into, Step over and Step out walk through it one statement, check, call or return at a time.' }], stack: [{ fn: 'main', line: mainF.line }], kind: 'start', out: '' };
+  try { start.cpu = cpuSave(cpuInit()); } catch (e) { /* no code */ }
+  var steps = res.rec.map(function (s) { return recToStep(s, mainF.line); });
+  if (res.error && (!steps.length || steps[steps.length - 1].kind !== 'crash')) steps.push({ id: uid('s'), line: steps.length ? steps[steps.length - 1].line : mainF.line, state: steps.length ? cloneState(steps[steps.length - 1].state) : newState(), msgs: [{ level: 'err', text: res.error }], stack: [{ fn: 'main', line: mainF.line }], kind: 'crash', out: '' });
+  if (res.truncated && steps.length) steps[steps.length - 1].msgs.push({ level: 'warn', text: 'Recording stopped after 2000 steps (a very long loop or deep recursion). Everything up to here is accurate.' });
+  if (steps.length && steps[steps.length - 1].kind === 'crash') steps[steps.length - 1].crash = true;
+  try { cpuForSteps(start, steps, mainF.line, true, true); } catch (e) { steps.forEach(function (s, k) { cpuCopy(k ? steps[k - 1] : start, s); }); }
+  doc.steps = [start].concat(steps);
+  doc.cur = 0;
+  doc.traceKey = doc.code;
+  pendingLine = null; sel = null;
+  ui.runError = res.error || null;
+  return true;
+}
+function traceStale() { return !doc.traceKey || doc.traceKey !== doc.code; }
+function ensureTrace() {
+  if (!traceStale()) return true;
+  if (ui.editingCode) { toast('Press Done to finish editing the code first.'); return false; }
+  if (!FUNCS.main) { toast('Put your code inside int main() { ... } to run it.', true); return false; }
+  pushUndo();
+  recordProgram();
+  return true;
+}
+function depthOf(s) { return s && s.stack ? s.stack.length : 1; }
+/* Run: play the whole program, to the end */
+function execRun() {
+  if (!ensureTrace()) return;
+  if (ui.tab === 'inspect' || ui.tab === 'step') ui.tab = 'out';
+  goStep(doc.steps.length - 1);
+  fitView();
+  if (ui.runError) toast('The program stopped: ' + ui.runError, true);
+}
+/* the debugger's three steps */
+function execStep(kind) {
+  var fresh = traceStale();
+  if (!ensureTrace()) return;
+  if (ui.tab === 'inspect') ui.tab = 'step';
+  if (fresh) { goStep(Math.min(1, doc.steps.length - 1)); fitView(); return; }
+  var steps = doc.steps, cur = doc.cur, d = depthOf(steps[cur]), k = -1;
+  if (kind === 'into') k = cur + 1;
+  else for (var j = cur + 1; j < steps.length; j++) {
+    var dj = depthOf(steps[j]);
+    if (kind === 'over' ? dj <= d : dj < d) { k = j; break; }
+  }
+  if (kind === 'out' && k < 0) k = steps.length - 1;
+  if (k < 0 || k >= steps.length) { toast('That is the end of the program. Back (←) or Restart to go again.'); return; }
+  goStep(k);
+}
+function execRestart() { if (!ensureTrace()) return; goStep(0); fitView(); }
+/* clicking a code line: run until that line runs next */
+function runToLine(L) {
+  if (!ensureTrace()) return;
+  var steps = doc.steps;
+  for (var j = doc.cur + 1; j < steps.length; j++) if (steps[j].line === L) { goStep(j); return; }
+  for (var q = 1; q <= doc.cur; q++) if (steps[q].line === L) { goStep(q); toast('Line ' + L + ' does not run again after this step, so this is the first time it ran.'); return; }
+  toast('Line ' + L + ' never runs in this program.');
+}
+function runDebug() { execRun(); }
 function runPending(into) {
   if (inCall()) {
     /* inside a recorded call, Run moves to the next recorded step, like a debugger's Step */
@@ -2226,6 +2456,7 @@ function runPending(into) {
   if (defs.fnLine && defs.fnLine[L]) { ui.lastResult = { kind: 'inf', text: 'Line ' + L + ' starts the function ' + defs.fnLine[L] + '(). Nothing runs here: its body runs when something calls it.' }; pendingLine = nextLine(L); renderAll(); return; }
   if (defs.skip[L]) { ui.lastResult = { kind: 'inf', text: 'Line ' + L + ' is part of a struct definition. It is registered automatically, so nothing runs.' }; pendingLine = nextLine(L); renderAll(); return; }
   var r, rec = null;
+  outReset();
   if (into) { REC = []; CALLSTACK = [{ fn: frameFor(L) || 'main', line: L }]; }
   try { r = execLineAt(S(), L); } finally { rec = REC; REC = null; CALLSTACK = []; }
   if (rec && rec.length) {
@@ -2238,7 +2469,7 @@ function runPending(into) {
       doc.steps[doc.cur].crash = true;
       ui.lastResult = { kind: 'err', text: 'Line ' + L + ' crashed inside the call: ' + r.error + ' Step through it to see how it got there.' };
     } else {
-      var fin = { id: uid('s'), line: L, state: r.state, msgs: r.msgs };
+      var fin = { id: uid('s'), line: L, state: r.state, msgs: r.msgs, out: outTake() };
       if (rec.truncated) fin.msgs = fin.msgs.concat([{ level: 'warn', text: 'Recording stopped after ' + REC_LIMIT + ' steps; the rest of the call ran without being recorded.' }]);
       insertStep(fin);
       made.push(fin);
@@ -2265,7 +2496,7 @@ function runPending(into) {
     return;
   }
   pushUndo();
-  var prevS = doc.steps[doc.cur], newS = { id: uid('s'), line: L, state: r.state, msgs: r.msgs };
+  var prevS = doc.steps[doc.cur], newS = { id: uid('s'), line: L, state: r.state, msgs: r.msgs, out: outTake() };
   try { cpuForSteps(prevS, [newS], L, false); } catch (e) { cpuCopy(prevS, newS); }
   insertStep(newS);
   ui.lastResult = r.msgs.length ? { kind: 'inf', text: r.msgs.map(function (m) { return m.text; }).join(' · ') } : null;
@@ -2290,11 +2521,12 @@ function runAllFresh() {
   try { doc.steps[0].cpu = cpuSave(cpuInit()); } catch (e) { /* no code yet */ }
   for (var L = 1; L <= lines.length; L++) {
     if (defs.skip[L] || inOtherFunction(L) || (defs.fnLine && defs.fnLine[L])) continue;
+    outReset();
     var r = execLineAt(S(), L);
     if (r.skipped) continue;
     if (r.finished) break;
     if (r.error) { doc.steps.push({ id: uid('s'), line: L, state: cloneState(S()), msgs: [{ level: 'err', text: r.error }] }); doc.cur++; continue; }
-    var fs0 = { id: uid('s'), line: L, state: r.state, msgs: r.msgs };
+    var fs0 = { id: uid('s'), line: L, state: r.state, msgs: r.msgs, out: outTake() };
     try { cpuForSteps(doc.steps[doc.cur], [fs0], L, false); } catch (e) { cpuCopy(doc.steps[doc.cur], fs0); }
     doc.steps.push(fs0);
     doc.cur++;
@@ -2306,17 +2538,22 @@ function loadExample(id) {
   EXTRA_STRUCTS = {};
   doc = { code: ex.code, steps: [], cur: 0, autoPos: {} };
   defs = setDefs(doc.code);
-  runAllFresh();
-  /* open on the last step before the program ends, so the example shows its pointers; the end is one step forward */
-  if (S().ended && doc.cur > 1) doc.cur--;
-  pendingLine = doc.steps.length > 1 ? nextLine(doc.steps[doc.cur].line) : firstLine();
-  sel = null; ui.lastResult = null;
+  openProgram();
+}
+/* a freshly loaded program: recorded, and opened on the last step before it ends (all its boxes and arrows in view) */
+function openProgram() {
+  if (!recordProgram()) {
+    doc.steps = [{ id: uid('s'), line: null, state: newState(), msgs: [] }];
+    try { doc.steps[0].cpu = cpuSave(cpuInit()); } catch (e) { /* no code */ }
+    doc.cur = 0; doc.traceKey = null;
+  } else doc.cur = Math.max(0, doc.steps.length - 2);
+  pendingLine = null; sel = null; ui.lastResult = null;
 }
 function goStep(k) {
   if (k < 0 || k >= doc.steps.length) return;
   doc.cur = k;
   var L = doc.steps[k].line;
-  pendingLine = doc.steps[k].stack || doc.steps[k].state.ended ? null : (L ? nextLine(L) : firstLine());
+  pendingLine = null;
   ui.lastResult = null;
   fixSel();
   renderAll(); keepInView(); save();
@@ -2352,8 +2589,23 @@ function anchorOn(rect, p) {
    Most arrows are one smooth curve that arrives from the upper left. When the target sits above the
    pointer, a plain curve would come up from underneath, so instead the arrow swings out beside the
    target, over its top, and comes down onto the corner. Rows of a pointer array are entered from the left. */
+var ARROW_STYLE = 'top';
+try { if (localStorage.getItem(STORE_KEY + '-arrows2') === 'lane') ARROW_STYLE = 'lane'; } catch (e) { /* ignore */ }
+/* Lane style: leave the pointer from its left edge, run down a lane beside the array, along the gap just
+   above its cells, then drop onto the top-left corner of the target cell (its first byte). */
+function laneArrow(p, b, tr, lane) {
+  var card = blockRect(tr.r.b), c = { x: tr.rect.x, y: tr.rect.y };
+  var off = (lane % 4) * 6;
+  var fromRight = b.x >= card.x + card.w - 4;
+  var start = fromRight ? { x: b.x, y: p.y, dx: -1, dy: 0 } : { x: b.x, y: p.y, dx: -1, dy: 0 };
+  var laneX = fromRight ? Math.min(b.x - 18, card.x + card.w + 14 + off) : Math.min(card.x, b.x) - 12 - off;
+  var topY = c.y - 10 - (lane % 3) * 2;
+  var pts = [{ x: start.x, y: start.y }, { x: laneX, y: start.y }, { x: laneX, y: topY }, { x: c.x + 1, y: topY }, { x: c.x + 1, y: c.y }];
+  return { d: roundedPath(pts, 9), start: start };
+}
 function arrowPath(st, p, b, tr, lane, midX) {
   var card = blockRect(tr.r.b), c = { x: tr.rect.x, y: tr.rect.y }, g = geom(b), self = tr.r.b === b;
+  if (ARROW_STYLE === 'lane' && !self && !tr.rowCell) return laneArrow(p, b, tr, lane);
   var leftEdge = { x: b.x, y: p.y, dx: -1, dy: 0 };
   var around = !self && !tr.rowCell && p.y > c.y - 6 && c.x < b.x + g.w - 12;
   if (!around) {
@@ -2685,9 +2937,9 @@ function keepInView() {
 }
 /* ================= app: panels ================= */
 function renderAll() {
-  arrangeAll();
-  renderCanvas();
-  renderCpu(); renderCode(); renderSteps(); renderStepbar(); renderPane();
+  [arrangeAll, renderCanvas, renderCpu].forEach(function (f) {
+    try { f(); } catch (e) { if (window.console) console.error(e); }
+  }); renderCode(); renderSteps(); renderStepbar(); renderPane();
   $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
 }
 function lineSteps() {
@@ -2715,9 +2967,9 @@ function renderCode() {
       h.push('<div class="' + cls + '" data-line="' + L + '" role="option" aria-selected="' + (L === pendingLine) + '" title="Click to make this the next line to run"><span class="mk"></span><span class="ln">' + L + '</span><span class="tx">' + (esc(t) || ' ') + '</span><span class="ns">' + (ns ? 's' + ns : '') + '</span></div>');
     });
     h.push('</div><div class="grip" id="codeGrip" role="separator" aria-orientation="horizontal" aria-label="Resize the code box. Arrow keys make it taller or shorter, double-click resets." tabindex="0"></div>');
-    h.push('<div class="runbar">' + runButtons() +
+    h.push('<div class="runbar">' + runButtons('code') +
       '<button class="btn" type="button" data-a="manual" title="Copy this step so you can draw the change yourself">New step by hand</button></div>');
-    h.push('<p class="hint">Click a line to choose what runs next. <span class="kbd">R</span> runs it in one step, <span class="kbd">I</span> steps into the functions it calls, <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> move between steps. Loops and ifs in main: pick the next line yourself.</p>');
+    h.push('<p class="hint"><span class="kbd">R</span> runs the whole program. <span class="kbd">I</span> step into, <span class="kbd">O</span> step over, <span class="kbd">U</span> step out, <span class="kbd">&larr;</span> back. Every loop, branch and call is followed. Click a line to run until it runs.</p>');
     if (ui.lastResult) h.push('<div class="result ' + ui.lastResult.kind + '">' + esc(ui.lastResult.text) + '</div>');
   }
   box.innerHTML = h.join('');
@@ -2727,24 +2979,26 @@ function renderCode() {
     if (top < list.scrollTop || top > list.scrollTop + list.clientHeight - 24) list.scrollTop = top - list.clientHeight / 3;
   }
 }
-function runButtons() {
-  if (inCall()) {
-    var more = doc.cur < doc.steps.length - 1;
-    return '<button class="btn primary" type="button" data-a="run"' + (more ? '' : ' disabled') + ' title="Go to the next statement (R or \u2192)">Next \u25B8</button>';
-  }
-  var pl = pendingLine && !S().ended ? pendingLine : null, can = pl && lineCallsUser(pl);
-  return '<button class="btn primary" type="button" data-a="run"' + (pl ? '' : ' disabled') + ' title="Run the whole line as one step (R)">Run line ' + (pl || '') + '</button>' +
-    (can ? '<button class="btn into" type="button" data-a="into" title="Walk through the called function statement by statement (I)">Step into \u21B3</button>' : '');
+function runButtons(where) {
+  if (!FUNCS.main) return '<span class="hint" style="margin:0">Put code in <code>int main() { }</code> to run it.</span>';
+  var end = doc.cur >= doc.steps.length - 1 && !traceStale();
+  var b = function (a, label, title, cls, dis) { return '<button class="btn' + (cls ? ' ' + cls : '') + '" type="button" data-a="' + a + '" title="' + title + '"' + (dis ? ' disabled' : '') + '>' + label + '</button>'; };
+  if (where === 'code') return b('run', 'Run ▶', 'Run the whole program to the end (R). The Output tab shows everything it printed.', 'primary') + b('restart', 'Restart', 'Back to the start of main (Home)', '');
+  return b('into', 'Step into ↳', 'Next step, going inside any function call (I or →)', 'primary', end) +
+    b('over', 'Step over ↷', 'Next step in this function; calls run in one go (O)', '', end) +
+    b('out', 'Step out ↑', 'Run until this function returns (U)', '', end || depthOf(doc.steps[doc.cur]) <= 1);
 }
 function renderSteps() {
   var lines = codeLines(), h = ['<div class="sec-h"><h2>Steps</h2><span class="hint" style="margin:0">' + doc.steps.length + ' total</span></div><ol class="steps">'];
   doc.steps.forEach(function (s, k) {
     var d = k > 0 ? diffStates(doc.steps[k - 1].state, s.state) : { lines: [] };
     var label = k === 0 ? 'Start' : s.line ? blankComments(lines[s.line - 1] || '').trim() : 'Drawn by hand';
-    var depth = s.stack ? s.stack.length - 1 : 0, fnName = s.stack ? s.stack[s.stack.length - 1].fn : '';
+    var depth = s.stack ? s.stack.length - 1 : 0, fnName = s.stack && s.stack.length > 1 ? s.stack[s.stack.length - 1].fn : '';
     if (s.kind === 'enter') label = 'enter ' + fnName + '()';
+    if (s.kind === 'start') label = 'start of main()';
+    if (s.kind === 'end') label = 'program finished';
     h.push('<li class="step' + (k === doc.cur ? ' on' : '') + (s.stack ? ' inner k-' + s.kind : '') + (s.crash ? ' crash' : '') + '" data-step="' + k + '"' + (depth ? ' style="margin-left:' + Math.min(5, depth) * 12 + 'px"' : '') + '><div class="st-h"><span class="st-n">' + k + '</span>' +
-      '<span class="st-c" title="' + esc(label) + '">' + (s.stack ? '<span class="fnchip">' + esc(fnName) + '</span> ' : '') + (s.line ? '<span style="color:var(--muted)">L' + s.line + '</span> ' : '') + esc(label) + '</span>' +
+      '<span class="st-c" title="' + esc(label) + '">' + (fnName ? '<span class="fnchip">' + esc(fnName) + '</span> ' : '') + (s.out ? '<span class="outchip" title="printed: ' + esc(s.out) + '">out</span> ' : '') + (s.line ? '<span style="color:var(--muted)">L' + s.line + '</span> ' : '') + esc(label) + '</span>' +
       (k > 0 ? '<button class="st-x" type="button" data-a="delstep" data-k="' + k + '" aria-label="Delete step ' + k + '">&times;</button>' : '') + '</div>');
     if (d.lines.length) h.push('<ul class="chg">' + d.lines.slice(0, 6).map(function (l) { return '<li class="' + l.k + '">' + esc(l.t) + '</li>'; }).join('') + (d.lines.length > 6 ? '<li>' + (d.lines.length - 6) + ' more</li>' : '') + '</ul>');
     else if (k > 0) h.push('<ul class="chg"><li>no change' + (s.manual ? ' yet: edit the canvas while this step is selected' : '') + '</li></ul>');
@@ -2759,6 +3013,15 @@ function renderSteps() {
 function renderStepbar() {
   var s = doc.steps[doc.cur], lines = codeLines();
   var where = doc.cur === 0 ? '<b>Start</b>, before any line runs' : '<b>Step ' + doc.cur + '</b> of ' + (doc.steps.length - 1) + (s.line ? (s.stack ? ', in <b>' + esc(s.stack[s.stack.length - 1].fn) + '()</b> line ' : ', after line ') + s.line + ' <code>' + esc(trunc(blankComments(lines[s.line - 1] || '').trim(), 48)) + '</code>' : ', drawn by hand');
+  $('stepbar').innerHTML = '<button class="btn" type="button" data-a="prev"' + (doc.cur ? '' : ' disabled') + '>&larr; Back</button>' +
+    
+    '<span class="where">' + where + '</span>' +
+    runButtons('bar');
+}
+
+/* ----- the Step tab: what this step did, and where we are in the call stack ----- */
+function stepInfoHtml() {
+  var s = doc.steps[doc.cur], h = ['<div class="stepinfo">'];
   var extra = '';
   if (s.stack) {
     extra += '<div class="callstack" role="status"><span class="cs-l">Call stack</span>' + s.stack.map(function (f, k) {
@@ -2766,17 +3029,17 @@ function renderStepbar() {
       return '<span class="cs-f' + (top ? ' top' : '') + '">' + esc(f.fn) + '() <span class="cs-ln">line ' + f.line + (top ? '' : ', waiting') + '</span></span>';
     }).join('<span class="cs-sep">\u203A</span>') + '</div>';
   }
-  var notes = (s.msgs || []).filter(function (m) { return m.level === 'call' || m.level === 'flow' || m.level === 'err'; });
-  if (!notes.length && s.stack && doc.cur > 0) {
-    var dl = diffStates(doc.steps[doc.cur - 1].state, s.state).lines;
-    notes = [{ text: dl.length ? dl.slice(0, 4).map(function (l) { return l.t; }).join(' \u00b7 ') : 'no variable changed' }];
-  }
-  if (notes.length && doc.cur > 0) extra += '<div class="stepnote' + (notes.some(function (m) { return m.level === 'err'; }) ? ' bad' : '') + '">' + notes.slice(0, 2).map(function (m) { return esc(m.text); }).join('<br>') + '</div>';
-  $('stepbar').innerHTML = '<button class="btn" type="button" data-a="prev"' + (doc.cur ? '' : ' disabled') + '>&larr; Back</button>' +
-    '<button class="btn" type="button" data-a="next"' + (doc.cur < doc.steps.length - 1 ? '' : ' disabled') + '>Forward &rarr;</button>' +
-    '<span class="where">' + where + '</span>' +
-    runButtons() + extra +
-    (S().ended ? '<div class="endnote" role="status"><b>Program finished.</b> ' + esc(endMessage(S().ended).replace(/^.*?finished\. /, '')) + '</div>' : '');
+  var notes = doc.cur > 0 ? (s.msgs || []) : [];
+  if (s.stack) h.push(extra);
+  if (doc.cur === 0) h.push('<p class="hint" style="margin:0">' + (s.msgs && s.msgs.length ? esc(s.msgs[0].text) : 'Nothing has run yet. Run a line, or press Debug to step through the whole program.') + '</p>');
+  if (notes.length) h.push('<div class="stepnote' + (notes.some(function (m) { return m.level === 'err'; }) ? ' bad' : '') + '">' + notes.map(function (m) { return esc(m.text); }).join('<br>') + '</div>');
+  else if (doc.cur > 0) h.push('<p class="hint" style="margin:0">Line ' + s.line + ' ran.</p>');
+  var dlines = doc.cur > 0 ? diffStates(doc.steps[doc.cur - 1].state, s.state).lines : [];
+  if (dlines.length) h.push('<h3>Memory changes</h3><ul class="chg">' + dlines.map(function (l) { return '<li class="' + l.k + '">' + esc(l.t) + '</li>'; }).join('') + '</ul>');
+  if (s.out) h.push('<h3>Printed</h3><pre class="con-b console" style="min-height:0">' + esc(s.out) + '</pre>');
+  if (S().ended && !notes.some(function (m) { return /program finished/.test(m.text); })) h.push('<div class="endnote" role="status"><b>Program finished.</b> ' + esc(endMessage(S().ended).replace(/^.*?finished\. /, '')) + '</div>');
+  h.push('</div>');
+  return h.join('');
 }
 
 /* ----- inspector ----- */
@@ -2788,10 +3051,12 @@ function editText(sl) {
   return fmtVal(sl, true);
 }
 function renderPane() {
-  $('tabInspect').setAttribute('aria-selected', ui.tab === 'inspect');
-  $('tabMap').setAttribute('aria-selected', ui.tab === 'map');
-  $('tabAsm').setAttribute('aria-selected', ui.tab === 'asm');
-  $('pane').innerHTML = ui.tab === 'map' ? mapHtml() : ui.tab === 'asm' ? asmHtml() : inspectorHtml();
+  ['inspect:tabInspect', 'step:tabStep', 'out:tabOut', 'map:tabMap', 'asm:tabAsm'].forEach(function (x) { var p = x.split(':'); $(p[1]).setAttribute('aria-selected', String(ui.tab === p[0])); });
+  /* a dot on Output when this step printed something */
+  var to = $('tabOut'), printed = !!doc.steps[doc.cur].out;
+  to.innerHTML = 'Output' + (printed && ui.tab !== 'out' ? '<span class="dot" title="this step printed something"></span>' : '');
+  $('pane').innerHTML = ui.tab === 'map' ? mapHtml() : ui.tab === 'asm' ? asmHtml() : ui.tab === 'step' ? stepInfoHtml() : ui.tab === 'out' ? consoleHtml() : inspectorHtml();
+  if (ui.tab === 'out') { var cb = $('conBody'); if (cb) cb.scrollTop = cb.scrollHeight; }
   if (ui.tab === 'asm') {
     var now = $('pane').querySelector('.asm-src.now');
     if (now && ui.lastAsmLine !== doc.cur) { ui.lastAsmLine = doc.cur; try { now.scrollIntoView({ block: 'center' }); } catch (e) { /* ignore */ } }
@@ -3270,6 +3535,31 @@ function closeInline(commit) {
     mutate(function () { setSlotFromText(findBlock(S(), ed.bid), ed.i, v); });
   }
 }
+
+/* ----- output console: everything printed up to the step being viewed ----- */
+function consoleHtml() {
+  var parts = [];
+  for (var k = 1; k <= doc.cur; k++) if (doc.steps[k].out) parts.push({ k: k, t: doc.steps[k].out });
+  var cur = doc.steps[doc.cur].out || '';
+  var h = ['<p class="hint" style="margin:0 0 8px">' + (cur ? 'This step printed <span class="mono">' + esc(JSON.stringify(cur)) + '</span>, highlighted below.' : parts.length ? 'Everything printed up to this step. Go back and it un-prints.' : 'Nothing printed yet. Output appears here step by step as the program runs.') + '</p>'];
+  h.push('<div class="console"><pre class="con-b" id="conBody">' + (parts.length ? parts.map(function (p) { return '<span class="' + (p.k === doc.cur ? 'new' : '') + '" data-step="' + p.k + '" title="printed in step ' + p.k + '">' + esc(p.t) + '</span>'; }).join('') : '<span class="con-e">(no output)</span>') + '<span class="caret"></span></pre></div>');
+  return h.join('');
+}
+try { ui.conMin = localStorage.getItem(STORE_KEY + '-console') === 'min'; } catch (e) { /* ignore */ }
+document.addEventListener('click', function (e) {
+  if (e.target.closest && e.target.closest('#conToggle')) {
+    ui.conMin = !ui.conMin;
+    try { localStorage.setItem(STORE_KEY + '-console', ui.conMin ? 'min' : 'open'); } catch (x) { /* ignore */ }
+    renderConsole();
+  }
+  var ab = e.target.closest && e.target.closest('[data-arrows]');
+  if (ab) {
+    ARROW_STYLE = ab.getAttribute('data-arrows');
+    try { localStorage.setItem(STORE_KEY + '-arrows2', ARROW_STYLE); } catch (x) { /* ignore */ }
+    document.querySelectorAll('[data-arrows]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.getAttribute('data-arrows') === ARROW_STYLE)); });
+    renderCanvas();
+  }
+});
 /* ================= automatic stack / heap / static groups =================
    Boxes the code creates (b.code) are filed into groups: one per stack frame, one for the heap and one
    for globals and string literals. Every box keeps a fixed "seat" inside its group for its whole life,
@@ -3469,10 +3759,8 @@ function loadProgramCode(name, code) {
   EXTRA_STRUCTS = {};
   doc = { code: code, steps: [], cur: 0, autoPos: {} };
   defs = setDefs(doc.code);
-  runAllFresh();
-  if (S().ended && doc.cur > 1) doc.cur--;
-  pendingLine = doc.steps.length > 1 ? nextLine(doc.steps[doc.cur].line) : firstLine();
-  sel = null; ui.lastResult = null; ui.progName = name;
+  openProgram();
+  ui.progName = name;
 }
 function openPrograms() {
   var d = $('progModal');
@@ -5083,6 +5371,7 @@ function regBoxes(st, c) {
     if (t.arg) { fn = t.fn; depth = t.depth; label = t.param; type = t.ptype; }
     else {
       var top = c.frames[c.frames.length - 1];
+      if (!top) return;
       fn = top.fn; depth = top.depth;
       label = t.retv ? 'return value' : t.ret + '() returned';
       type = t.rtype || t.type || 'long';
@@ -5099,9 +5388,15 @@ function regBoxes(st, c) {
 }
 
 /* run the CPU for a list of new steps created by one Run line / Step into, starting at line L */
-function cpuForSteps(prevStep, steps, L, into) {
+function cpuForSteps(prevStep, steps, L, into, fromStart) {
   var c = cpuLoad(prevStep && prevStep.cpu) || cpuInit();
   c.ip = null;
+  if (fromStart) {
+    /* Debug: begin right after main's prologue */
+    c = cpuInit();
+    var mf = asmProgram().funcs.filter(function (f) { return f.name === 'main'; })[0];
+    if (mf) { var pi = -1; mf.ins.forEach(function (x, q) { if (x.mk === 'prologue') pi = q; }); c.ip = { fn: 'main', idx: pi + 1, line: mf.line }; }
+  }
   var fn = frameFor(L) || 'main';
   var ov = {}, prevState = prevStep ? prevStep.state : steps[0].state;
   var out = 'ok';
@@ -5115,7 +5410,7 @@ function cpuForSteps(prevStep, steps, L, into) {
     out = res;
     if (res === 'mark' && c.ip && c.ip.mk === 'r') {
       /* about to return: rax now holds the result */
-      var top = c.frames[c.frames.length - 1], F = FUNCS[top.fn];
+      var top = c.frames[c.frames.length - 1], F = top && FUNCS[top.fn];
       if (F && F.ret !== 'void') c.tag[/double|float/.test(F.ret) && F.ret.indexOf('*') < 0 ? 'xmm0' : 'rax'] = { retv: top.fn, rtype: F.ret };
     }
     s.cpu = cpuSave(c, prevSaved);
@@ -5551,10 +5846,11 @@ function onUp(e) {
       var tb = findBlock(S(), L.hover.bid), src = findBlock(S(), L.bid);
       if (tb && src) {
         var addr = L.hover.si >= 0 && !(tb.kind === 'scalar') ? slotAddr(tb, L.hover.si) : tb.addr;
-        var tgtType = L.hover.si >= 0 ? tb.slots[L.hover.si].type : blockType(tb);
+        var tgtType = L.hover.si >= 0 ? tb.slots[L.hover.si].type : tb.kind === 'array' ? tb.slots[0].type : blockType(tb);
         mutate(function () { findBlock(S(), L.bid).slots[L.si].value = addr; });
         var pt = typeInfo(src.slots[L.si].type), want = pointee(pt).str;
-        if (want !== 'void' && tb.kind !== 'struct' && typeInfo(tgtType).str !== want && pointee(pt).base !== 'void') toast('Pointed at ' + hex(addr) + '. Note: ' + slotName(src, L.si) + ' is ' + pt.str + ' but the target holds ' + tgtType + '.');
+        var tgtStr = (function () { try { return typeInfo(tgtType).str; } catch (x) { return want; } })();
+        if (want !== 'void' && tb.kind !== 'struct' && tgtStr !== want && pointee(pt).base !== 'void') toast('Pointed at ' + hex(addr) + '. Note: ' + slotName(src, L.si) + ' is ' + pt.str + ' but the target holds ' + tgtType + '.');
         return;
       }
     }
@@ -5622,9 +5918,13 @@ function setup() {
   $('tabInspect').addEventListener('click', function () { ui.tab = 'inspect'; renderPane(); });
   $('tabMap').addEventListener('click', function () { ui.tab = 'map'; renderPane(); });
   $('tabAsm').addEventListener('click', function () { ui.tab = 'asm'; ui.lastAsmLine = -1; renderPane(); });
+  $('tabStep').addEventListener('click', function () { ui.tab = 'step'; renderPane(); });
+  $('tabOut').addEventListener('click', function () { ui.tab = 'out'; renderPane(); });
 
   var exSel = $('examples');
   setupPrograms();
+  try { ui.debugInto = localStorage.getItem(STORE_KEY + '-dbginto') !== '0'; } catch (x) { ui.debugInto = true; }
+  document.querySelectorAll('[data-arrows]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.getAttribute('data-arrows') === ARROW_STYLE)); });
   exSel.addEventListener('change', function () {
     if (!exSel.value) return;
     pushUndo();
@@ -5647,7 +5947,8 @@ function setup() {
     pushUndo();
     doc.steps = [{ id: uid('s'), line: null, state: newState(), msgs: [] }];
     try { doc.steps[0].cpu = cpuSave(cpuInit()); } catch (e) { /* ignore */ }
-    doc.cur = 0; sel = null; ui.lastResult = null; pendingLine = firstLine();
+    doc.traceKey = null;
+    doc.cur = 0; sel = null; ui.lastResult = null; pendingLine = null;
     view = { x: 40, y: 56, k: 1 }; doc.autoPos = {};
     renderAll(); save();
     toast('Cleared the drawing and the steps. The code is still there. Undo brings everything back.');
@@ -5669,7 +5970,7 @@ function setup() {
     try {
       restore($('dlgText').value);
       undoStack.push(before); redoStack.length = 0;
-      sel = null; pendingLine = firstLine();
+      sel = null; pendingLine = null;
       $('modal').hidden = true;
       renderAll(); fitView(); save();
       toast('Board loaded.');
@@ -5682,12 +5983,15 @@ function setup() {
     var add = t.closest('[data-add]');
     if (add) { addThing(add.getAttribute('data-add')); return; }
     var line = t.closest('[data-line]');
-    if (line) { pendingLine = +line.getAttribute('data-line'); ui.lastResult = null; renderCode(); renderStepbar(); save(); return; }
+    if (line) { ui.lastResult = null; runToLine(+line.getAttribute('data-line')); return; }
     var a = t.closest('[data-a]');
     if (a) {
       var act2 = a.getAttribute('data-a');
-      if (act2 === 'run') runPending();
-      else if (act2 === 'into') runPending(true);
+      if (act2 === 'run') execRun();
+      else if (act2 === 'into') execStep('into');
+      else if (act2 === 'over') execStep('over');
+      else if (act2 === 'out') execStep('out');
+      else if (act2 === 'restart') execRestart();
       else if (act2 === 'manual') newManualStep();
       else if (act2 === 'prev') goStep(doc.cur - 1);
       else if (act2 === 'next') goStep(doc.cur + 1);
@@ -5700,7 +6004,8 @@ function setup() {
           if (v !== doc.code) {
             pushUndo(); doc.code = v; defs = setDefs(v);
             if (syncAllStructs()) toast('Updated the struct boxes to match the definitions in your code.');
-            if (!pendingLine || pendingLine > codeLines().length) pendingLine = firstLine();
+            if (FUNCS.main) { recordProgram(); doc.cur = 0; }
+            else { doc.traceKey = null; pendingLine = null; }
             save();
           }
         } else ui.editingCode = true;
@@ -5755,9 +6060,12 @@ function setup() {
     if (mod || e.altKey) return;
     if (e.key === 'Delete' || e.key === 'Backspace') { if (sel) { e.preventDefault(); deleteSel(); } }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); goStep(doc.cur - 1); }
-    else if (e.key === 'ArrowRight') { e.preventDefault(); goStep(doc.cur + 1); }
-    else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); runPending(); }
-    else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); runPending(true); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); execStep('into'); }
+    else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); execRun(); }
+    else if (e.key === 'i' || e.key === 'I') { e.preventDefault(); execStep('into'); }
+    else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); execStep('over'); }
+    else if (e.key === 'u' || e.key === 'U') { e.preventDefault(); execStep('out'); }
+    else if (e.key === 'Home') { e.preventDefault(); execRestart(); }
     else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); newManualStep(); }
     else if (e.key === '[') { e.preventDefault(); togglePanel('l'); }
     else if (e.key === ']') { e.preventDefault(); togglePanel('r'); }
