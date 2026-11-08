@@ -224,6 +224,53 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .con-s { font: 11px var(--font-mono); color: #8b949e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .con-b { margin: 0; padding: 2px 12px 10px; min-height: 120px; max-height: 60vh; overflow: auto; font: 12.5px/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-word; }
 .con-b .new { background: rgba(94, 234, 212, .18); color: #ffffff; border-radius: 3px; box-shadow: 0 0 0 2px rgba(94, 234, 212, .18); }
+.cl .pm { display: inline-block; min-width: 13px; margin-right: 3px; padding: 0 2px; border-radius: 3px; font-size: 10px; font-weight: 700; text-align: center; border: 1px solid currentColor; opacity: .6; }
+.cl .pm.on { opacity: 1; color: #fff !important; }
+.cl .pm-p { color: #0284c7; } .cl .pm-p.on { background: #0284c7; }
+.cl .pm-c { color: #c026d3; } .cl .pm-c.on { background: #c026d3; }
+.pbadge { padding: 1px 6px; border-radius: 4px; color: #fff; font-size: 12px; }
+.pb-parent { background: #0284c7; } .pb-child { background: #c026d3; }
+.tk.tl-parent, .tk.tl-child { font-family: var(--font-mono); font-size: 12px; padding: 1px 6px; border-radius: 4px; background: #0b0d10; }
+.vmwrap rect { fill: none; stroke: var(--grp); stroke-width: 1.5; stroke-dasharray: 6 5; }
+.vmwrap text { fill: var(--muted); font: 700 11px var(--font-body); letter-spacing: .06em; }
+.vmwrap.data rect { stroke: var(--r-global); }
+.pt .ptbox, .ram .rambox { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+.pt-parent .ptbox { stroke: #0284c7; } .pt-child .ptbox { stroke: #c026d3; }
+.pt.run .ptbox { stroke-width: 2.5; }
+.pth { fill: var(--ink); font: 600 12.5px var(--font-body); }
+.ptr rect { fill: var(--data-bg); }
+.ptr.wr rect { fill: none; stroke: var(--chg); stroke-width: 2; }
+.pva { fill: var(--addr); font: 600 12px var(--font-mono); }
+.pvk { fill: var(--ink); font: 12px var(--font-body); }
+.pperm { fill: var(--muted); font: 600 11.5px var(--font-mono); }
+.pperm.cow { fill: var(--uninit); }
+.frame rect { fill: var(--data-bg); stroke: var(--grp); stroke-width: 1.5; }
+.frame.sh rect { stroke: var(--r-global); stroke-dasharray: 5 3; }
+.frame.pv-parent rect { stroke: #0284c7; } .frame.pv-child rect { stroke: #c026d3; }
+.frame.fresh rect { stroke: var(--chg); stroke-width: 3; stroke-dasharray: none; }
+.frame .fn { fill: var(--ink); font: 600 12px var(--font-mono); }
+.frame .fs { fill: var(--muted); font: 11.5px var(--font-body); }
+.vmmap { fill: none; stroke-width: 1.8; opacity: .8; }
+.vmmap.vm-parent { stroke: #0284c7; } .vmmap.vm-child { stroke: #c026d3; }
+.vmmap.wr { stroke-width: 3; opacity: 1; }
+.vmcopy { fill: none; stroke: var(--chg); stroke-width: 2; stroke-dasharray: 6 4; }
+.vmcopyt { fill: var(--chg); font: 700 11px var(--font-body); }
+.con-b .con-note { color: #8b919b; font-style: italic; }
+.stdin-box textarea { width: 100%; box-sizing: border-box; min-height: 84px; resize: vertical; }
+.stdin-box .actions { margin-top: 6px; }
+.con-b .con-in { background: transparent; border: 0; outline: 0; color: #ffffff; font: inherit; padding: 0; width: 60%; min-width: 120px; caret-color: #5eead4; }
+.con-b .con-in:focus { box-shadow: inset 0 -1px 0 #5eead4; }
+.con-wait { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 13px; line-height: 1.5; }
+.con-wait .btn { margin-left: 6px; }
+.follow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.follow .btn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.term-h { margin: 16px 0 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.console.term { border-left-color: var(--r-stack); }
+.tl-parent { color: #7dd3fc; }
+.tl-child { color: #f0abfc; }
+.tl-before { color: #d7f5ec; }
+.tl.tie { text-decoration: underline dotted; text-underline-offset: 3px; }
+.term-k .tk { font-family: var(--font-mono); font-size: 12px; padding: 1px 6px; border-radius: 4px; background: #0b0d10; margin-right: 4px; }
 .con-b .con-e { color: #6b7280; }
 .con-b .caret { display: inline-block; width: 7px; height: 13px; background: #5eead4; vertical-align: -2px; opacity: .7; }
 .outchip { font: 600 10px var(--font-mono); color: var(--r-global); background: var(--r-global-bg); border-radius: 4px; padding: 0 4px; }
@@ -613,7 +660,8 @@ var BASE_SIZES = { char: 1, bool: 1, short: 2, int: 4, float: 4, long: 8, double
 var ALIASES = {
   size_t: 'unsigned long', ssize_t: 'long', ptrdiff_t: 'long', intptr_t: 'long', uintptr_t: 'unsigned long',
   int8_t: 'char', uint8_t: 'unsigned char', int16_t: 'short', uint16_t: 'unsigned short',
-  int32_t: 'int', uint32_t: 'unsigned int', int64_t: 'long', uint64_t: 'unsigned long', _Bool: 'bool'
+  int32_t: 'int', uint32_t: 'unsigned int', int64_t: 'long', uint64_t: 'unsigned long', _Bool: 'bool',
+  pid_t: 'int', uid_t: 'unsigned int', off_t: 'long', time_t: 'long'
 };
 var TYPE_WORDS = { unsigned: 1, signed: 1, long: 1, short: 1, int: 1, char: 1, float: 1, double: 1, void: 1, bool: 1,
   _Bool: 1, const: 1, volatile: 1, static: 1, register: 1, extern: 1, struct: 1, union: 1 };
@@ -864,7 +912,7 @@ function blockType(b) {
   return b.slots[0].type;
 }
 function blockTitle(b) {
-  if (b.kind === 'func') return b.name + '()';
+  if (b.kind === 'func') return b.execImg ? b.name : b.name + '()';
   if (b.region === 'reg') return b.name + (b.param ? ' \u2192 ' + b.param : '');
   if (b.name) return b.name;
   if (b.region === 'heap') return 'malloc(' + (b.allocSize || b.size) + ')';
@@ -978,10 +1026,14 @@ function findBlock(state, id) {
   for (var k = 0; k < state.blocks.length; k++) if (state.blocks[k].id === id) return state.blocks[k];
   return null;
 }
+/* after fork() the board holds two processes whose boxes share addresses (each has its own virtual
+   address space). FIND_PROC says whose memory an address is looked up in: '' parent, 'child' child. */
+var FIND_PROC = '';
 function findAt(state, addr) {
-  var best = null;
+  var best = null, multi = !!state.multi;
   for (var k = 0; k < state.blocks.length; k++) {
     var b = state.blocks[k];
+    if (multi && !b.vmShared && (b.proc || '') !== FIND_PROC) continue;
     if (addr >= b.addr && addr < b.addr + b.size) {
       var rel = addr - b.addr, idx = -1;
       for (var i = 0; i < b.slots.length; i++) {
@@ -1059,6 +1111,14 @@ function bytesOf(sl) {
 
 /* ---------- diff between two step states ---------- */
 function diffStates(prev, cur) {
+  var res = diffStates1(prev, cur);
+  if (!cur || !cur.multi) return res;
+  /* two processes on the board: say whose memory changed */
+  var who = {};
+  res.lines.forEach(function (l) { if (l.who) l.t = l.who + ': ' + l.t; });
+  return res;
+}
+function diffStates1(prev, cur) {
   var res = { lines: [], chg: {} };
   if (!prev) return res;
   var pm = {};
@@ -1067,25 +1127,30 @@ function diffStates(prev, cur) {
     var p = pm[b.id];
     if (!p) {
       res.chg[b.id] = { _new: true };
-      res.lines.push({ k: 'add', t: b.region === 'reg' ? b.name + ' holds ' + (b.param === 'return value' ? 'the return value' : b.param) + ' = ' + fmtVal(b.slots[0], true) + ' (a register)' : b.sys ? (b.sys === 'ret' ? 'pushed the return address' : 'pushed the saved rbp') + ' at ' + hex(b.addr) : 'created ' + blockTitle(b) + ' (' + blockType(b) + ') at ' + hex(b.addr) + (b.via === 'stack' ? ', passed on the stack' : b.via ? ', copied from ' + b.via : '') });
+      if (cur.multi && b.proc && !prev.blocks.some(function (o) { return o.proc === b.proc; }) && !b.execImg) {
+        res.lines.push({ k: 'add', who: 'child ' + b.pid, t: 'its own copy of ' + blockTitle(b) + ' at the same address ' + hex(b.addr) + (b.kind === 'scalar' ? ' = ' + fmtVal(b.slots[0], true) : '') });
+        return;
+      }
+      res.lines.push({ k: 'add', who: cur.multi ? (b.proc ? 'child ' + b.pid : 'parent') : '', t: b.region === 'reg' ? b.name + ' holds ' + (b.param === 'return value' ? 'the return value' : b.param) + ' = ' + fmtVal(b.slots[0], true) + ' (a register)' : b.sys ? (b.sys === 'ret' ? 'pushed the return address' : 'pushed the saved rbp') + ' at ' + hex(b.addr) : 'created ' + blockTitle(b) + ' (' + blockType(b) + ') at ' + hex(b.addr) + (b.via === 'stack' ? ', passed on the stack' : b.via ? ', copied from ' + b.via : '') });
       return;
     }
     delete pm[b.id];
     var c = {};
-    if (b.freed && !p.freed) { c._freed = true; res.lines.push({ k: 'free', t: 'freed ' + blockTitle(b) + ' at ' + hex(b.addr) }); }
+    var wh = cur.multi ? (b.proc ? 'child ' + b.pid : 'parent') : '';
+    if (b.freed && !p.freed) { c._freed = true; res.lines.push({ k: 'free', who: wh, t: 'freed ' + blockTitle(b) + ' at ' + hex(b.addr) }); }
     if (b.addr !== p.addr) res.lines.push({ k: 'mod', t: blockTitle(b) + ' moved to ' + hex(b.addr) });
     b.slots.forEach(function (sl, i) {
       var ps = p.slots[i];
       if (!ps || ps.value !== sl.value || ps.type !== sl.type) {
         c[i] = true;
-        res.lines.push({ k: 'mod', t: slotName(b, i) + ': ' + (ps ? fmtVal(ps, true) : '?') + ' \u2192 ' + fmtVal(sl, true) });
+        res.lines.push({ k: 'mod', who: wh, t: slotName(b, i) + ': ' + (ps ? fmtVal(ps, true) : '?') + ' \u2192 ' + fmtVal(sl, true) });
       }
     });
     if (Object.keys(c).length) res.chg[b.id] = c;
   });
   Object.keys(pm).forEach(function (id) {
     var o = pm[id];
-    res.lines.push({ k: 'del', t: o.region === 'reg' ? o.name + ' no longer holds ' + (o.param || 'it') + ' (overwritten, or its function returned)' : o.sys ? (o.sys === 'ret' ? 'ret popped the return address' : 'leave popped the saved rbp') : o.region === 'stack' ? blockTitle(o) + ' went out of scope' : o.region === 'heap' ? 'released ' + blockTitle(o) + ' at ' + hex(o.addr) : 'removed ' + blockTitle(o) });
+    res.lines.push({ k: 'del', who: cur.multi || prev.multi ? (o.proc ? 'child ' + o.pid : 'parent') : '', t: o.region === 'reg' ? o.name + ' no longer holds ' + (o.param || 'it') + ' (overwritten, or its function returned)' : o.sys ? (o.sys === 'ret' ? 'ret popped the return address' : 'leave popped the saved rbp') : o.region === 'stack' ? blockTitle(o) + ' went out of scope' : o.region === 'heap' ? 'released ' + blockTitle(o) + ' at ' + hex(o.addr) : 'removed ' + blockTitle(o) });
   });
   return res;
 }
@@ -1213,7 +1278,145 @@ function registerStruct(name, fields) {
 /* ================= interpreter ================= */
 var ASSIGN_OPS = ['=', '+=', '-=', '*=', '/=', '%=', '&=', '|=', '^=', '<<=', '>>='];
 var LEVELS = [['||'], ['&&'], ['|'], ['^'], ['&'], ['==', '!='], ['<', '>', '<=', '>='], ['<<', '>>'], ['+', '-'], ['*', '/', '%']];
-var NOOP_FUNCS = { printf: 1, puts: 1, putchar: 1, fprintf: 1, scanf: 1, fflush: 1, perror: 1, assert: 1, exit: 1 };
+var NOOP_FUNCS = { printf: 1, puts: 1, putchar: 1, fprintf: 1, scanf: 1, fflush: 1, assert: 1 };
+/* process calls: fork, getpid, getppid, wait, waitpid, sleep, usleep, perror, exit, the exec family,
+   fgets from stdin */
+var ERRNO_TEXT = { 0: 'Success', 2: 'No such file or directory', 10: 'No child processes', 13: 'Permission denied', 14: 'Bad address' };
+/* exec cannot run real programs here. These standard ones are pretended to exist (their output is not
+   simulated); any other path fails with ENOENT, as it would if the file did not exist */
+var KNOWN_PROGS = { ls: 1, date: 1, echo: 1, cat: 1, pwd: 1, whoami: 1, true: 1, false: 1, sleep: 1, wc: 1, sort: 1, grep: 1, head: 1, tail: 1,
+  sh: 1, bash: 1, ps: 1, uname: 1, hostname: 1, env: 1, clear: 1, mkdir: 1, rm: 1, cp: 1, mv: 1, touch: 1, id: 1, uptime: 1, cal: 1, who: 1 };
+function progExists(path, search) {
+  var m = /^\/(?:usr\/(?:local\/)?)?s?bin\/([\w.+-]+)$/.exec(path);
+  if (m) return !!KNOWN_PROGS[m[1]];
+  if (search && /^[\w.+-]+$/.test(path)) return !!KNOWN_PROGS[path];
+  return false;
+}
+var STDIN_TEXT = '', STDIN_EOF = false;
+/* which side of each fork() a recording follows, in the order the forks happen: 'parent' or 'child'.
+   Forks past the end of the list follow the parent. */
+var FORK_PATH = null;
+/* exit statuses of processes recorded earlier, by pid, so wait() can report them */
+var KNOWN_EXIT = {};
+function childPid(pid, k) { return pid === 4120 ? 4121 + k : pid * 10 + k + 1; }
+function procBuiltin(ctx, name, args, val) {
+  function n(v) { return { t: typeInfo('int'), v: v }; }
+  function storeInt(addr, v) {
+    if (!addr) return;
+    var r = findAt(ctx.state, addr);
+    if (!r || r.i < 0) throw new Error('Segmentation fault: ' + name + '() writes to ' + hex(addr) + ', where there is no memory');
+    var sl = r.b.slots[r.i];
+    sl.value = coerce(v, typeInfo(sl.type));
+  }
+  if (name === 'fork') {
+    var g = PROC.forks++;
+    var child = childPid(PROC.pid, PROC.own++), line = CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1].line : 0;
+    if (!PROC.forkAt) PROC.forkAt = { line: line, t: PROC.t, out: OUT.buf.length };
+    var side = FORK_PATH ? (FORK_PATH[g] || 'parent') : FORK_FOLLOW;
+    if (side === 'child') {
+      PROC.path.push('child');
+      note(ctx, 'fork() copied the whole process. This recording follows the CHILD (pid ' + child + '), so fork returns 0 here.');
+      PROC.ppid = PROC.pid; PROC.pid = child; PROC.kids = []; PROC.own = 0;
+      return n(0);
+    }
+    PROC.path.push('parent');
+    PROC.kids.push(child);
+    note(ctx, 'fork() copied the whole process. This recording follows the PARENT (pid ' + PROC.pid + '), so fork returns the child’s pid, ' + child + '. The child got 0 and runs its own copy at the same time.' + (FORK_PATH ? '' : ' To trace the child instead, choose Follow: child in the Output tab.'));
+    return n(child);
+  }
+  if (name === 'getpid') { note(ctx, 'getpid() returns this process’s id: ' + PROC.pid + ' (ids are made up here; the real ones differ every run).'); return n(PROC.pid); }
+  if (name === 'getppid') { note(ctx, 'getppid() returns the parent’s process id: ' + PROC.ppid + '.'); return n(PROC.ppid); }
+  if (name === 'wait' || name === 'waitpid') {
+    var want = name === 'waitpid' && args.length ? val(args[0]) : -1;
+    var stp = name === 'waitpid' ? (args.length > 1 ? val(args[1]) : 0) : (args.length ? val(args[0]) : 0);
+    var idx = want > 0 ? PROC.kids.indexOf(want) : PROC.kids.length ? 0 : -1;
+    if (idx < 0) {
+      PROC.errno = 10;
+      note(ctx, name + '() returns -1 right away: ' + (want > 0 ? 'process ' + want + ' is not a child of this process' : 'this process has no children to wait for') + ' (errno = ECHILD).');
+      return n(-1);
+    }
+    var kid = PROC.kids.splice(idx, 1)[0];
+    OUT.ev.push({ t: PROC.t, s: '', pid: PROC.pid, wait: kid });
+    PROC.pendWait = kid;
+    var ex = KNOWN_EXIT[kid];
+    if (stp && ex !== undefined) storeInt(stp, (ex & 255) << 8);
+    note(ctx, name + '() blocks this process until child ' + kid + ' has exited, then returns the child’s pid, ' + kid + '.' +
+      (stp ? (ex !== undefined ? ' It stores the child’s status in *status: exit code ' + ex + ' is encoded as ' + ((ex & 255) << 8) + ' (the code shifted left 8 bits; WEXITSTATUS(status) gets ' + ex + ' back).' : ' The child was not recorded, so *status is not filled in.') : ''));
+    return n(kid);
+  }
+  if (name === 'WEXITSTATUS') return n((val(args[0]) >> 8) & 255);
+  if (name === 'WIFEXITED') return n((val(args[0]) & 127) === 0 ? 1 : 0);
+  if (name === 'sleep' || name === 'usleep') {
+    var secs = args.length ? val(args[0]) : 0;
+    if (name === 'usleep') secs = secs / 1e6;
+    PROC.t += Math.max(0, secs);
+    note(ctx, name + '(' + (args.length ? val(args[0]) : '') + ') pauses this process for ' + secs + (secs === 1 ? ' second' : ' seconds') + '. Memory does not change. While it sleeps, other processes (like the other side of a fork) get to run.');
+    return n(0);
+  }
+  if (name === 'perror') {
+    var ps = args.length ? cString(ctx.state, val(args[0])) : '', en = PROC.errno || 0;
+    outWrite((ps ? ps + ': ' : '') + (ERRNO_TEXT[en] || 'Error ' + en) + '\n');
+    note(ctx, 'perror prints your message, a colon and the text for the current errno (' + en + ': ' + (ERRNO_TEXT[en] || '?') + ') to stderr, which shows up on the same terminal.');
+    return n(0);
+  }
+  if (name === 'exit' || name === '_exit') {
+    var code = args.length ? val(args[0]) : 0;
+    PROC.exit = code;
+    throw { ctl: 'exit', code: code, fn: name, message: name + '(' + code + ') ends the program' };
+  }
+  if (/^exec(v|ve|vp|l|le|lp)$/.test(name)) {
+    if (!args.length) throw new Error(name + '() needs the path of the program to run');
+    var path = cString(ctx.state, val(args[0]));
+    if (path === null) throw new Error(name + '(): the first argument is not a string');
+    var argvList = [];
+    if (/^execv/.test(name) && args.length > 1) {
+      for (var q = 0; q < 16; q++) {
+        var r2 = findAt(ctx.state, val(args[1]) + q * 8);
+        if (!r2 || r2.i < 0) break;
+        var pv = r2.b.slots[r2.i].value;
+        if (!pv) break;
+        argvList.push(cString(ctx.state, pv));
+      }
+    } else for (var q2 = 1; q2 < args.length; q2++) { var av = val(args[q2]); if (!av) break; argvList.push(cString(ctx.state, av)); }
+    var search = /p$/.test(name);
+    if (!progExists(path, search)) {
+      PROC.errno = 2;
+      note(ctx, name + '("' + path + '") failed and returned -1, with errno = ENOENT (No such file or directory). ' +
+        (path === '' ? 'The path is empty.' : !search && path.indexOf('/') < 0 ? name + ' does not search the PATH: it needs a full path like /bin/' + path + '.' : 'There is no such program. MemoryDojo pretends these exist: /bin/ls, /bin/date, /bin/echo, /bin/pwd, /usr/bin/whoami and other standard ones.') +
+        ' When exec fails the process is still running the old program, so it continues with the next line.');
+      return n(-1);
+    }
+    throw { ctl: 'exec', path: path, argv: argvList, fn: name, message: name + ' replaced the program' };
+  }
+  if (name === 'fgets') {
+    if (args.length < 3) throw new Error('fgets takes three arguments: buffer, size, stream');
+    var dst = val(args[0]), size = val(args[1]), text = STDIN_TEXT, pos = PROC.inPos || 0;
+    if (pos >= text.length) {
+      if (!STDIN_EOF) {
+        /* like a real terminal: the program blocks here until a line is typed */
+        /* record the wait here, with the whole call stack, before unwinding */
+        PROC.waitingInput = true;
+        if (REC) recSnap(ctx.state, CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1].line : 0, ctx.msgs.splice(0).concat([{ level: 'call', text: name + ' is waiting for you to type a line. The process is blocked inside the read() system call: it uses no CPU and nothing in memory changes until input arrives. Type the line in the Output tab and press Enter, or choose End of input (Ctrl+D) to close stdin.' }]), 'input');
+        throw { ctl: 'input', fn: name, recorded: true, message: name + ' is waiting for input' };
+      }
+      note(ctx, 'fgets returns NULL: stdin was closed (end of file, like pressing Ctrl+D), so there is nothing more to read.');
+      return { t: typeInfo('char*'), v: 0 };
+    }
+    var nl = text.indexOf('\n', pos), end = nl < 0 ? text.length : nl + 1;
+    end = Math.min(end, pos + Math.max(0, size - 1));
+    var line = text.slice(pos, end);
+    PROC.inPos = end;
+    for (var c = 0; c <= line.length; c++) {
+      var r3 = findAt(ctx.state, dst + c);
+      if (!r3 || r3.i < 0) throw new Error('fgets wrote past the end of the buffer at ' + hex(dst + c));
+      r3.b.slots[r3.i].value = c < line.length ? line.charCodeAt(c) & 255 : 0;
+    }
+    outWrite(line + (/\n$/.test(line) ? '' : '\n'));
+    note(ctx, 'fgets reads one line from stdin, ' + JSON.stringify(line) + ', into the buffer: ' + line.length + ' characters' + (/\n$/.test(line) ? ' including the newline' : '') + ', then a \\0. It returns the buffer’s address. (The terminal echoes what you type, so the line also appears in the output.)');
+    return { t: typeInfo('char*'), v: dst };
+  }
+  return null;
+}
 
 function unescapeC(s) {
   return s.replace(/\\(x[0-9a-fA-F]+|[0-7]{1,3}|.)/g, function (m, e) {
@@ -1257,6 +1460,25 @@ function makeCtx(state, region, frame, depth) { return { state: state, msgs: [],
 function funcBlock(st, F) {
   for (var k = 0; k < st.blocks.length; k++) if (st.blocks[k].region === 'code' && st.blocks[k].name === F.name) return st.blocks[k];
   return makeBlock(st, { name: F.name, region: 'code', kind: 'func', slots: [], addr: F.addr, typeName: fnType(F.fn, 0).str, sig: F.sig });
+}
+/* A program that forks gets its string literals and function code laid out before main starts, the
+   way the loader maps the executable: then both processes see the same read-only pages. */
+function preloadImage(st, src) {
+  Object.keys(FUNCS).forEach(function (n) { funcBlock(st, FUNCS[n]); });
+  var ctx = { state: st, preload: true };
+  blankComments(src).split('\n').forEach(function (ln) {
+    if (/^\s*#/.test(ln)) return;
+    var toks;
+    try { toks = tokenize(ln); } catch (e) { return; }
+    for (var k = 0; k < toks.length; k++) {
+      if (toks[k].k !== 'str') continue;
+      var s = toks[k].v, k0 = k;
+      while (toks[k + 1] && toks[k + 1].k === 'str') s += toks[++k].v;
+      /* char buf[] = "..." fills the array itself: no literal in read-only memory */
+      if (toks[k0 - 1] && toks[k0 - 1].s === '=' && /\]\s*=\s*"/.test(ln)) continue;
+      strLiteralBlock(ctx, s);
+    }
+  });
 }
 function funcAt(addr) {
   var names = Object.keys(FUNCS);
@@ -1330,8 +1552,16 @@ function funcBody(F) {
    {line, state, msgs, stack, kind}. CALLSTACK is the chain of active calls, innermost last. */
 var REC = null, CALLSTACK = [], REC_LIMIT = 400;
 /* what the program printed: each step keeps the text printed since the previous step */
-var OUT = { buf: '', mark: 0 };
-function outReset() { OUT = { buf: '', mark: 0 }; }
+var OUT = { buf: '', mark: 0, ev: [] };
+function outReset() { OUT = { buf: '', mark: 0, ev: [] }; }
+/* processes: fork() splits the program in two. A recording follows one process (FORK_FOLLOW says
+   which one after every fork). PROC.t is a virtual clock in seconds that only sleep() advances, so
+   the output of two recordings can be lined up the way the terminal would show it. */
+var FORK_FOLLOW = 'parent';
+var PROC = null;
+function procReset() { PROC = { pid: 4120, ppid: 4100, next: 4121, own: 0, t: 0, lastT: 0, forks: 0, kids: [], forkAt: null, path: [], pendWait: 0, errno: 0, inPos: 0 }; }
+procReset();
+function outWrite(s) { OUT.buf += s; OUT.ev.push({ t: PROC.t, s: s, pid: PROC.pid }); }
 function outTake() { var s = OUT.buf.slice(OUT.mark); OUT.mark = OUT.buf.length; return s; }
 function recSnap(st, line, msgs, kind) {
   if (!REC) return;
@@ -1339,7 +1569,9 @@ function recSnap(st, line, msgs, kind) {
   if (REC.over && CALLSTACK.length > 1 && kind !== 'end') return;
   if (REC.length >= REC_LIMIT) { REC.truncated = true; return; }
   if (CALLSTACK.length) CALLSTACK[CALLSTACK.length - 1].line = line;
-  REC.push({ line: line, state: cloneState(st), msgs: (msgs || []).filter(function (m) { return m && m.text; }), stack: CALLSTACK.map(function (c) { return { fn: c.fn, line: c.line }; }), kind: kind || 'stmt', out: outTake() });
+  var pr = PROC ? { t0: PROC.lastT || 0, forks: PROC.forks, pid: PROC.pid, wait: PROC.pendWait || 0 } : null;
+  if (PROC) { PROC.lastT = PROC.t; PROC.pendWait = 0; }
+  REC.push({ line: line, state: cloneState(st), msgs: (msgs || []).filter(function (m) { return m && m.text; }), stack: CALLSTACK.map(function (c) { return { fn: c.fn, line: c.line }; }), kind: kind || 'stmt', out: outTake(), proc: pr });
 }
 function showVal(v, t) {
   if (v === null || v === undefined) return '?';
@@ -1368,12 +1600,12 @@ function traceProgram(stepInto, limit, initial) {
   ctx.traceMain = true;
   var saved = REC_LIMIT;
   REC_LIMIT = limit || 1500;
-  REC = []; REC.over = !stepInto; CALLSTACK = []; outReset();
+  REC = []; REC.over = !stepInto; CALLSTACK = []; outReset(); procReset();
   var err = null;
   try { runTokens(ctx, tokenize('main()'), 'stmt'); } catch (e) { err = e.message || String(e); }
   var rec = REC;
   REC = null; CALLSTACK = []; REC_LIMIT = saved;
-  return { rec: rec, error: err, truncated: !!rec.truncated };
+  return { rec: rec, error: err, truncated: !!rec.truncated, proc: { forks: PROC.forks, pid: PROC.pid, waitingInput: !!PROC.waitingInput, ev: OUT.ev, forkAt: PROC.forkAt, path: PROC.path.slice(), exit: PROC.exit } };
 }
 function cFormat(st, fmt, vals) {
   var k = 0;
@@ -1401,12 +1633,14 @@ function strLiteralBlock(ctx, text) {
   var st = ctx.state, name = '"' + (text.length > 12 ? text.slice(0, 11) + '\u2026' : text) + '"';
   for (var k = 0; k < st.blocks.length; k++) {
     var b = st.blocks[k];
-    if (b.region === 'rodata' && b.strText === text) return b;
+    if (b.region === 'rodata' && b.strText === text) { if (b.unused && !ctx.preload) delete b.unused; return b; }
   }
   var slots = [];
   for (var c = 0; c <= text.length; c++) slots.push({ label: '[' + c + ']', type: 'char', value: c < text.length ? text.charCodeAt(c) & 255 : 0 });
   var nb = makeBlock(st, { name: name, region: 'rodata', kind: 'array', slots: slots });
   nb.strText = text;
+  /* laid out by the loader but not drawn until the program first uses it */
+  if (ctx.preload) nb.unused = true;
   return nb;
 }
 function materialize(ctx, size, pt, zero) {
@@ -1695,6 +1929,7 @@ function runTokens(ctx, toks, mode, destType) {
     /* run the whole body, with if / else, while, for, do-while, break, continue and return */
     var body = funcBody(F), steps = 0;
     function cond(tk, line, what, text, yes, no) {
+      if (REC && CALLSTACK.length) CALLSTACK[CALLSTACK.length - 1].line = line;
       var R = runTokens(c2, tk, 'expr');
       if (R.blk) throw new Error('a whole struct cannot be used as a condition');
       var v = R.v !== undefined ? R.v : R.lv ? R.lv.b.slots[R.lv.i].value : 0;
@@ -1772,6 +2007,7 @@ function runTokens(ctx, toks, mode, destType) {
     }
     try { exec(body); } catch (e) {
       if (e && e.ctl === 'return') returned = true;
+      else if (e && (e.ctl === 'exit' || e.ctl === 'exec' || e.ctl === 'input')) { if (REC) CALLSTACK.pop(); throw e; }
       else if (e && e.ctl) { if (REC) CALLSTACK.pop(); throw new Error('"' + e.ctl + '" outside of a loop in ' + F.name + '()'); }
       else { if (REC) CALLSTACK.pop(); throw e; }
     }
@@ -1811,8 +2047,9 @@ function runTokens(ctx, toks, mode, destType) {
     var mark = 0;
     function fresh() { var m = c2.msgs.slice(mark); mark = c2.msgs.length; return m; }
     function snap(line, extra, kind) { if (REC) recSnap(st, line, fresh().concat(extra ? [{ level: 'flow', text: extra }] : []), kind); }
-    var returned = false, steps = 0, lastLine = F.line, retVal = null;
+    var returned = false, steps = 0, lastLine = F.line, retVal = null, exited = null;
     function cond(n, what, yes, no, line) {
+      lastLine = line || n.line; if (REC && CALLSTACK.length) CALLSTACK[CALLSTACK.length - 1].line = lastLine;
       var R = runTokens(c2, n.cond, 'expr');
       if (R.blk) throw new Error('a whole struct cannot be used as a condition');
       var v = R.v !== undefined ? R.v : R.lv ? R.lv.b.slots[R.lv.i].value : 0;
@@ -1875,9 +2112,45 @@ function runTokens(ctx, toks, mode, destType) {
     }
     try { exec(funcBody(F)); } catch (e) {
       if (e && e.ctl === 'return') returned = true;
+      else if (e && (e.ctl === 'exit' || e.ctl === 'exec' || e.ctl === 'input')) exited = e;
       else if (e && e.ctl) throw new Error('"' + e.ctl + '" outside of a loop in main()');
       else throw e;
     }
+    if (exited && exited.ctl === 'input') {
+      /* blocked reading stdin: the recording stops here until the user types a line */
+      var inL = CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1].line : lastLine;
+      PROC.waitingInput = true;
+      if (REC && !exited.recorded) recSnap(st, inL, fresh().concat([{ level: 'call', text: exited.fn + ' is waiting for you to type a line. The process is blocked inside the read() system call: it uses no CPU and nothing in memory changes until input arrives. Type the line in the Output tab and press Enter, or choose End of input (Ctrl+D) to close stdin.' }]), 'input');
+      return num(0, 'int');
+    }
+    if (exited && exited.ctl === 'exec') {
+      /* exec: this process now runs a different program. Its C memory is gone. */
+      var exL = CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1].line : lastLine;
+      CALLSTACK.length = Math.min(CALLSTACK.length, 1);
+      if (CALLSTACK.length) CALLSTACK[0].line = exL;
+      var prog = exited.path, base = prog.split('/').pop();
+      st.blocks = st.blocks.filter(function (b) { return false; });
+      makeBlock(st, { name: prog, region: 'code', kind: 'func', slots: [], addr: CODE_BASE, typeName: 'program', sig: prog + ' ' + exited.argv.slice(1).join(' ') + '  (a new program image)', x: 0, y: 0 }).execImg = prog;
+      st.blocks[st.blocks.length - 1].auto = true; st.blocks[st.blocks.length - 1].code = true;
+      if (REC) recSnap(st, exL, fresh().concat([{ level: 'call', text: exited.fn + '("' + prog + '") succeeded, so it never returns: the kernel threw away this process’s whole memory image (its stack, heap, globals and code, including every variable on this board) and loaded the program ' + prog + ' in its place. The process keeps its pid, its open files (the same terminal) and its parent. The lines after ' + exited.fn + ' in your code never run in this process.' }]), 'exec');
+      var exitCode = base === 'false' ? 1 : 0;
+      PROC.exit = exitCode;
+      if (REC) {
+        REC.push({ line: exL, state: cloneState({ blocks: st.blocks, notes: [], groups: [], alloc: st.alloc }), msgs: [{ level: 'call', text: prog + ' runs and exits with status ' + exitCode + '. (MemoryDojo does not run real programs, so its output is not shown.)' }], stack: CALLSTACK.map(function (c) { return { fn: c.fn, line: c.line }; }), kind: 'end', out: '\u2039' + prog + ' runs here: its output is not simulated\u203a\n', proc: { t0: PROC.t, forks: PROC.forks, pid: PROC.pid, wait: 0 }, note: true });
+        REC[REC.length - 1].state.blocks = [];
+      }
+      return num(exitCode, 'int');
+    }
+    if (exited) {
+      var exLine = CALLSTACK.length ? CALLSTACK[CALLSTACK.length - 1].line : lastLine;
+      CALLSTACK.length = Math.min(CALLSTACK.length, 1);
+      if (CALLSTACK.length) CALLSTACK[0].line = exLine;
+      retVal = exited.code;
+      var infoX = endProgram(st, exited.fn + '(' + exited.code + ') ended the process right away');
+      if (REC) recSnap(st, exLine, fresh().concat([{ level: 'call', text: endMessage(infoX) + ' Exit status: ' + exited.code + '.' }]), 'end');
+      return num(retVal, 'int');
+    }
+    if (PROC) PROC.exit = retVal || 0;
     var info = endProgram(st, returned ? 'main returned' : 'main reached its closing brace');
     if (REC) recSnap(st, F.end, fresh().concat([{ level: 'call', text: endMessage(info) }]), 'end');
     return num(retVal || 0, 'int');
@@ -1910,15 +2183,15 @@ function runTokens(ctx, toks, mode, destType) {
         return num(0, 'int');
       }
       var shown = cFormat(st, fmtText, args.slice(1).map(function (A) { return val(fin(A, null)); }));
-      OUT.buf += shown;
+      outWrite(shown);
       note(ctx, 'printf prints: ' + JSON.stringify(shown.replace(/\n$/, '')).slice(1, -1).replace(/\\"/g, '"') + '. Printing does not change memory.');
       return num(shown.length, 'int');
     }
     if (name === 'puts' && args.length) {
       var ps = cString(st, val(args[0]));
-      if (ps !== null) { OUT.buf += ps + '\n'; note(ctx, 'puts prints: ' + ps + ' (and a newline).'); return num(ps.length + 1, 'int'); }
+      if (ps !== null) { outWrite(ps + '\n'); note(ctx, 'puts prints: ' + ps + ' (and a newline).'); return num(ps.length + 1, 'int'); }
     }
-    if (name === 'putchar' && args.length) { var pc = val(args[0]) & 255; OUT.buf += String.fromCharCode(pc); note(ctx, 'putchar prints ' + (charText(pc) || pc) + '.'); return num(pc, 'int'); }
+    if (name === 'putchar' && args.length) { var pc = val(args[0]) & 255; outWrite(String.fromCharCode(pc)); note(ctx, 'putchar prints ' + (charText(pc) || pc) + '.'); return num(pc, 'int'); }
     if (name === 'malloc') {
       if (args.length !== 1) throw new Error('malloc takes one argument');
       var V = { t: typeInfo('void*'), pending: { size: val(args[0]), zero: false } };
@@ -1944,6 +2217,8 @@ function runTokens(ctx, toks, mode, destType) {
       }
       return num(n, 'unsigned long');
     }
+    var pb = procBuiltin(ctx, name, args, val);
+    if (pb) return pb;
     if (NOOP_FUNCS[name]) { note(ctx, name + '() does not change memory, so nothing changed'); return num(0, 'int'); }
     if (name === 'realloc') throw new Error('realloc is not simulated: draw the new block yourself or use malloc and free');
     throw new Error('the function ' + name + '() is not simulated. Make the change by hand on the canvas.');
@@ -1962,6 +2237,7 @@ function runTokens(ctx, toks, mode, destType) {
     if (t.k === 'id') {
       if (isOp('(')) return call(t.s);
       if (t.s === 'NULL' || t.s === 'nullptr') return { t: typeInfo('void*'), v: 0 };
+      if ((t.s === 'stdin' || t.s === 'stdout' || t.s === 'stderr') && !lookupVar(st, t.s, ctx.onlyFrame)) return { t: typeInfo('void*'), v: 0xf000 + ['stdin', 'stdout', 'stderr'].indexOf(t.s) * 8 };
       if (FUNCS[t.s] && !lookupVar(st, t.s, ctx.onlyFrame)) {
         /* a function's name is the address of its code (it decays to a function pointer) */
         var Fn = FUNCS[t.s];
@@ -2365,7 +2641,7 @@ function prevState() { return doc.cur > 0 ? doc.steps[doc.cur - 1].state : null;
 function codeLines() { return doc.code.split('\n'); }
 function regionFor(line) { return (defs.depth[line] || 0) > 0 ? 'stack' : 'global'; }
 function frameFor(line) { return (defs.fnAt && defs.fnAt[line]) || ''; }
-function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, auto: doc.autoPos || {}, tk: doc.traceKey || null, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
+function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, auto: doc.autoPos || {}, tk: doc.traceKey || null, stdin: doc.stdin || '', eof: !!doc.stdinEOF, follow: doc.follow || 'parent', term: doc.terminal || null, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
 /* ---------- keep struct boxes in line with their struct definitions ---------- */
 function fieldDecl(type, name) { var m = /^(.*?)\s*(\**)$/.exec(type); return m[1] + ' ' + m[2] + name + ';'; }
 function sameFields(b, fields) {
@@ -2404,7 +2680,7 @@ function restore(json) {
   if (!d || !Array.isArray(d.steps) || !d.steps.length) throw new Error('that text is not a saved whiteboard');
   EXTRA_STRUCTS = d.extra || {};
   NEXT_ID = d.nextId || 1000;
-  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1), autoPos: d.auto || {}, traceKey: d.tk || null };
+  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1), autoPos: d.auto || {}, traceKey: d.tk || null, stdin: d.stdin || '', stdinEOF: !!d.eof, follow: d.follow === 'child' ? 'child' : 'parent', terminal: d.term || null };
   defs = setDefs(doc.code);
   syncAllStructs();
 }
@@ -2525,7 +2801,7 @@ function lineCallsUser(L) {
   });
 }
 function inCall() { return !!doc.steps[doc.cur].stack; }
-function recToStep(s, L) { return { id: uid('s'), line: s.line, state: s.state, msgs: s.msgs, stack: s.stack, kind: s.kind, callLine: L, out: s.out || '' }; }
+function recToStep(s, L) { return { id: uid('s'), line: s.line, state: s.state, msgs: s.msgs, stack: s.stack, kind: s.kind, callLine: L, out: s.out || '', pt: s.proc || null }; }
 /* Debug: run the whole program from the top of main and record every step, following loops and branches */
 /* ================= one execution engine =================
    The program runs the way a CPU would: from the top of main, through every loop round, branch and
@@ -2542,24 +2818,245 @@ function recordProgram() {
     if (gr.error && !gerr) gerr = 'line ' + L + ': ' + gr.error;
     if (gr.state) st0 = gr.state;
   }
-  var res = traceProgram(true, 2000, st0);
-  if (gerr && !res.error) res.error = gerr;
+  if (/\bfork\s*\(/.test(blankComments(doc.code || ''))) { try { preloadImage(st0, doc.code); } catch (e) { /* draw them as they are used */ } }
   var mainF = FUNCS.main;
-  var start = { id: uid('s'), line: mainF.line, state: cloneState(st0), msgs: [{ level: 'call', text: 'The start of main(). Run plays the whole program; Step into, Step over and Step out walk through it one statement, check, call or return at a time.' }], stack: [{ fn: 'main', line: mainF.line }], kind: 'start', out: '' };
-  try { start.cpu = cpuSave(cpuInit()); } catch (e) { /* no code */ }
-  var steps = res.rec.map(function (s) { return recToStep(s, mainF.line); });
-  if (res.error && (!steps.length || steps[steps.length - 1].kind !== 'crash')) steps.push({ id: uid('s'), line: steps.length ? steps[steps.length - 1].line : mainF.line, state: steps.length ? cloneState(steps[steps.length - 1].state) : newState(), msgs: [{ level: 'err', text: res.error }], stack: [{ fn: 'main', line: mainF.line }], kind: 'crash', out: '' });
-  if (res.truncated && steps.length) steps[steps.length - 1].msgs.push({ level: 'warn', text: 'Recording stopped after 2000 steps (a very long loop or deep recursion). Everything up to here is accurate.' });
-  if (steps.length && steps[steps.length - 1].kind === 'crash') steps[steps.length - 1].crash = true;
-  try { cpuForSteps(start, steps, mainF.line, true, true); } catch (e) { steps.forEach(function (s, k) { cpuCopy(k ? steps[k - 1] : start, s); }); }
-  doc.steps = [start].concat(steps);
+  function startStep() {
+    var st = { id: uid('s'), line: mainF.line, state: cloneState(st0), msgs: [{ level: 'call', text: 'The start of main(). Run plays the whole program; Step into, Step over and Step out walk through it one statement, check, call or return at a time.' }], stack: [{ fn: 'main', line: mainF.line }], kind: 'start', out: '' };
+    try { st.cpu = cpuSave(cpuInit()); } catch (e) { /* no code */ }
+    return st;
+  }
+  /* one recording: the steps of one process, with its own CPU registers. path says which side of
+     each fork() it follows, in the order the forks happen. */
+  STDIN_TEXT = doc.stdin || ''; STDIN_EOF = !!doc.stdinEOF;
+  function record(path, known) {
+    FORK_PATH = path; KNOWN_EXIT = known || {};
+    var res = traceProgram(true, 2000, st0);
+    if (gerr && !res.error) res.error = gerr;
+    var start = startStep(), steps = res.rec.map(function (s) { var x = recToStep(s, mainF.line); if (s.note) x.outNote = true; return x; });
+    if (res.error && (!steps.length || steps[steps.length - 1].kind !== 'crash')) steps.push({ id: uid('s'), line: steps.length ? steps[steps.length - 1].line : mainF.line, state: steps.length ? cloneState(steps[steps.length - 1].state) : newState(), msgs: [{ level: 'err', text: res.error }], stack: [{ fn: 'main', line: mainF.line }], kind: 'crash', out: '', pt: steps.length ? steps[steps.length - 1].pt : null });
+    if (res.truncated && steps.length) steps[steps.length - 1].msgs.push({ level: 'warn', text: 'Recording stopped after 2000 steps (a very long loop or deep recursion). Everything up to here is accurate.' });
+    if (steps.length && steps[steps.length - 1].kind === 'crash') steps[steps.length - 1].crash = true;
+    FORK_PATH_EMU = path;
+    try { cpuForSteps(start, steps, mainF.line, true, true); } catch (e) { steps.forEach(function (s, k) { cpuCopy(k ? steps[k - 1] : start, s); }); }
+    FORK_PATH = null; FORK_PATH_EMU = null; KNOWN_EXIT = {};
+    return { res: res, start: start, steps: steps };
+  }
+  /* every process the program creates: the main one first, then one recording per fork() */
+  var procs = [], queue = [{ path: [], parent: -1 }], CAP = 8;
+  while (queue.length && procs.length < CAP) {
+    var q = queue.shift(), R = record(q.path);
+    var pr = { path: q.path, R: R, idx: procs.length, parent: q.parent };
+    procs.push(pr);
+    var own = (R.res.proc ? R.res.proc.forks : 0) - q.path.length;
+    for (var m = 0; m < own; m++) { var np = q.path.slice(); for (var z = 0; z < m; z++) np.push('parent'); np.push('child'); queue.push({ path: np, parent: pr.idx }); }
+  }
+  var steps = procs[0].R.steps, res = procs[0].R.res, P = procs[0].R;
+  doc.terminal = null;
+  if (procs.length > 1) {
+    /* wait() can report a child's exit status once the child has been recorded */
+    var known = {};
+    procs.forEach(function (x) { if (x.R.res.proc && x.R.res.proc.exit != null) known[x.R.res.proc.pid] = x.R.res.proc.exit; });
+    procs.forEach(function (x) { if (x.R.steps.some(function (st) { return st.pt && st.pt.wait; })) x.R = record(x.path, known); });
+    P = procs[0].R; res = P.res;
+    steps = weaveProcs(procs, queue.length > 0);
+  }
+  doc.steps = [P.start].concat(steps);
+  if (steps.some(function (x) { return x.vm; })) {
+    /* code and literals are one shared image: keep them in their own group on every step */
+    doc.steps.forEach(function (x) { x.state.blocks.forEach(function (b) { if (b.region === 'code' || b.region === 'rodata') b.vmShared = true; }); });
+  }
   doc.cur = 0;
-  doc.traceKey = doc.code;
+  doc.traceKey = traceKeyNow();
   pendingLine = null; sel = null;
   ui.runError = res.error || null;
   return true;
 }
-function traceStale() { return !doc.traceKey || doc.traceKey !== doc.code; }
+/* Two recordings of the same program, one following the parent after fork() and one the child, are
+   identical up to the fork. From the fork on, the board holds both processes. Each has its own virtual
+   address space, so the child's boxes sit at the same virtual addresses as the parent's. Underneath,
+   a page table per process maps 4 KB virtual pages to physical frames: right after fork() both map
+   every page to the same frames, marked read-only; the first write to a shared page makes the kernel
+   copy it (copy-on-write). Code and string literals are read-only and stay shared. The steps of the
+   two processes are interleaved the way a simple scheduler would run them: a process keeps the CPU
+   until it sleeps, waits for a child or exits. */
+var PAGE = 4096;
+function pageKind(region) { return region === 'code' ? 'code' : region === 'rodata' ? 'rodata' : region === 'global' ? 'data' : region === 'heap' ? 'heap' : 'stack'; }
+var PAGE_NAME = { code: 'code (text)', rodata: 'read-only data', data: 'data (globals)', heap: 'heap', stack: 'stack' };
+function pagesOf(st) {
+  var out = {};
+  st.blocks.forEach(function (b) {
+    if (b.region === 'reg' || b.addr < 0) return;
+    for (var a = Math.floor(b.addr / PAGE) * PAGE; a < b.addr + Math.max(1, b.size || 1); a += PAGE) if (!out[a]) out[a] = pageKind(b.region);
+  });
+  return out;
+}
+/* the pages a process wrote between two of its own states */
+function writtenPages(prev, cur) {
+  var pm = {}, out = {};
+  prev.blocks.forEach(function (b) { pm[b.id] = b; });
+  cur.blocks.forEach(function (b) {
+    if (b.region === 'reg' || b.region === 'code' || b.region === 'rodata' || b.addr < 0) return;
+    var p = pm[b.id], wrote = false;
+    if (!p) wrote = b.slots.some(function (sl) { return sl.value !== null && sl.value !== undefined; });
+    else wrote = b.freed !== p.freed || b.slots.some(function (sl, i) { return !p.slots[i] || p.slots[i].value !== sl.value; });
+    if (wrote) for (var a = Math.floor(b.addr / PAGE) * PAGE; a < b.addr + Math.max(1, b.size || 1); a += PAGE) out[a] = pageKind(b.region);
+  });
+  return out;
+}
+/* tags: the first process is 'parent'; the ones it creates are 'child', 'child2', ... */
+function procTag(idx) { return idx === 0 ? 'parent' : idx === 1 ? 'child' : 'child' + idx; }
+function procName(tag, pid) { return (tag === 'parent' ? 'parent' : 'child') + ' ' + pid; }
+function weaveProcs(procs, capped) {
+  var PID = {}, byPath = {};
+  procs.forEach(function (x) {
+    x.tag = procTag(x.idx); x.S = x.R.steps; x.start = x.R.start;
+    x.pid = x.idx === 0 ? 4120 : (x.R.res.proc ? x.R.res.proc.pid : 0);
+    PID[x.tag] = x.pid; byPath[x.path.join(',')] = x;
+    x.ci = 0;
+    if (x.idx) { x.ci = -1; for (var k = 0; k < x.S.length; k++) if (x.S[k].pt && x.S[k].pt.forks >= x.path.length) { x.ci = k; break; } }
+    x.pre = x.ci > 0 ? x.S[x.ci - 1] : x.start;
+    x.i = 0; x.alive = x.idx === 0; x.started = x.idx === 0; x.last = x.start; x.ran = false;
+  });
+  procs = procs.filter(function (x) { return x.idx === 0 || x.ci >= 0; });
+  var root = procs[0], out = [], forkSeen = false;
+  /* code and string literals: one copy, mapped by every process running this program */
+  var shared = cloneState(root.pre.state).blocks.filter(function (b) { return b.region === 'code' || b.region === 'rodata'; });
+  /* ----- virtual memory: page tables and physical frames ----- */
+  var frames = {}, nextF = 0, maps = {};
+  function newFrame(kind, label) { var id = 'f' + (nextF++); frames[id] = { id: id, pfn: 0x1a0 + nextF - 1, kind: kind, label: label || '', refs: {}, ro: kind === 'code' || kind === 'rodata', cow: false, slot: nextF - 1 }; return frames[id]; }
+  function hx(n) { return '0x' + n.toString(16); }
+  function nm(x) { return 'the ' + procName(x.tag, x.pid).replace(/ \d+$/, '') + ' (pid ' + x.pid + ')'; }
+  function alive() { return procs.filter(function (x) { return x.alive; }); }
+  function combo(src, who, msgs) {
+    var st = { blocks: cloneState({ b: shared }).b, notes: [], groups: [], alloc: root.last.state.alloc, multi: true }, used = {};
+    st.blocks.forEach(function (b) { b.vmShared = true; });
+    alive().forEach(function (x) { x.last.state.blocks.forEach(function (b) { if (b.region === 'rodata' && !b.unused) used[b.addr] = 1; }); });
+    st.blocks.forEach(function (b) { if (b.region === 'rodata') { if (used[b.addr]) delete b.unused; else b.unused = true; } });
+    alive().forEach(function (x) {
+      cloneState(x.last.state).blocks.forEach(function (b) {
+        if ((b.region === 'code' || b.region === 'rodata') && !b.execImg) return;
+        if (x.idx) { b.id = x.tag + ':' + b.id; b.proc = x.tag; b.pid = x.pid; }
+        st.blocks.push(b);
+      });
+    });
+    var pl = {}; alive().forEach(function (x) { pl[x.tag] = x.last.line; });
+    return { id: uid('s'), line: src.line, state: st, msgs: msgs, stack: src.stack, kind: src.kind, callLine: src.callLine, out: src.out || '', outNote: src.outNote, cpu: src.cpu,
+      proc: who.tag, pids: PID, plines: pl, crash: src.crash, pt: src.pt };
+  }
+  function vmSnap(ev, fresh) {
+    var fr = [], m = {};
+    Object.keys(frames).forEach(function (id) { var f = frames[id]; if (Object.keys(f.refs).length) fr.push({ id: id, pfn: f.pfn, kind: f.kind, label: f.label, refs: Object.keys(f.refs), ro: f.ro, cow: f.cow, slot: f.slot, isNew: !!(fresh && fresh[id]), from: fresh && fresh[id] && fresh[id] !== true ? fresh[id] : null }); });
+    alive().forEach(function (x) {
+      m[x.tag] = Object.keys(maps[x.tag] || {}).map(Number).sort(function (a, b) { return a - b; }).map(function (vp) { var f = frames[maps[x.tag][vp]]; return { vp: vp, kind: f.kind, label: f.label, f: f.id, pfn: f.pfn, ro: f.ro, cow: f.cow && Object.keys(f.refs).length > 1, wr: ev.some(function (e) { return e.who === x.tag && e.vp === vp; }) }; });
+    });
+    return { maps: m, order: alive().map(function (x) { return x.tag; }), frames: fr, ev: ev };
+  }
+  /* a process wrote these pages: copy the ones it still shares */
+  function writes(x, prev, cur, ev, fresh) {
+    var wp = writtenPages(prev.state, cur.state), mp = maps[x.tag];
+    Object.keys(wp).map(Number).forEach(function (vp) {
+      var fid = mp[vp], f = fid && frames[fid];
+      if (!f) {
+        var nf = newFrame(wp[vp]); nf.refs[x.tag] = 1; mp[vp] = nf.id; fresh[nf.id] = true;
+        ev.push({ who: x.tag, vp: vp, k: 'new', text: 'Page fault: ' + nm(x) + ' touched its ' + PAGE_NAME[wp[vp]] + ' page ' + hx(vp) + ' for the first time. The kernel gives it a fresh physical frame ' + hx(nf.pfn) + '.' });
+        return;
+      }
+      if (f.ro) return;
+      var others = Object.keys(f.refs).filter(function (t) { return t !== x.tag; });
+      if (others.length) {
+        var g = newFrame(f.kind); g.refs[x.tag] = 1; delete f.refs[x.tag]; mp[vp] = g.id; fresh[g.id] = f.id;
+        ev.push({ who: x.tag, vp: vp, k: 'cow', text: 'Copy-on-write: ' + nm(x) + ' wrote to its ' + PAGE_NAME[f.kind] + ' page ' + hx(vp) + ', which it still shared in frame ' + hx(f.pfn) + '. The page was read-only, so the write faulted. The kernel copied the 4 KB page into a new frame ' + hx(g.pfn) + ', pointed this process’s page table at it, made it writable and let the write finish there. The other process keeps frame ' + hx(f.pfn) + ' and its old values. Same virtual address, different physical memory.' });
+      } else if (f.cow) {
+        f.cow = false;
+        ev.push({ who: x.tag, vp: vp, k: 'reuse', text: nm(x).replace(/^t/, 'T') + ' wrote to page ' + hx(vp) + '. It was still marked read-only from the fork, but no other process maps frame ' + hx(f.pfn) + ' any more, so the kernel just makes it writable again: no copy needed.' });
+      }
+    });
+  }
+  function dropVm(x) {
+    Object.keys(maps[x.tag] || {}).forEach(function (vp) { var f = frames[maps[x.tag][vp]]; if (f) delete f.refs[x.tag]; });
+    maps[x.tag] = {};
+  }
+  function evMsgs(ev) { return ev.map(function (e) { return { level: e.k === 'cow' ? 'warn' : 'call', text: e.text }; }); }
+  function forked(x, src) { var pv = x.last && x.last.pt ? x.last.pt.forks : 0; return src.pt && src.pt.forks > pv ? src.pt.forks - 1 : -1; }
+  function childFor(x, g) { var p = x.path.slice(); while (p.length < g) p.push('parent'); p.push('child'); return byPath[p.join(',')]; }
+  /* 0. the first process alone, up to its first fork() */
+  while (root.i < root.S.length && forked(root, root.S[root.i]) < 0) { root.last = root.S[root.i]; out.push(root.S[root.i++]); }
+  var cur = root;
+  function t0(st) { return st && st.pt ? st.pt.t0 : 0; }
+  function blocked(x) {
+    var w = x.S[x.i] && x.S[x.i].pt && x.S[x.i].pt.wait;
+    if (!w) return false;
+    return procs.some(function (y) { return y.pid === w && (y.alive || !y.started); });
+  }
+  var guard = 0;
+  for (;;) {
+    if (++guard > 6000) break;
+    var run = procs.filter(function (x) { return x.started && x.alive && x.i < x.S.length && !blocked(x); });
+    if (!run.length) break;
+    var minT = Math.min.apply(null, run.map(function (x) { return t0(x.S[x.i]); }));
+    var x = run.indexOf(cur) >= 0 && t0(cur.S[cur.i]) <= minT ? cur : run.filter(function (y) { return t0(y.S[y.i]) === minT; })[0];
+    var src = x.S[x.i++], msgs = src.msgs.slice();
+    if (x !== cur) {
+      var why = !cur.alive ? 'has exited' : cur.i < cur.S.length && blocked(cur) ? 'is blocked in wait() until its child exits' : 'is asleep in sleep()';
+      msgs.unshift({ level: 'call', text: 'Context switch: ' + nm(cur) + ' ' + why + ', so the OS runs ' + nm(x) + ' and switches to its page table. ' +
+        (!x.ran && x.idx ? 'This is its first turn: it continues right after fork(), where fork returned 0 to it.' : 'Its registers and stack are exactly where it left them.') });
+      cur = x;
+    }
+    x.ran = true;
+    var g = forked(x, src), kid = g >= 0 ? childFor(x, g) : null;
+    if (kid && !kid.started) {
+      /* fork(): a new process with its own page table pointing at the same frames */
+      if (!forkSeen) {
+        /* the first fork: give every page of the first process its frame */
+        maps.parent = {};
+        var pre = pagesOf(root.last.state); pre[0x1000] = 'code';
+        Object.keys(pre).map(Number).sort(function (a, b) { return a - b; }).forEach(function (vp) { var f = newFrame(pre[vp]); f.refs.parent = 1; maps.parent[vp] = f.id; });
+        forkSeen = true;
+      }
+      maps[kid.tag] = {};
+      Object.keys(maps[x.tag]).forEach(function (vp) { var f = frames[maps[x.tag][vp]]; f.refs[kid.tag] = 1; if (!f.ro) f.cow = true; maps[kid.tag][vp] = f.id; });
+      kid.started = true; kid.alive = true; kid.last = kid.pre; kid.i = kid.ci;
+      var f0 = combo(src, x, [{ level: 'call', text: 'fork() duplicated ' + nm(x) + '. The child (pid ' + kid.pid + ') gets its own virtual address space laid out exactly like its parent’s: the same stack frames, variables, heap and globals at the same virtual addresses. No memory is copied yet. The kernel copies the page table, so both processes map every page to the same physical frames, and marks the writable ones read-only. Whichever process writes to a shared page first gets its own copy then (copy-on-write). Code and string literals are read-only and stay shared for good. Both continue right after fork() on line ' + src.line + '.' }]);
+      /* show the moment before fork returns: the parent's state from before this step */
+      var keep = x.last; f0.state = combo(x.last, x, []).state; x.last = keep;
+      f0.kind = 'fork'; f0.cpu = x.last.cpu; f0.out = ''; f0.outNote = false; f0.line = src.line;
+      Object.keys(f0.plines).forEach(function (t) { if (t === x.tag || t === kid.tag) f0.plines[t] = src.line; });
+      f0.vm = vmSnap([], {});
+      out.push(f0);
+      var ev0 = [], fr0 = {};
+      writes(x, x.last, src, ev0, fr0);
+      writes(kid, kid.pre, kid.S[kid.ci], ev0, fr0);
+      x.last = src; kid.last = kid.S[kid.ci]; kid.i = kid.ci + 1;
+      var f1 = combo(src, x, [{ level: 'call', text: 'fork() returned twice: ' + kid.pid + ' (the child’s pid) in the parent, 0 in the child. Storing the result is each process’s first write after the fork.' }].concat(evMsgs(ev0), src.msgs.filter(function (m) { return !/^fork\(\) copied/.test(m.text); })));
+      f1.vm = vmSnap(ev0, fr0);
+      out.push(f1);
+      continue;
+    }
+    var ev = [], fresh = {};
+    if (src.kind === 'exec') {
+      /* exec: the old memory image is gone; the new program gets new frames */
+      dropVm(x);
+      var prog = (src.state.blocks.filter(function (b) { return b.execImg; })[0] || {}).execImg || 'the new program';
+      maps[x.tag] = {};
+      [[0x1000, 'code'], [0x3000, 'data'], [0x5000, 'heap'], [0x6000, 'stack']].forEach(function (pg) { var nf = newFrame(pg[1], prog); nf.refs[x.tag] = 1; maps[x.tag][pg[0]] = nf.id; fresh[nf.id] = true; });
+      ev.push({ who: x.tag, vp: -1, k: 'exec', text: 'exec replaced the memory image of ' + nm(x) + ': the kernel threw away its page table, so every frame it shared with its parent now belongs to the parent alone, and built a new one whose pages hold ' + prog + '’s code, data, heap and stack.' });
+    } else if (x.last.state.blocks.length || src.state.blocks.length) writes(x, x.last, src, ev, fresh);
+    x.last = src;
+    var made = combo(src, x, msgs.concat(evMsgs(ev)));
+    made.vm = vmSnap(ev, fresh);
+    if (src.kind === 'end' || src.crash) {
+      made.msgs.push({ level: 'call', text: nm(x).replace(/^t/, 'T') + ' has exited. The kernel drops its page table; a frame is freed once no process maps it any more.' });
+      x.alive = false;
+      dropVm(x);
+      if (src.crash && x.idx) made.crash = false;
+    }
+    out.push(made);
+  }
+  if (capped && out.length) out[out.length - 1].msgs.push({ level: 'warn', text: 'This program creates more than 8 processes. Only the first 8 are shown.' });
+  return out;
+}
+function traceKeyNow() { return doc.code + (doc.follow === 'child' ? '\u0000child' : '') + (doc.stdin ? '\u0001' + doc.stdin : '') + (doc.stdinEOF ? '\u0002' : ''); }
+function traceStale() { return !doc.traceKey || doc.traceKey !== traceKeyNow(); }
 function ensureTrace() {
   if (!traceStale()) return true;
   if (ui.editingCode) { toast('Press Done to finish editing the code first.'); return false; }
@@ -2897,6 +3394,8 @@ var linking = null; // {bid, si, x, y, hover:{bid, si}}
 function renderCanvas() {
   var st = S(), df = diffStates(prevState(), st), out = [];
   var chg = df.chg, agLbl = [];
+  var vmL = vmSvg(doc.steps[doc.cur]);
+  out.push(vmL.under);
   st.groups.forEach(function (g) {
     var on = sel && sel.kind === 'group' && sel.id === g.id;
     if (g.auto) {
@@ -2927,9 +3426,9 @@ function renderCanvas() {
   if (prev) {
     var alive = {};
     st.blocks.forEach(function (b) { alive[b.id] = 1; });
-    prev.blocks.forEach(function (b) { if (!alive[b.id] && (b.region === 'stack' || b.region === 'heap')) out.push(cardSvg(prev, b, {}, true)); });
+    prev.blocks.forEach(function (b) { if (!alive[b.id] && !b.unused && (b.region === 'stack' || b.region === 'heap')) out.push(cardSvg(prev, b, {}, true)); });
   }
-  st.blocks.forEach(function (b) { out.push(cardSvg(st, b, chg[b.id] || {})); });
+  st.blocks.forEach(function (b) { if (!b.unused) out.push(cardSvg(st, b, chg[b.id] || {})); });
   var eb = $('endban');
   if (eb) {
     eb.hidden = true;
@@ -2940,6 +3439,8 @@ function renderCanvas() {
   /* arrows */
   var arrows = [], ports = [];
   st.blocks.forEach(function (b) {
+    if (b.unused) return;
+    FIND_PROC = b.proc || '';
     b.slots.forEach(function (sl, i) {
       if (!isPtrType(sl.type)) return;
       var p = portOf(b, i), hot = sel && sel.kind === 'block' && (sel.id === b.id);
@@ -2979,6 +3480,8 @@ function renderCanvas() {
       if (p.dx === -1) arrows.push('<circle class="port" cx="' + p.x + '" cy="' + p.y + '" r="3.5" pointer-events="none"/>');
     });
   });
+  FIND_PROC = '';
+  out.push(vmL.over);
   out.push(arrows.join(''));
   out.push(agLbl.join(''));
   /* box names sit above the arrows, with a halo, so a line passing through a header never hides the name */
@@ -3014,6 +3517,7 @@ function wrapText(text, n) {
 }
 var cardLabelSink = null;
 function cardSvg(st, b, c, ghost) {
+  FIND_PROC = b.proc || '';
   var g = geom(b), on = !ghost && sel && sel.kind === 'block' && sel.id === b.id;
   var cls = 'blk r-' + b.region + (b.sys ? ' sys' : '') + (b.freed ? ' freed' : '') + (on ? ' sel' : '') + (c._new ? ' isnew' : '') + (ghost ? ' ghost' : '') + (b.leak === 'lost' ? ' leak' : '');
   var h = ['<g class="' + cls + '"' + (ghost ? ' pointer-events="none"' : ' data-b="' + b.id + '"') + ' transform="translate(' + b.x + ' ' + b.y + ')">'];
@@ -3082,6 +3586,64 @@ function unionMarks(b, g) {
   return out.join('');
 }
 
+/* ----- after fork(): page tables and physical memory ----- */
+var VM = { PTW: 270, RH: 26, HEAD: 34, FH: 50, FGAP: 10, GAPX: 100, FW: 310 };
+function vmHex(n) { return '0x' + Number(n).toString(16); }
+function vmSvg(s) {
+  var L = doc.vmLay, under = [], over = [];
+  if (!L || !s) return { under: '', over: '' };
+  if (L.shared && s.proc) under.push('<g class="vmwrap shared"><rect x="' + L.shared.x + '" y="' + L.shared.y + '" width="' + L.shared.w + '" height="' + L.shared.h + '" rx="14"/><text x="' + (L.shared.x + 12) + '" y="' + (L.shared.y + 18) + '">SHARED BY BOTH PROCESSES \u00b7 READ-ONLY</text></g>');
+  if (L.data && L.data.both && s.proc) under.push('<g class="vmwrap data"><rect x="' + L.data.x + '" y="' + L.data.y + '" width="' + L.data.w + '" height="' + L.data.h + '" rx="14"/><text x="' + (L.data.x + 12) + '" y="' + (L.data.y + 18) + '">DATA \u00b7 INHERITED BY THE CHILD</text></g>');
+  var vm = s.vm;
+  if (!vm) return { under: under.join(''), over: '' };
+  var ramX = L.x + VM.PTW + VM.GAPX, ramY = L.pY, rows = {};
+  /* page tables */
+  (vm.order || Object.keys(vm.maps)).forEach(function (w) {
+    var m = vm.maps[w], x = L.x, y = L.rowY ? L.rowY[(L.slotOf || {})[w] || 0] || L.pY : w === 'parent' ? L.pY : L.cY;
+    if (!m) return;
+    var h = VM.HEAD + m.length * VM.RH + 8, run = s.proc === w;
+    var g = ['<g class="pt pt-' + (w === 'parent' ? 'parent' : 'child') + (run ? ' run' : '') + '"><rect class="ptbox" x="' + x + '" y="' + y + '" width="' + VM.PTW + '" height="' + h + '" rx="10"/>' +
+      '<text class="pth" x="' + (x + 12) + '" y="' + (y + 21) + '">' + (w === 'parent' ? 'Parent ' : 'Child ') + s.pids[w] + ' \u00b7 page table' + (run ? ' (on CPU)' : '') + '</text>'];
+    m.forEach(function (r, k) {
+      var ry = y + VM.HEAD + k * VM.RH, perm = r.kind === 'code' ? 'r-x' : r.ro ? 'r--' : r.cow ? 'r-- COW' : 'rw-';
+      g.push('<g class="ptr' + (r.wr ? ' wr' : '') + '"><rect x="' + (x + 6) + '" y="' + ry + '" width="' + (VM.PTW - 12) + '" height="' + (VM.RH - 4) + '" rx="5"><title>virtual page ' + vmHex(r.vp) + '\u2013' + vmHex(r.vp + PAGE - 1) + ' (' + PAGE_NAME[r.kind] + ') \u2192 physical frame ' + vmHex(r.pfn) + (r.cow ? '. Shared and read-only until one of the processes writes to it.' : '') + '</title></rect>' +
+        '<text class="pva" x="' + (x + 14) + '" y="' + (ry + 16) + '">' + vmHex(r.vp) + '</text><text class="pvk" x="' + (x + 70) + '" y="' + (ry + 16) + '">' + esc((r.label ? r.label.split('/').pop() + ' ' : '') + PAGE_NAME[r.kind].replace(' (text)', '').replace(' (globals)', '')) + '</text>' +
+        '<text class="pperm' + (r.cow ? ' cow' : '') + '" x="' + (x + VM.PTW - 14) + '" y="' + (ry + 16) + '" text-anchor="end">' + perm + '</text></g>');
+      rows[w + ':' + r.f + ':' + r.vp] = { x: x + VM.PTW - 6, y: ry + (VM.RH - 4) / 2, w: w, wr: r.wr, f: r.f };
+    });
+    g.push('</g>');
+    over.push(g.join(''));
+  });
+  /* physical frames */
+  var top = ramY + VM.HEAD, fpos = {}, maxSlot = 0;
+  vm.frames.forEach(function (f) { maxSlot = Math.max(maxSlot, f.slot); });
+  over.push('<g class="ram"><rect class="rambox" x="' + (ramX - 10) + '" y="' + ramY + '" width="' + (VM.FW + 20) + '" height="' + (VM.HEAD + (maxSlot + 1) * (VM.FH + VM.FGAP) + 4) + '" rx="12"/><text class="pth" x="' + (ramX + 2) + '" y="' + (ramY + 21) + '">Physical memory (RAM): 4 KB frames</text></g>');
+  vm.frames.forEach(function (f) {
+    var y = top + f.slot * (VM.FH + VM.FGAP), sh = f.refs.length > 1;
+    fpos[f.id] = { x: ramX, y: y };
+    var who = sh ? 'shared by ' + (f.refs.length > 2 ? f.refs.length + ' processes' : 'both') : (f.refs[0] === 'parent' ? 'parent' : 'child ' + s.pids[f.refs[0]]) + '\u2019s own';
+    var st = f.ro ? 'read-only, never copied' : sh ? 'read-only until written' : 'writable';
+    over.push('<g class="frame' + (sh ? ' sh' : ' pv pv-' + (f.refs[0] === 'parent' ? 'parent' : 'child')) + (f.isNew ? ' fresh' : '') + '"><rect x="' + ramX + '" y="' + y + '" width="' + VM.FW + '" height="' + VM.FH + '" rx="8"><title>physical frame ' + vmHex(f.pfn) + ' holds a ' + PAGE_NAME[f.kind] + ' page. ' + who + '.</title></rect>' +
+      '<text class="fn" x="' + (ramX + 10) + '" y="' + (y + 19) + '">frame ' + vmHex(f.pfn) + ' \u00b7 ' + esc(f.label ? f.label.split('/').pop() + ' ' + f.kind : PAGE_NAME[f.kind]) + '</text>' +
+      '<text class="fs" x="' + (ramX + 10) + '" y="' + (y + 37) + '">' + esc(who + ' \u00b7 ' + st) + '</text></g>');
+  });
+  /* mappings: page table row -> frame */
+  Object.keys(rows).forEach(function (k) {
+    var r = rows[k], fp = fpos[r.f];
+    if (!fp) return;
+    var tx = fp.x, ty = fp.y + VM.FH / 2 + (r.w === 'parent' ? -7 : 7), mx = (r.x + tx) / 2;
+    over.push('<path class="vmmap vm-' + (r.w === 'parent' ? 'parent' : 'child') + (r.wr ? ' wr' : '') + '" d="M' + r.x + ' ' + r.y + ' C' + mx + ' ' + r.y + ' ' + mx + ' ' + ty + ' ' + tx + ' ' + ty + '" marker-end="url(#ah)"/>');
+  });
+  /* copy-on-write: where the new frame's contents came from */
+  vm.frames.forEach(function (f) {
+    if (!f.from || !fpos[f.from] || !fpos[f.id]) return;
+    var a = fpos[f.from], b = fpos[f.id], x = a.x + VM.FW;
+    over.push('<path class="vmcopy" d="M' + x + ' ' + (a.y + VM.FH / 2) + ' C' + (x + 60) + ' ' + (a.y + VM.FH / 2) + ' ' + (x + 60) + ' ' + (b.y + VM.FH / 2) + ' ' + x + ' ' + (b.y + VM.FH / 2) + '" marker-end="url(#ah)"/>' +
+      '<text class="vmcopyt" x="' + (x + 50) + '" y="' + ((a.y + b.y) / 2 + VM.FH / 2 + 4) + '">copy</text>');
+  });
+  return { under: under.join(''), over: over.join('') };
+}
+
 /* view */
 function svgSize() { var r = $('cv').getBoundingClientRect(); return { w: r.width, h: r.height, l: r.left, t: r.top }; }
 function toWorld(cx, cy) { var s = svgSize(); return { x: (cx - s.l - view.x) / view.k, y: (cy - s.t - view.y) / view.k }; }
@@ -3095,9 +3657,15 @@ function zoomAt(f, cx, cy) {
 function contentBounds() {
   var st = S(), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   function add(x, y, w, h) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + w); y1 = Math.max(y1, y + h); }
-  st.blocks.forEach(function (b) { var r = blockRect(b); add(r.x - 70, r.y - 44, r.w + 110, r.h + 74); });
+  st.blocks.forEach(function (b) { if (b.unused) return; var r = blockRect(b); add(r.x - 70, r.y - 44, r.w + 110, r.h + 74); });
   st.notes.forEach(function (n) { add(n.x, n.y, n.w, n.h); });
   st.groups.forEach(function (g) { add(g.x, g.y, g.w, g.h); });
+  var cs = doc.steps[doc.cur], L = doc.vmLay;
+  if (cs && cs.vm && L) {
+    /* the page tables and physical memory to the right */
+    var ms = 0; cs.vm.frames.forEach(function (f) { ms = Math.max(ms, f.slot); });
+    add(L.x, L.pY, VM.PTW + VM.GAPX + VM.FW + 80, Math.max(VM.HEAD + (ms + 1) * (VM.FH + VM.FGAP), L.cY - L.pY + 200));
+  }
   return isFinite(x0) ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
 }
 function fitView() {
@@ -3166,6 +3734,13 @@ function lineSteps() {
   doc.steps.forEach(function (s, k) { if (s.line) (m[s.line] = m[s.line] || []).push(k); });
   return m;
 }
+/* after fork(): where each process is in the code (P parent, C child; the one on the CPU is solid) */
+function pmark(pl, L, cproc) {
+  var h = '';
+  if (pl.parent === L) h += '<span class="pm pm-p' + (cproc === 'parent' ? ' on' : '') + '" title="the parent process is here">P</span>';
+  Object.keys(pl).forEach(function (t) { if (t !== 'parent' && pl[t] === L) h += '<span class="pm pm-c' + (cproc === t ? ' on' : '') + '" title="child ' + ((doc.steps[doc.cur].pids || {})[t] || '') + ' is here">C</span>'; });
+  return h;
+}
 function renderCode() {
   var box = $('codeSec'), lines = codeLines(), curLine = doc.steps[doc.cur].line, ls = lineSteps();
   var h = ['<div class="sec-h"><h2>Code</h2><div class="bar">' +
@@ -3178,12 +3753,12 @@ function renderCode() {
     h.push('<p class="hint">Tab indents and Shift+Tab outdents, also across selected lines. Enter keeps the indentation. To leave the editor with the keyboard, press Esc, then Tab. Struct definitions in the code are picked up automatically, and existing steps are kept.</p>');
   } else {
     h.push('<div class="code" id="codeList" role="listbox" aria-label="Code lines"' + (codeH ? ' style="height:' + codeH + 'px;max-height:none"' : '') + '>');
-    var stk = doc.steps[doc.cur].stack, sites = {};
+    var stk = doc.steps[doc.cur].stack, sites = {}, pl = doc.steps[doc.cur].plines, cproc = doc.steps[doc.cur].proc;
     if (stk) stk.slice(0, -1).forEach(function (f) { sites[f.line] = f.fn; });
     lines.forEach(function (t, k) {
       var L = k + 1, cls = 'cl' + (L === curLine ? ' cur' : '') + (L === pendingLine ? ' pend' : '') + (isQuietLine(L) ? ' skipl' : '') + (sites[L] && L !== curLine ? ' callsite' : '') + (stk && L === curLine ? ' exec' : '');
       var ns = ls[L] ? ls[L].map(function (n) { return n; }).slice(-3).join(',') : '';
-      h.push('<div class="' + cls + '" data-line="' + L + '" role="option" aria-selected="' + (L === pendingLine) + '" title="Click to make this the next line to run"><span class="mk"></span><span class="ln">' + L + '</span><span class="tx">' + (esc(t) || ' ') + '</span><span class="ns">' + (ns ? 's' + ns : '') + '</span></div>');
+      h.push('<div class="' + cls + '" data-line="' + L + '" role="option" aria-selected="' + (L === pendingLine) + '" title="Click to make this the next line to run"><span class="mk"></span><span class="ln">' + (pl ? pmark(pl, L, cproc) : '') + L + '</span><span class="tx">' + (esc(t) || ' ') + '</span><span class="ns">' + (ns ? 's' + ns : '') + '</span></div>');
     });
     h.push('</div><div class="grip" id="codeGrip" role="separator" aria-orientation="horizontal" aria-label="Resize the code box. Arrow keys make it taller or shorter, double-click resets." tabindex="0"></div>');
     h.push('<div class="runbar">' + runButtons('code') +
@@ -3231,7 +3806,7 @@ function renderSteps() {
 }
 function renderStepbar() {
   var s = doc.steps[doc.cur], lines = codeLines();
-  var where = doc.cur === 0 ? '<b>Start</b>, before any line runs' : '<b>Step ' + doc.cur + '</b> of ' + (doc.steps.length - 1) + (s.line ? (s.stack ? ', in <b>' + esc(s.stack[s.stack.length - 1].fn) + '()</b> line ' : ', after line ') + s.line + ' <code>' + esc(trunc(blankComments(lines[s.line - 1] || '').trim(), 48)) + '</code>' : ', drawn by hand');
+  var where = doc.cur === 0 ? '<b>Start</b>, before any line runs' : '<b>Step ' + doc.cur + '</b> of ' + (doc.steps.length - 1) + (s.proc && s.pids ? ', <b class="pbadge pb-' + (s.proc === 'parent' ? 'parent' : 'child') + '">' + procName(s.proc, s.pids[s.proc]) + '</b>' : '') + (s.line ? (s.stack ? ', in <b>' + esc(s.stack[s.stack.length - 1].fn) + '()</b> line ' : ', after line ') + s.line + ' <code>' + esc(trunc(blankComments(lines[s.line - 1] || '').trim(), 48)) + '</code>' : ', drawn by hand');
   $('stepbar').innerHTML = '<button class="btn" type="button" data-a="prev"' + (doc.cur ? '' : ' disabled') + '>&larr; Back</button>' +
     
     '<span class="where">' + where + '</span>' +
@@ -3275,7 +3850,11 @@ function renderPane() {
   var to = $('tabOut'), printed = !!doc.steps[doc.cur].out;
   to.innerHTML = 'Output' + (printed && ui.tab !== 'out' ? '<span class="dot" title="this step printed something"></span>' : '');
   $('pane').innerHTML = ui.tab === 'map' ? mapHtml() : ui.tab === 'asm' ? asmHtml() : ui.tab === 'step' ? stepInfoHtml() : ui.tab === 'out' ? consoleHtml() : inspectorHtml();
-  if (ui.tab === 'out') { var cb = $('conBody'); if (cb) cb.scrollTop = cb.scrollHeight; }
+  if (ui.tab === 'out') {
+    var cb = $('conBody'); if (cb) cb.scrollTop = cb.scrollHeight;
+    var ci = $('conIn'), ae = document.activeElement;
+    if (ci && (!ae || ae === document.body || ui.conFocus)) { ui.conFocus = false; try { ci.focus({ preventScroll: true }); } catch (e) { ci.focus(); } }
+  }
   if (ui.tab === 'asm') {
     var now = $('pane').querySelector('.asm-src.now');
     if (now && ui.lastAsmLine !== doc.cur) { ui.lastAsmLine = doc.cur; try { now.scrollIntoView({ block: 'center' }); } catch (e) { /* ignore */ } }
@@ -3352,6 +3931,7 @@ function inspectorHtml() {
     '<div class="field"><span>Address</span><div class="inl"><input id="f-addr" data-f="addr" class="mono-in" value="' + hex(b.addr) + '"><button class="btn sm" type="button" data-a="readdr" title="Give it a fresh address in its region">New</button></div></div></div>');
   h.push('<p class="kv">Size <b>' + b.size + ' B</b> &middot; ends at <b>' + hex(b.addr + b.size - 1) + '</b>' + (b.freed ? ' &middot; <b style="color:var(--bad)">freed</b>' : '') + '</p>');
   h.push('<table class="slots"><thead><tr><th>' + (b.kind === 'struct' ? 'Field' : b.kind === 'array' ? 'Index' : 'Slot') + '</th><th>Value</th></tr></thead><tbody>');
+  FIND_PROC = b.proc || '';
   b.slots.forEach(function (sl, i) {
     var isP = isPtrType(sl.type), tgt = '';
     if (isP) {
@@ -3476,6 +4056,7 @@ function mapHtml() {
 }
 function slotRows(st, b, on) {
   var h = [];
+  FIND_PROC = b.proc || '';
   b.slots.forEach(function (sl, i) {
     var isP = isPtrType(sl.type), a = slotAddr(b, i);
     var vtxt = isP && sl.value ? '<span class="pv">' + hex(sl.value) + '</span> <span class="a">' + esc(targetText(st, sl.value).replace(/^points to /, '→ ')) + '</span>' : esc(fmtVal(sl, false));
@@ -3770,10 +4351,34 @@ function closeInline(commit) {
 /* ----- output console: everything printed up to the step being viewed ----- */
 function consoleHtml() {
   var parts = [];
-  for (var k = 1; k <= doc.cur; k++) if (doc.steps[k].out) parts.push({ k: k, t: doc.steps[k].out });
+  for (var k = 1; k <= doc.cur; k++) if (doc.steps[k].out) parts.push({ k: k, t: doc.steps[k].out, p: doc.steps[k].proc ? (doc.steps[k].proc === 'parent' ? 'parent' : 'child') : '', note: doc.steps[k].outNote, who: doc.steps[k].proc ? procName(doc.steps[k].proc, doc.steps[k].pids[doc.steps[k].proc]) : '' });
   var cur = doc.steps[doc.cur].out || '';
   var h = ['<p class="hint" style="margin:0 0 8px">' + (cur ? 'This step printed <span class="mono">' + esc(JSON.stringify(cur)) + '</span>, highlighted below.' : parts.length ? 'Everything printed up to this step. Go back and it un-prints.' : 'Nothing printed yet. Output appears here step by step as the program runs.') + '</p>'];
-  h.push('<div class="console"><pre class="con-b" id="conBody">' + (parts.length ? parts.map(function (p) { return '<span class="' + (p.k === doc.cur ? 'new' : '') + '" data-step="' + p.k + '" title="printed in step ' + p.k + '">' + esc(p.t) + '</span>'; }).join('') : '<span class="con-e">(no output)</span>') + '<span class="caret"></span></pre></div>');
+  var forks = !!(doc.terminal && doc.terminal.many), woven = doc.steps.some(function (x) { return x.proc; });
+  if (woven) h.push('<p class="hint" style="margin:0 0 8px">After <span class="mono">fork()</span> both processes write to the same terminal: <span class="tk tl-parent">parent</span> <span class="tk tl-child">child</span>. The order shown is one a scheduler could produce: each process runs until it sleeps, waits or exits. A real run can interleave them differently.</p>');
+  if (forks) h.unshift('<div class="follow" role="group" aria-label="Which process to trace after fork()"><span>After <span class="mono">fork()</span>, trace the</span>' +
+    ['parent', 'child'].map(function (w) { var on = (doc.follow || 'parent') === w; return '<button type="button" class="btn sm' + (on ? ' on' : '') + '" data-follow="' + w + '" aria-pressed="' + on + '">' + (w === 'parent' ? 'Parent' : 'Child') + '</button>'; }).join('') + '</div>');
+  var lastI = doc.steps.length - 1, waiting = doc.steps[lastI] && doc.steps[lastI].kind === 'input', here = waiting && doc.cur === lastI;
+  h.push('<div class="console"><pre class="con-b" id="conBody">' + (parts.length || here ? parts.map(function (p) { return '<span class="' + (p.k === doc.cur ? 'new' : '') + (p.p ? ' tl-' + p.p : '') + (p.note ? ' con-note' : '') + '" data-step="' + p.k + '" title="' + (p.note ? 'not real output: a note from MemoryDojo' : 'printed in step ' + p.k + (p.who ? ' by ' + p.who : '')) + '">' + esc(p.t) + '</span>'; }).join('') : '<span class="con-e">(no output)</span>') + (here ? '<input id="conIn" class="con-in" autocomplete="off" spellcheck="false" aria-label="Type a line for the program and press Enter">' : '<span class="caret"></span>') + '</pre></div>');
+  if (here) h.push('<div class="con-wait"><b>The program is waiting for input.</b> It is blocked in <span class="mono">fgets</span>. Type a line in the terminal above and press Enter. <button class="btn sm" type="button" data-a="stdineof" title="Close stdin, like pressing Ctrl+D in a terminal">End of input (Ctrl+D)</button></div>');
+  else if (waiting) h.push('<div class="con-wait">The program stops at step ' + lastI + ' to wait for input. <button class="btn sm" type="button" data-a="gowait">Go to step ' + lastI + '</button></div>');
+  if (forks) h.push(terminalHtml());
+  if (/\b(stdin|fgets|getchar|scanf|getline)\b/.test(blankComments(doc.code || ''))) {
+    h.push('<div class="stdin-box"><label class="term-h" for="stdinText">Everything typed so far (stdin)</label><textarea id="stdinText" class="mono-in" rows="4" spellcheck="false" placeholder="Type what you would type into the program, one line per Enter. For example:\n/bin/ls\nls\n/bin/date">' + esc(doc.stdin || '') + '</textarea>' +
+      '<div class="actions"><button class="btn sm" type="button" data-a="setstdin">Run with this input</button></div>' +
+      '<p class="hint">You can also type all the input here in advance, one line per Enter. When the lines run out the program waits for more' + (doc.stdinEOF ? '; right now stdin is closed (end of file), so it gets NULL instead' : '') + '.</p></div>');
+  }
+  return h.join('');
+}
+function terminalHtml() {
+  var T = doc.terminal, h = ['<h4 class="term-h">The real terminal: both processes</h4>'];
+  if (!T) return h.concat(['<p class="hint">Run the program to see what both processes print together.</p>']).join('');
+  if (T.many) return h.concat(['<p class="hint">This program calls fork() ' + T.many + ' times, so more than two processes run. The box above shows the output of the one being traced; switch Parent / Child to follow the other side of each fork.</p>']).join('');
+  h.push('<div class="console term"><pre class="con-b">' + T.lines.map(function (l) {
+    return '<span class="tl tl-' + l.who + (l.tie ? ' tie' : '') + '" title="' + (l.who === 'before' ? 'printed before fork(): one process' : l.who + ' (pid ' + (l.who === 'parent' ? T.pPid : T.cPid) + ') at ' + l.t + ' s') + '">' + esc(l.s) + '</span>';
+  }).join('') + '</pre></div>');
+  h.push('<p class="hint term-k"><span class="tk tl-parent">parent ' + T.pPid + '</span> <span class="tk tl-child">child ' + T.cPid + '</span> Lined up by <span class="mono">sleep()</span> time, as if each process ran instantly between sleeps. Lines with a dotted underline print at the same moment, so the OS scheduler decides their order and it can change from run to run.' +
+    (T.pExit != null || T.cExit != null ? ' Exit status: parent ' + (T.pExit != null ? T.pExit : '?') + ', child ' + (T.cExit != null ? T.cExit : '?') + '.' : '') + '</p>');
   return h.join('');
 }
 try { ui.conMin = localStorage.getItem(STORE_KEY + '-console') === 'min'; } catch (e) { /* ignore */ }
@@ -3782,6 +4387,17 @@ document.addEventListener('click', function (e) {
     ui.conMin = !ui.conMin;
     try { localStorage.setItem(STORE_KEY + '-console', ui.conMin ? 'min' : 'open'); } catch (x) { /* ignore */ }
     renderConsole();
+  }
+  var fb = e.target.closest && e.target.closest('[data-follow]');
+  if (fb) {
+    var w = fb.getAttribute('data-follow');
+    if ((doc.follow || 'parent') !== w) {
+      pushUndo();
+      doc.follow = w;
+      if (!ui.editingCode && FUNCS.main) recordProgram();
+      renderAll(); save();
+      toast('Now tracing the ' + w + ' after fork(). Step through to watch its copy of memory.');
+    }
   }
   var ab = e.target.closest && e.target.closest('[data-arrows]');
   if (ab) {
@@ -3801,7 +4417,12 @@ var AG = { PADX: 16, TOP: 42, PADB: 14, GAP: 22, COLGAP: 170, X0: 40, Y0: 40, FR
 ui.autoGroups = true;
 try { if (localStorage.getItem(STORE_KEY + '-auto') === 'off') ui.autoGroups = false; } catch (e) { /* ignore */ }
 
-function agKey(b) {
+/* after fork() each child's boxes get their own groups: their keys start with the process tag, child| */
+function agKey(b) { return (b.proc ? b.proc + '|' : '') + agKey1(b); }
+function agBase(key) { return key.replace(/^\w+\|/, ''); }
+function agTag(key) { var m = /^(\w+)\|/.exec(key); return m ? m[1] : 'parent'; }
+function agKey1(b) {
+  if (b.vmShared) return b.region === 'code' ? 'code' : 'rodata';
   if (b.region === 'reg') return 'stack:' + (b.frame || '');
   if (b.region === 'code') return 'code';
   if (b.region === 'heap') return 'heap';
@@ -3810,10 +4431,12 @@ function agKey(b) {
 }
 /* columns, left to right: code (lowest addresses), stack frames (a called function's frame gets its
    own column to the right of its caller's), heap, statics */
-function agDepth(key) { var m = /#(\d+)$/.exec(key); return m ? +m[1] : 0; }
-function agCol(key) { return key === 'code' ? 0 : key === 'heap' ? 100 : key === 'static' ? 101 : /^reg:/.test(key) ? 0.5 + agDepth(key) : 1 + agDepth(key); }
-function agKind(key) { return key === 'heap' ? 'heap' : key === 'static' ? 'static' : key === 'code' ? 'code' : /^reg:/.test(key) ? 'reg' : 'stack'; }
+function agDepth(key) { var m = /#(\d+)$/.exec(agBase(key)); return m ? +m[1] : 0; }
+function agCol(key) { key = agBase(key); return key === 'rodata' ? 0.25 : key === 'code' ? 0 : key === 'heap' ? 100 : key === 'static' ? 101 : /^reg:/.test(key) ? 0.5 + agDepth(key) : 1 + agDepth(key); }
+function agKind(key) { key = agBase(key); return key === 'rodata' ? 'static' : key === 'heap' ? 'heap' : key === 'static' ? 'static' : key === 'code' ? 'code' : /^reg:/.test(key) ? 'reg' : 'stack'; }
 function agLabel(key, gone) {
+  key = agBase(key);
+  if (key === 'rodata') return 'Read-only data: string literals';
   if (key === 'heap') return 'Heap (malloc / new)';
   if (key === 'static') return 'Static: globals + literals';
   if (key === 'code') return 'Code (text): functions';
@@ -3821,7 +4444,7 @@ function agLabel(key, gone) {
   var fn = key.slice(6).replace(/#\d+$/, ''), d = agDepth(key);
   return (fn ? 'Scope: ' + fn + '()' : 'Stack') + (d > 1 ? ' \u00b7 depth ' + d : '') + (gone ? (fn ? ', returned' : ', gone') : '');
 }
-function isAutoBlock(b) { return !!b.auto; }
+function isAutoBlock(b) { return !!b.auto && !b.unused; }
 
 function arrangeAll() {
   if (!doc) return;
@@ -3880,11 +4503,84 @@ function arrangeAll() {
     x += colW[c] + (nextIsFrame ? 90 : AG.COLGAP);
   });
   var base = {};
-  order.slice().sort(function (a, b) { return agCol(a) - agCol(b) || order.indexOf(a) - order.indexOf(b); }).forEach(function (key) {
-    var c = agCol(key);
-    base[key] = { x: colX[c], y: colY[c], w: colW[c] };
-    colY[c] += AG.TOP + (maxH[key] || 0) + AG.PADB + AG.FRAMEGAP;
-  });
+  function placeRow(keys) {
+    keys.slice().sort(function (a, b) { return agCol(a) - agCol(b) || order.indexOf(a) - order.indexOf(b); }).forEach(function (key) {
+      var c = agCol(key);
+      base[key] = { x: colX[c], y: colY[c], w: colW[c] };
+      colY[c] += AG.TOP + (maxH[key] || 0) + AG.PADB + AG.FRAMEGAP;
+    });
+  }
+  var kids = order.filter(function (k) { return /^\w+\|/.test(k); });
+  doc.vmLay = null;
+  if (!kids.length) placeRow(order);
+  else layoutTwo();
+  /* after fork(): shared code and literals on the left; then each process's stack and heap, the
+     parent in the top row and the child under it; the two data sections side by side; then the page
+     tables and physical memory */
+  function hOf(k) { return AG.TOP + (maxH[k] || 0) + AG.PADB; }
+  function layoutTwo() {
+    /* processes whose lifetimes do not overlap share a row */
+    var life = {};
+    doc.steps.forEach(function (s, k) { s.state.blocks.forEach(function (b) { var t = b.proc || 'parent'; if (!life[t]) life[t] = { a: k, z: k }; life[t].z = k; }); if (s.vm) Object.keys(s.vm.maps).forEach(function (t) { if (!life[t]) life[t] = { a: k, z: k }; life[t].z = k; }); });
+    var slotOf = { parent: 0 }, slotEnd = [Infinity];
+    Object.keys(life).filter(function (t) { return t !== 'parent'; }).sort(function (a, b) { return life[a].a - life[b].a; }).forEach(function (t) {
+      var sl = 1;
+      while (slotEnd[sl] != null && slotEnd[sl] >= life[t].a) sl++;
+      slotOf[t] = sl; slotEnd[sl] = life[t].z;
+    });
+    var nSlots = slotEnd.length;
+    function slotK(k) { return slotOf[agTag(k)] || 0; }
+    var x0 = AG.X0, yS = AG.Y0 + 26, w0 = 0;
+    ['code', 'rodata'].filter(function (k) { return order.indexOf(k) >= 0; }).forEach(function (k) {
+      var w = Math.max(AG.MINW, inner[k] + 2 * AG.PADX);
+      base[k] = { x: x0, y: yS, w: w }; yS += hOf(k) + AG.FRAMEGAP; w0 = Math.max(w0, w);
+    });
+    var shared = w0 ? { x: x0 - 12, y: AG.Y0 - 6, w: w0 + 24, h: yS - AG.FRAMEGAP - AG.Y0 + 18 } : null;
+    var x = x0 + (w0 ? w0 + 80 : 0);
+    var pk = order.filter(function (k) { return k !== 'code' && k !== 'rodata' && agBase(k) !== 'static'; });
+    var dk = order.filter(function (k) { return agBase(k) === 'static'; });
+    var cols = [];
+    pk.forEach(function (k) { var c = agCol(k); if (cols.indexOf(c) < 0) cols.push(c); });
+    cols.sort(function (a, b) { return a - b; });
+    /* how tall each row gets: the tallest column of any process in it */
+    var rowH = [];
+    for (var r = 0; r < nSlots; r++) {
+      var hh = 120;
+      cols.forEach(function (c) {
+        var byTag = {};
+        pk.filter(function (k) { return agCol(k) === c && slotK(k) === r; }).forEach(function (k) { var t = agTag(k); byTag[t] = (byTag[t] || 0) + hOf(k) + AG.FRAMEGAP; });
+        Object.keys(byTag).forEach(function (t) { hh = Math.max(hh, byTag[t]); });
+      });
+      rowH.push(hh);
+    }
+    var top = AG.Y0 + 26, rowY = [top];
+    for (var r2 = 1; r2 < nSlots; r2++) rowY[r2] = rowY[r2 - 1] + rowH[r2 - 1] + 60;
+    cols.forEach(function (c, q) {
+      var yAt = {};
+      pk.filter(function (k) { return agCol(k) === c; }).forEach(function (k) {
+        var t = agTag(k), r3 = slotK(k);
+        if (yAt[t] == null) yAt[t] = rowY[r3];
+        base[k] = { x: x, y: yAt[t], w: colW[c] }; yAt[t] += hOf(k) + AG.FRAMEGAP;
+      });
+      x += colW[c] + (c >= 1 && c < 100 && cols[q + 1] < 100 ? 90 : 80);
+    });
+    var data = null;
+    if (dk.length) {
+      var dw = 0; dk.forEach(function (k) { dw = Math.max(dw, Math.max(AG.MINW, inner[k] + 2 * AG.PADX)); });
+      /* the data sections sit together: the parent's, then each child's (children that never
+         coexist share a place) */
+      var dy = top, dAt = {};
+      dk.slice().sort(function (a, b) { return slotK(a) - slotK(b); }).forEach(function (k) {
+        var r4 = slotK(k);
+        if (dAt[r4] == null) { dAt[r4] = dy; }
+        base[k] = { x: x, y: dAt[r4], w: dw };
+        dy = Math.max(dy, dAt[r4] + hOf(k) + 14);
+      });
+      data = { x: x - 12, y: AG.Y0 - 6, w: dw + 24, h: dy - 14 - AG.Y0 + 18, both: dk.length >= 2 };
+      x += dw + 80;
+    }
+    doc.vmLay = { x: x, pY: top, cY: rowY[1] || top + 200, rowY: rowY, slotOf: slotOf, shared: shared, data: data };
+  }
 
   /* 4. place the boxes and add the group frames, step by step */
   doc.steps.forEach(function (s, k) {
@@ -3906,14 +4602,23 @@ function arrangeAll() {
     order.forEach(function (key) {
       if (!live[key] && !info.gone[key]) return;
       var p = pos[key];
-      var lbl = agLabel(key, !live[key]), state = '';
-      if (s.stack && /^stack:/.test(key) && live[key]) {
+      var lbl = agLabel(key, !live[key]), state = '', bk = agBase(key), isKid = bk !== key, tag = agTag(key);
+      var mine = !s.proc || s.proc === tag;
+      if (s.stack && /^stack:/.test(bk) && live[key] && mine) {
         /* inside a call: say which frame is running and which are waiting for a call to return */
         var d = agDepth(key), fr = s.stack[d];
-        if (fr && fr.fn === key.slice(6).replace(/#\d+$/, '')) {
+        if (fr && fr.fn === bk.slice(6).replace(/#\d+$/, '')) {
           state = d === s.stack.length - 1 ? 'running' : 'paused';
           lbl = 'Scope: ' + fr.fn + '()' + (state === 'running' ? (s.kind === 'enter' ? ' \u00b7 being called' : ' \u00b7 running') : ' \u00b7 paused at line ' + fr.line);
         }
+      } else if (s.proc && /^stack:/.test(bk) && live[key]) state = 'paused';
+      if (s.proc && s.pids) {
+        /* two processes on the board: say whose memory each group is */
+        var shr = !isKid && (bk === 'code' || bk === 'rodata');
+        var who = (shr ? 'Shared \u00b7 ' : isKid ? 'Child ' + s.pids[tag] : 'Parent ' + s.pids.parent) + (shr ? '' : ' \u00b7 ');
+        if (/^stack:/.test(bk)) lbl = who + bk.slice(6).replace(/#\d+$/, '') + '()' + (!live[key] ? ', gone' : state === 'running' ? ' \u00b7 running' : mine ? ' \u00b7 paused at line ' + ((s.stack[agDepth(key)] || {}).line || '?') : ' \u00b7 waiting');
+        else if (isKid && bk === 'code') lbl = who + 'new program (after exec)';
+        else lbl = who + agLabel(key, !live[key]).replace(/ \(malloc \/ new\)/, '').replace('Static: globals + literals', 'Data: globals');
       }
       made.push({ id: 'ag-' + key, auto: key, x: p.x, y: p.y, w: p.w, h: AG.TOP + (info.h[key] || 0) + AG.PADB,
         label: lbl, gone: !live[key], run: state,
@@ -4126,9 +4831,13 @@ Object.keys(REGS).forEach(function (k) { REGS[k].forEach(function (n, i) { REG_S
 ['xmm0', 'xmm1', 'xmm2', 'xmm3'].forEach(function (n) { REG_SIZE[n] = 16; });
 var ARG_REGS = ['di', 'si', 'd', 'c', 'r8', 'r9'];
 function rn(k, size) { var ix = { 1: 0, 2: 1, 4: 2, 8: 3 }[size]; return REGS[k][ix === undefined ? 2 : ix]; }
-var BUILTIN_RET = { malloc: 'void*', calloc: 'void*', realloc: 'void*', strlen: 'unsigned long', printf: 'int', puts: 'int', putchar: 'int', free: 'void', strcmp: 'int', strcpy: 'char*', memset: 'void*', memcpy: 'void*', exit: 'void', abs: 'int', atoi: 'int' };
-var BUILTIN_ARGS = { malloc: ['unsigned long'], calloc: ['unsigned long', 'unsigned long'], free: ['void*'], strlen: ['char*'], puts: ['char*'], putchar: ['int'], strcmp: ['char*', 'char*'], strcpy: ['char*', 'char*'], exit: ['int'], abs: ['int'], atoi: ['char*'] };
-var VARIADIC = { printf: 1 };
+var BUILTIN_RET = { malloc: 'void*', calloc: 'void*', realloc: 'void*', strlen: 'unsigned long', printf: 'int', puts: 'int', putchar: 'int', free: 'void', strcmp: 'int', strcpy: 'char*', memset: 'void*', memcpy: 'void*', exit: 'void', abs: 'int', atoi: 'int',
+  fgets: 'char*', execv: 'int', execvp: 'int', execve: 'int', execl: 'int', execlp: 'int', execle: 'int', WEXITSTATUS: 'int', WIFEXITED: 'int',
+  fork: 'int', getpid: 'int', getppid: 'int', wait: 'int', waitpid: 'int', sleep: 'unsigned int', usleep: 'int', perror: 'void', _exit: 'void' };
+var BUILTIN_ARGS = { malloc: ['unsigned long'], calloc: ['unsigned long', 'unsigned long'], free: ['void*'], strlen: ['char*'], puts: ['char*'], putchar: ['int'], strcmp: ['char*', 'char*'], strcpy: ['char*', 'char*'], exit: ['int'], abs: ['int'], atoi: ['char*'],
+  fgets: ['char*', 'int', 'void*'], execv: ['char*', 'char**'], execvp: ['char*', 'char**'], WEXITSTATUS: ['int'], WIFEXITED: ['int'],
+  wait: ['int*'], waitpid: ['int', 'int*', 'int'], sleep: ['unsigned int'], usleep: ['unsigned int'], perror: ['char*'], _exit: ['int'] };
+var VARIADIC = { printf: 1, execl: 1, execlp: 1, execle: 1 };
 
 function CgErr(msg) { this.message = msg; }
 
@@ -4219,6 +4928,7 @@ function compileProgram() {
           if (s) return s.arr ? ptrTo(s.t) : s.t;
           if (FUNCS[e.n]) return fnType(FUNCS[e.n].fn, 1);
           if (e.n === 'NULL') return typeInfo('void*');
+          if (/^std(in|out|err)$/.test(e.n)) return typeInfo('void*');
           throw new CgErr('"' + e.n + '" is not declared');
         }
         case 'un':
@@ -4400,6 +5110,7 @@ function compileProgram() {
           var s = lookup(e.n);
           if (!s && FUNCS[e.n]) { E('lea', [R('a', 8), M(null, 0, 0, e.n + '()', e.n)], '', 'rax = the address of the function ' + e.n + '()'); return fnType(FUNCS[e.n].fn, 1); }
           if (!s && e.n === 'NULL') { E('mov', [R('a', 4), I(0)]); return typeInfo('void*'); }
+          if (!s && /^std(in|out|err)$/.test(e.n)) { E('mov', [R('a', 8), M(null, 0, 8, e.n, e.n)], '', 'load the FILE* ' + e.n + ' (a global the C library sets up)'); return typeInfo('void*'); }
           if (!s) throw new CgErr('"' + e.n + '" is not declared');
           if (s.arr) { genAddr(e); return ptrTo(s.t); }
           if (s.t.struct && s.t.ptr === 0) throw new CgErr('copying a whole struct is not shown');
@@ -5483,6 +6194,12 @@ function emuRun(c, opts) {
         }
       } else if (name === 'puts') { var ps = c.r.rdi === null ? null : strAt(c.r.rdi); ret = ps === null ? null : BigInt(ps.length + 1); }
       else if (name === 'putchar') ret = c.r.rdi;
+      else if (name === 'fork') {
+        c.nfork = (c.nfork || 0) + 1; c.epid = c.epid || 4120; c.eown = c.eown || 0;
+        var kidPid = childPid(c.epid, c.eown++), side = FORK_PATH_EMU ? (FORK_PATH_EMU[c.nfork - 1] || 'parent') : FORK_FOLLOW;
+        if (side === 'child') { c.epid = kidPid; c.eown = 0; ret = 0n; } else ret = BigInt(kidPid);
+      }
+      else if (name === 'sleep' || name === 'usleep') ret = 0n;
       else if (name === 'abs') ret = c.r.rdi === null ? null : mask(BigInt(Math.abs(Number(sx(c.r.rdi, 4)))), 4);
     } catch (e) { ret = null; }
     /* the C library may use any caller-saved register: their values are unknown afterwards */
@@ -5654,6 +6371,7 @@ function regBoxes(st, c) {
 }
 
 /* run the CPU for a list of new steps created by one Run line / Step into, starting at line L */
+var FORK_PATH_EMU = null;
 function cpuForSteps(prevStep, steps, L, into, fromStart) {
   var c = cpuLoad(prevStep && prevStep.cpu) || cpuInit();
   c.ip = null;
@@ -5719,7 +6437,10 @@ function regValue(name, cpu, st) {
   var v = BigInt(h), t = cpu.tag && cpu.tag[name], d = '';
   var asPtr = t && t.ptype ? isPtrType(t.ptype) : v >= 0x1000n && v < 0x8000n;
   if (asPtr) {
+    var cs = doc.steps[doc.cur];
+    FIND_PROC = cs && cs.proc && cs.proc !== 'parent' ? cs.proc : '';
     var tt = targetText(st, Number(v));
+    FIND_PROC = '';
     if (/^points to/.test(tt)) d = '→ ' + tt.replace(/^points to /, '');
     else if (v >= BigInt(CODE_BASE) && v < 0x2000n) { var f = funcAt(Number(v)); d = f ? '→ ' + f.name + '()' : ''; }
   } else {
@@ -6154,6 +6875,18 @@ function onUp(e) {
   }
 }
 
+function stdinSend(line) {
+  var at = doc.steps.length - 1;
+  pushUndo();
+  if (line === null) doc.stdinEOF = true;
+  else { doc.stdin = (doc.stdin || '') + line + '\n'; doc.stdinEOF = false; }
+  recordProgram();
+  /* the recording is the same up to here; this step now reads the line (or gets end of file) */
+  goStep(Math.min(at, doc.steps.length - 1));
+  ui.tab = 'out'; ui.conFocus = true;
+  renderAll(); save();
+  toast(line === null ? 'Closed stdin: fgets returns NULL now.' : 'Typed ' + JSON.stringify(line) + '. Step on to watch it, or press R to run to the next prompt.');
+}
 function setup() {
   var cv = $('cv');
   cv.addEventListener('pointerdown', onDown);
@@ -6263,6 +6996,17 @@ function setup() {
       else if (act2 === 'next') goStep(doc.cur + 1);
       else if (act2 === 'widecode') toggleWide();
       else if (act2 === 'syncstruct') mutate(function () { syncAllStructs(); });
+      else if (act2 === 'stdineof') { stdinSend(null); }
+      else if (act2 === 'gowait') { goStep(doc.steps.length - 1); ui.tab = 'out'; ui.conFocus = true; renderPane(); }
+      else if (act2 === 'setstdin') {
+        var tv = ($('stdinText') || {}).value || '';
+        if (tv && !/\n$/.test(tv)) tv += '\n';
+        pushUndo();
+        doc.stdin = tv; doc.stdinEOF = false;
+        if (FUNCS.main && !ui.editingCode) { recordProgram(); execRun(); }
+        renderAll(); save();
+        toast(tv ? 'Ran the program with ' + (tv.split('\n').length - 1) + ' line(s) of input.' : 'Ran the program with no input (end of file right away).');
+      }
       else if (act2 === 'editcode') {
         if (ui.editingCode) {
           var v = $('codeText').value;
@@ -6308,6 +7052,12 @@ function setup() {
     if (mrow) { sel = { kind: 'block', id: mrow.getAttribute('data-b'), slot: null }; renderCanvas(); renderPane(); }
   });
   $('pane').addEventListener('change', function (e) { if (e.target.getAttribute('data-f')) applyField(e.target); });
+  /* typing into the program: a line for fgets, or Ctrl+D to close stdin */
+  $('pane').addEventListener('keydown', function (e) {
+    if (e.target.id !== 'conIn') return;
+    if (e.key === 'Enter') { e.preventDefault(); stdinSend(e.target.value); }
+    else if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) { e.preventDefault(); stdinSend(null); }
+  });
   $('pane').addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.getAttribute('data-f') && e.target.type !== 'checkbox') { e.preventDefault(); e.target.blur(); }
   });
