@@ -262,6 +262,17 @@ textarea.codeedit { width: 100%; min-height: 240px; resize: vertical; font: 12.5
 .con-b .con-in:focus { box-shadow: inset 0 -1px 0 #5eead4; }
 .con-wait { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 13px; line-height: 1.5; }
 .con-wait .btn { margin-left: 6px; }
+.cl.libl .tx { opacity: .62; }
+.setup { margin: 0 0 12px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.setup .fld { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+.setup .cmd { display: flex; align-items: center; gap: 6px; }
+.setup .cmd b { font-family: var(--font-mono); color: var(--accent); }
+.setup .cmd input { flex: 1; min-width: 0; }
+.vfile { margin: 6px 0; }
+.vfh { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; font-size: 12.5px; color: var(--muted); }
+.vfh input { flex: 1; min-width: 0; } .vfh select { max-width: 52%; }
+.vfile textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+text.cellv { font-size: 11.5px !important; }
 .follow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; font-size: 13px; color: var(--muted); }
 .follow .btn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .term-h { margin: 16px 0 6px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
@@ -754,8 +765,11 @@ function aggLayout(name, seen) {
     var t = typeInfo(fd.type), sz, a;
     if (t.struct && t.ptr === 0) { var L = aggLayout(t.base, seen); sz = L.size; a = L.align; }
     else { sz = sizeOfInfo(t); a = alignOfInfo(t); }
+    /* an array member: n elements in a row */
+    var esz = sz;
+    if (fd.arr) { if (t.struct && t.ptr === 0) throw new Error('an array of structs inside a struct is not supported (field ' + fd.name + ')'); sz = esz * fd.arr; }
     var o = uni ? 0 : Math.ceil(off / a) * a;
-    out.push({ name: fd.name, type: fd.type, t: t, off: o, size: sz, anon: !!fd.anon });
+    out.push({ name: fd.name, type: fd.type, t: t, off: o, size: sz, anon: !!fd.anon, arr: fd.arr || 0, esz: esz });
     if (uni) big = Math.max(big, sz); else off = o + sz;
     if (a > al) al = a;
   });
@@ -775,19 +789,23 @@ function aggFlat(name) {
         subs.push(sub);
         walk(fd.t.base, p2, base + fd.off);
         sub.from = first; sub.to = leaves.length - 1;
+      } else if (fd.arr) {
+        /* each element is its own cell; the array itself can be used by name (it decays to a pointer) */
+        subs.push({ path: pre + fd.name, pre: null, type: fd.type, off: base + fd.off, size: fd.size, arr: fd.arr, from: leaves.length, to: leaves.length + fd.arr - 1 });
+        for (var k = 0; k < fd.arr; k++) leaves.push({ label: pre + fd.name + '[' + k + ']', type: fd.type, off: base + fd.off + k * fd.esz, size: fd.esz, grp: pre + fd.name, gi: k, gn: fd.arr });
       } else leaves.push({ label: pre + fd.name, type: fd.type, off: base + fd.off, size: fd.size });
     });
   })(name, '', 0);
   return { leaves: leaves, subs: subs, union: isUnionName(name) };
 }
-function aggLeaves(name) { return aggFlat(name).leaves.map(function (l) { return { name: l.label, type: l.type }; }); }
+function aggLeaves(name) { return aggFlat(name).leaves.map(function (l) { return { name: l.label, type: l.type, grp: l.grp, gi: l.gi, gn: l.gn }; }); }
 /* a member by name, looking inside anonymous structs and unions */
 function aggMember(name, field) {
   var L = aggLayout(name);
   for (var q = 0; q < L.fields.length; q++) {
     var fd = L.fields[q];
-    if (fd.anon) { var inner = aggMember(fd.t.base, field); if (inner) return { t: inner.t, off: fd.off + inner.off, type: inner.type }; }
-    else if (fd.name === field) return { t: fd.t, off: fd.off, type: fd.type };
+    if (fd.anon) { var inner = aggMember(fd.t.base, field); if (inner) return { t: inner.t, off: fd.off + inner.off, type: inner.type, arr: inner.arr, size: inner.size }; }
+    else if (fd.name === field) return { t: fd.t, off: fd.off, type: fd.type, arr: fd.arr, size: fd.size };
   }
   return null;
 }
@@ -802,6 +820,10 @@ function aggInitPlan(name, items) {
       if (fd.t.struct && fd.t.ptr === 0) {
         if (item && item.list) { walk(fd.t.base, p2, item.list, 0); pos++; }
         else pos = walk(fd.t.base, p2, list, pos);
+      } else if (fd.arr) {
+        var els = item && item.list ? item.list : null;
+        if (els) { els.forEach(function (e2, k) { if (k < fd.arr && e2 && !e2.list) plan.push({ label: pre + fd.name + '[' + k + ']', v: e2 }); }); pos++; }
+        else { for (var k2 = 0; k2 < fd.arr && pos < list.length; k2++, pos++) if (list[pos] && !list[pos].list) plan.push({ label: pre + fd.name + '[' + k2 + ']', v: list[pos] }); }
       } else {
         while (item && item.list) item = item.list[0];
         if (item) plan.push({ label: pre + fd.name, v: item });
@@ -915,6 +937,7 @@ function blockTitle(b) {
   if (b.kind === 'func') return b.execImg ? b.name : b.name + '()';
   if (b.region === 'reg') return b.name + (b.param ? ' \u2192 ' + b.param : '');
   if (b.name) return b.name;
+  if (b.fileName) return 'FILE for ' + b.fileName;
   if (b.region === 'heap') return 'malloc(' + (b.allocSize || b.size) + ')';
   return '(unnamed)';
 }
@@ -966,16 +989,25 @@ function geom(b) {
   } else if (b.kind === 'func') {
     bw = Math.max(GEO.SW, Math.ceil(String(b.sig || '').length * 7.3)); bh = GEO.SH;
   } else if (b.kind === 'struct') {
-    bw = GEO.LW + GEO.RW; bh = b.slots.length * GEO.RH;
-    b.slots.forEach(function (s, i) {
-      g.slots.push({ x: P + GEO.LW, y: y0 + i * GEO.RH, w: GEO.RW, h: GEO.RH, lx: P, port: 'right' });
+    /* an array member is a strip of small cells, 8 to a row, under its name */
+    var CW2 = 22, PER = 8, hasGrp = b.slots.some(function (s) { return s.grp != null; });
+    var rw = hasGrp ? Math.max(GEO.RW, PER * CW2) : GEO.RW, yy = 0;
+    bw = GEO.LW + rw;
+    b.slots.forEach(function (s) {
+      if (s.grp != null) {
+        var col = s.gi % PER;
+        if (s.gi > 0 && col === 0) yy += GEO.RH - 6;
+        g.slots.push({ x: P + GEO.LW + col * CW2, y: y0 + yy + 2, w: CW2 - 2, h: GEO.RH - 8, lx: P, port: 'right', cell: true, gfirst: s.gi === 0 });
+        if (s.gi === s.gn - 1) yy += GEO.RH - 2;
+      } else { g.slots.push({ x: P + GEO.LW, y: y0 + yy, w: rw, h: GEO.RH, lx: P, port: 'right' }); yy += GEO.RH; }
     });
+    bh = yy;
   } else {
     bw = b.sys || b.region === 'reg' ? GEO.SW + 44 : GEO.SW; bh = GEO.SH;
     g.slots.push({ x: P, y: y0, w: bw, h: GEO.SH, port: 'right' });
   }
   g.w = Math.max(GEO.MINW, bw + 2 * P);
-  if (b.kind !== 'array') g.slots.forEach(function (s) { s.w = g.w - 2 * P - (b.kind === 'struct' ? GEO.LW : 0); });
+  if (b.kind !== 'array') g.slots.forEach(function (s) { if (!s.cell) s.w = g.w - 2 * P - (b.kind === 'struct' ? GEO.LW : 0); });
   else g.slots.forEach(function (s) { if (s.lay === 'v') s.w = g.w - 2 * P - GEO.VAW; });
   g.h = y0 + bh + 6 + GEO.FOOT;
   g.bodyY = y0; g.bodyH = bh;
@@ -1008,7 +1040,7 @@ function makeBlock(state, o) {
   return b;
 }
 function structSlots(typeName, value) {
-  return aggFlat(typeName).leaves.map(function (l) { return { label: l.label, type: l.type, value: value === undefined ? null : value }; });
+  return aggFlat(typeName).leaves.map(function (l) { var o = { label: l.label, type: l.type, value: value === undefined ? null : value }; if (l.grp) { o.grp = l.grp; o.gi = l.gi; o.gn = l.gn; } return o; });
 }
 function blockSubs(b) {
   if (b.kind !== 'struct' || !STRUCTS[b.typeName]) return [];
@@ -1139,12 +1171,20 @@ function diffStates1(prev, cur) {
     var wh = cur.multi ? (b.proc ? 'child ' + b.pid : 'parent') : '';
     if (b.freed && !p.freed) { c._freed = true; res.lines.push({ k: 'free', who: wh, t: 'freed ' + blockTitle(b) + ' at ' + hex(b.addr) }); }
     if (b.addr !== p.addr) res.lines.push({ k: 'mod', t: blockTitle(b) + ' moved to ' + hex(b.addr) });
+    var grpChg = {};
     b.slots.forEach(function (sl, i) {
       var ps = p.slots[i];
       if (!ps || ps.value !== sl.value || ps.type !== sl.type) {
         c[i] = true;
+        /* the cells of an array member are reported together, as the string they now hold */
+        if (sl.grp != null && b.kind === 'struct') { if (!grpChg[sl.grp]) grpChg[sl.grp] = { n: 0, first: i - sl.gi }; grpChg[sl.grp].n++; return; }
         res.lines.push({ k: 'mod', who: wh, t: slotName(b, i) + ': ' + (ps ? fmtVal(ps, true) : '?') + ' \u2192 ' + fmtVal(sl, true) });
       }
+    });
+    Object.keys(grpChg).forEach(function (gname) {
+      var g0 = grpChg[gname].first, gn = b.slots[g0].gn, txt = '', known = true;
+      for (var q = 0; q < gn; q++) { var v = b.slots[g0 + q].value; if (v === null || v === undefined) { known = false; break; } if (v === 0) break; txt += String.fromCharCode(v); }
+      res.lines.push({ k: 'mod', who: wh, t: (b.name ? b.name + '.' : '(' + (b.region === 'heap' ? 'heap ' : '') + hex(b.addr) + ').') + gname + ': ' + grpChg[gname].n + ' of its ' + gn + ' bytes changed' + (known ? ', it now holds "' + txt + '"' : '') });
     });
     if (Object.keys(c).length) res.chg[b.id] = c;
   });
@@ -1168,21 +1208,97 @@ function parseFields(body) {
     var fpf = /^(.*?)\(\s*(\*+)\s*([A-Za-z_]\w*)\s*\)\s*\((.*)\)$/.exec(part);
     if (fpf) { out.push({ name: fpf[3], type: fpf[1].trim() + ' (' + fpf[2] + ')(' + fpf[4] + ')' }); return; }
     var segs = part.split(',');
-    var first = /^(.*?)([A-Za-z_]\w*)\s*$/.exec(segs[0].trim());
+    var first = /^(.*?)([A-Za-z_]\w*)\s*(?:\[\s*([^\]]*)\])?\s*$/.exec(segs[0].trim());
     if (!first) return;
+    function dim(d) { if (d === undefined) return 0; var v = constEval(d); if (!(v > 0)) throw new Error('the array field size [' + d + '] must be a constant'); return v; }
     var baseType = first[1].replace(/\*/g, '').trim();
-    out.push({ name: first[2], type: (baseType + ' ' + first[1].replace(/[^*]/g, '')).trim().replace(/ \*/, '*') });
+    var f0 = { name: first[2], type: (baseType + ' ' + first[1].replace(/[^*]/g, '')).trim().replace(/ \*/, '*') };
+    if (first[3] !== undefined) f0.arr = dim(first[3]);
+    out.push(f0);
     segs.slice(1).forEach(function (s) {
-      var m2 = /^(\**)\s*([A-Za-z_]\w*)\s*$/.exec(s.trim());
-      if (m2) out.push({ name: m2[2], type: baseType + m2[1] });
+      var m2 = /^(\**)\s*([A-Za-z_]\w*)\s*(?:\[\s*([^\]]*)\])?\s*$/.exec(s.trim());
+      if (m2) { var f1 = { name: m2[2], type: baseType + m2[1] }; if (m2[3] !== undefined) f1.arr = dim(m2[3]); out.push(f1); }
     });
   });
   return out;
 }
 var EXTRA_STRUCTS = {}, FUNC_SRC = [];
+/* a constant expression in a declaration: 16, 5 + 1, KEY_MAX + 1 (after macros) */
+function constEval(txt) {
+  txt = String(txt).trim();
+  if (!/^[\d\s+\-*\/%()xXa-fA-FuUlL]+$/.test(txt)) return NaN;
+  try { return Math.trunc(Function('"use strict"; return (' + txt.replace(/([0-9a-fA-FxX]+)[uUlL]+/g, '$1') + ');')()); } catch (e) { return NaN; }
+}
+/* #define NAME value: object-like macros, replaced as whole words outside strings and comments.
+   Every line keeps its place, so line numbers do not move. */
+var MACROS = {};
+function expandMacros(src) {
+  MACROS = {};
+  var lines = src.split('\n');
+  lines.forEach(function (ln) { var m = /^\s*#\s*define\s+([A-Za-z_]\w*)(?!\()\s+(.*?)\s*$/.exec(ln); if (m) MACROS[m[1]] = m[2]; });
+  var names = Object.keys(MACROS);
+  if (!names.length) return src;
+  var re = new RegExp('\\b(' + names.join('|') + ')\\b', 'g');
+  return lines.map(function (ln) {
+    if (/^\s*#/.test(ln)) return ln;
+    for (var pass = 0; pass < 5; pass++) {
+      var changed = false;
+      ln = ln.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|([A-Za-z_]\w*)/g, function (all, str, id) {
+        if (str || !id || MACROS[id] === undefined) return all;
+        changed = true; return MACROS[id];
+      });
+      if (!changed) break;
+    }
+    return ln;
+  }).join('\n');
+}
+/* headers from the course that are not part of C: their code is added after yours (and shown there),
+   so it can be stepped into like any other function */
+var LIB_HEADERS = {
+  'mdb.h': { needs: /struct\s+MdbRec\s*\{/, text: '/* ===== mdb.h (supplied by MemoryDojo for #include "mdb.h") ===== */\nstruct MdbRec {\n    char name[16];\n    char msg[24];\n};' },
+  'mylist.h': { needs: /\baddFront\s*\([^;]*\)\s*\{/, text: [
+    '/* ===== mylist.h + mylist.c, lab 3 (supplied by MemoryDojo for #include "mylist.h") ===== */',
+    'struct Node {', '    void *data;', '    struct Node *next;', '};',
+    'struct List {', '    struct Node *head;', '};',
+    'void initList(struct List *list) {', '    list->head = 0;', '}',
+    'int isEmptyList(struct List *list) {', '    return (list->head == 0);', '}',
+    'struct Node *addFront(struct List *list, void *data) {',
+    '    struct Node *n = malloc(sizeof(struct Node));', '    if (n == NULL)', '        return NULL;',
+    '    n->data = data;', '    n->next = list->head;', '    list->head = n;', '    return n;', '}',
+    'void traverseList(struct List *list, void (*f)(void *)) {',
+    '    struct Node *node = list->head;', '    while (node) {', '        f(node->data);', '        node = node->next;', '    }', '}',
+    'struct Node *findNode(struct List *list, const void *dataSought, int (*compar)(const void *, const void *)) {',
+    '    struct Node *node = list->head;', '    while (node) {', '        if (compar(dataSought, node->data) == 0)', '            return node;', '        node = node->next;', '    }', '    return NULL;', '}',
+    'void *popFront(struct List *list) {', '    if (isEmptyList(list))', '        return NULL;',
+    '    struct Node *oldHead = list->head;', '    list->head = oldHead->next;', '    void *data = oldHead->data;', '    free(oldHead);', '    return data;', '}',
+    'void removeAllNodes(struct List *list) {', '    while (!isEmptyList(list))', '        popFront(list);', '}',
+    'struct Node *addAfter(struct List *list, struct Node *prevNode, void *data) {',
+    '    if (prevNode == NULL)', '        return addFront(list, data);',
+    '    struct Node *n = malloc(sizeof(struct Node));', '    if (n == NULL)', '        return NULL;',
+    '    n->data = data;', '    n->next = prevNode->next;', '    prevNode->next = n;', '    return n;', '}',
+    'void reverseList(struct List *list) {',
+    '    struct Node *prv = NULL;', '    struct Node *cur = list->head;', '    struct Node *nxt;',
+    '    while (cur) {', '        nxt = cur->next;', '        cur->next = prv;', '        prv = cur;', '        cur = nxt;', '    }', '    list->head = prv;', '}'
+  ].join('\n') }
+};
+/* the code as the compiler sees it: yours, then any course library code it #includes */
+function withLibs(code) {
+  code = code || '';
+  var add = [];
+  Object.keys(LIB_HEADERS).forEach(function (h) {
+    var H = LIB_HEADERS[h];
+    if (new RegExp('#\\s*include\\s*"' + h.replace('.', '\\.') + '"').test(code) && !H.needs.test(code)) add.push(H.text);
+  });
+  return add.length ? code.replace(/\s*$/, '') + '\n\n' + add.join('\n\n') + '\n' : code;
+}
 function setDefs(code) {
   STRUCTS = {}; TYPEDEFS = {}; TI_CACHE = {}; CODE_STRUCTS = {};
-  var src = blankComments(code || ''), m;
+  var userLines = String(code || '').replace(/\s*$/, '').split('\n').length;
+  code = withLibs(code);
+  var src = expandMacros(blankComments(code || '')), m;
+  /* FILE from <stdio.h>: what fopen allocates (a teaching model of glibc's struct _IO_FILE) */
+  STRUCTS['struct _IO_FILE'] = [{ name: '_fileno', type: 'int' }, { name: '_flags', type: 'int' }, { name: '_pos', type: 'long' }, { name: '_size', type: 'long' }, { name: '_eof', type: 'int' }, { name: '_err', type: 'int' }];
+  TYPEDEFS.FILE = 'struct _IO_FILE';
   var skip = {};
   function lineOf(idx) { return src.slice(0, idx).split('\n').length; }
   /* struct and union definitions, matched brace for brace so members can be structs or unions too */
@@ -1267,7 +1383,7 @@ function setDefs(code) {
     void hd;
   });
   FUNC_SRC = src.split('\n');
-  return { skip: skip, depth: depth, fnAt: fnAt, funcs: funcs, minDepth: minDepth, fnLine: fnLine };
+  return { skip: skip, depth: depth, fnAt: fnAt, funcs: funcs, minDepth: minDepth, fnLine: fnLine, userLines: userLines };
 }
 function registerStruct(name, fields) {
   EXTRA_STRUCTS[name] = fields;
@@ -1391,6 +1507,17 @@ function procBuiltin(ctx, name, args, val) {
   if (name === 'fgets') {
     if (args.length < 3) throw new Error('fgets takes three arguments: buffer, size, stream');
     var dst = val(args[0]), size = val(args[1]), text = STDIN_TEXT, pos = PROC.inPos || 0;
+    var fobj = PROC.files && PROC.files[val(args[2])];
+    if (fobj) {
+      /* a line from an open file */
+      if (fobj.pos >= fobj.bytes.length) { fobj.eof = true; note(ctx, 'fgets returns NULL: the end of ' + fobj.name + ' was reached.'); return { t: typeInfo('char*'), v: 0 }; }
+      var fb2 = [], k3 = fobj.pos;
+      while (k3 < fobj.bytes.length && fb2.length < size - 1) { fb2.push(fobj.bytes[k3]); k3++; if (fb2[fb2.length - 1] === 10) break; }
+      fobj.pos = k3;
+      memWriteBytes(ctx.state, dst, fb2.concat([0]), 'fgets');
+      note(ctx, 'fgets read a line of ' + fb2.length + ' bytes from ' + fobj.name + ' into the buffer, then a \\0.');
+      return { t: typeInfo('char*'), v: dst };
+    }
     if (pos >= text.length) {
       if (!STDIN_EOF) {
         /* like a real terminal: the program blocks here until a line is typed */
@@ -1414,6 +1541,181 @@ function procBuiltin(ctx, name, args, val) {
     outWrite(line + (/\n$/.test(line) ? '' : '\n'));
     note(ctx, 'fgets reads one line from stdin, ' + JSON.stringify(line) + ', into the buffer: ' + line.length + ' characters' + (/\n$/.test(line) ? ' including the newline' : '') + ', then a \\0. It returns the buffer’s address. (The terminal echoes what you type, so the line also appears in the output.)');
     return { t: typeInfo('char*'), v: dst };
+  }
+  return null;
+}
+
+/* main(int argc, char **argv): before main runs, the kernel copies the command line strings to the
+   top of the stack, builds the argv array of pointers to them (ending in NULL), and the C runtime
+   passes argc and argv to main like any other function arguments */
+function setupArgv(st, F) {
+  var args = CMD_ARGS.length ? CMD_ARGS : ['./a.out'], top = BASES.stack + 0x100, ptrs = [];
+  var strAddr = top;
+  args.forEach(function (a) { strAddr -= a.length + 1; });
+  strAddr = Math.floor(strAddr / 8) * 8;
+  var arrAddr = strAddr - (args.length + 1) * 8;
+  var at = strAddr;
+  args.forEach(function (a, k) {
+    var slots = [];
+    for (var c = 0; c <= a.length; c++) slots.push({ label: '[' + c + ']', type: 'char', value: c < a.length ? a.charCodeAt(c) & 255 : 0 });
+    makeBlock(st, { name: 'argv[' + k + '] string', region: 'stack', kind: 'array', slots: slots, addr: at, frame: '__argv', scope: 0 });
+    ptrs.push(at); at += a.length + 1;
+  });
+  var ps = ptrs.map(function (v, k) { return { label: '[' + k + ']', type: 'char*', value: v }; });
+  ps.push({ label: '[' + ptrs.length + ']', type: 'char*', value: 0 });
+  makeBlock(st, { name: 'argv array', region: 'stack', kind: 'array', slots: ps, addr: arrAddr, frame: '__argv', scope: 0 });
+  var vals = [args.length, arrAddr];
+  F.params.slice(0, 2).forEach(function (p, k) {
+    makeBlock(st, { name: p.name || (k ? 'argv' : 'argc'), region: 'stack', kind: 'scalar', slots: [{ label: '', type: p.type, value: vals[k] }], frame: 'main', scope: 1 });
+  });
+}
+/* ----- memory as bytes: memcpy, fread and friends work on whatever boxes cover the addresses ----- */
+function memReadBytes(st, addr, n, what) {
+  var out = [];
+  for (var k = 0; k < n; k++) {
+    var r = findAt(st, addr + k);
+    if (!r || r.i < 0) throw new Error('Segmentation fault: ' + what + ' reads ' + hex(addr + k) + ', where there is no memory');
+    var sl = r.b.slots[r.i], bs = bytesOf(sl);
+    out.push(bs ? bs[addr + k - slotAddr(r.b, r.i)] : null);
+  }
+  return out;
+}
+function memWriteBytes(st, addr, bytes, what) {
+  var touched = [], seen = {};
+  for (var k = 0; k < bytes.length; k++) {
+    var r = findAt(st, addr + k);
+    if (!r || r.i < 0) throw new Error('Segmentation fault: ' + what + ' writes ' + hex(addr + k) + ', past the end of the memory it was given');
+    if (r.b.region === 'rodata') throw new Error('Segmentation fault: ' + what + ' writes to read-only memory (a string literal)');
+    var key = r.b.id + ':' + r.i;
+    if (!seen[key]) { var sl = r.b.slots[r.i]; seen[key] = { b: r.b, i: r.i, bs: bytesOf(sl) || new Array(sl.size).fill(null) }; touched.push(seen[key]); }
+    seen[key].bs[addr + k - slotAddr(r.b, r.i)] = bytes[k];
+  }
+  touched.forEach(function (x) {
+    var sl = x.b.slots[x.i];
+    sl.value = x.bs.some(function (v) { return v === null || v === undefined; }) ? null : bytesToValue(sl.type, x.bs);
+    if (x.b.uni) syncOverlaps(x.b, x.i);
+  });
+}
+function cStr(st, addr, what) {
+  if (!addr) throw new Error('Segmentation fault: ' + what + ' was given a NULL pointer');
+  var s = cString(st, addr);
+  if (s === null) throw new Error(what + ' ran off the end of memory: the string at ' + hex(addr) + ' has no terminating \\0');
+  return s;
+}
+function strBytes(s) { var b = []; for (var k = 0; k < s.length; k++) b.push(s.charCodeAt(k) & 255); return b; }
+/* files: the Output tab defines them; fopen reads from these */
+var VFILES = {}, CMD_ARGS = ['./a.out'];
+var STD_FILES = { 0xf000: 'stdin', 0xf008: 'stdout', 0xf010: 'stderr' };
+function libBuiltin(ctx, name, args, val, fin) {
+  var st = ctx.state;
+  function n(v, t) { return { t: typeInfo(t || 'int'), v: v }; }
+  function ptr(v, t) { return { t: typeInfo(t || 'char*'), v: v }; }
+  function A(k) { return val(args[k]); }
+  if (name === 'memcpy' || name === 'memmove') {
+    var cnt = A(2), bytes = memReadBytes(st, A(1), cnt, name);
+    memWriteBytes(st, A(0), bytes, name);
+    note(ctx, name + ' copied ' + cnt + ' bytes from ' + hex(A(1)) + ' to ' + hex(A(0)) + ', byte for byte. It knows nothing about types: whatever the bytes meant at the source, they mean the same at the destination.');
+    return ptr(A(0), 'void*');
+  }
+  if (name === 'memset') {
+    var mc = A(2), mb = []; for (var q = 0; q < mc; q++) mb.push(A(1) & 255);
+    memWriteBytes(st, A(0), mb, name);
+    return ptr(A(0), 'void*');
+  }
+  if (name === 'strcpy' || name === 'strcat') {
+    var src = cStr(st, A(1), name), at = A(0);
+    if (name === 'strcat') at += cStr(st, A(0), name).length;
+    memWriteBytes(st, at, strBytes(src).concat([0]), name);
+    return ptr(A(0));
+  }
+  if (name === 'strncpy') {
+    var lim = A(2), s2 = cStr(st, A(1), name), out = strBytes(s2.slice(0, lim));
+    var term = s2.length < lim;
+    while (out.length < lim) out.push(0);
+    memWriteBytes(st, A(0), out, name);
+    note(ctx, 'strncpy copies at most ' + lim + ' characters. ' + (term ? 'The source was shorter, so the rest of the ' + lim + ' bytes were filled with \\0.' : 'The source has ' + lim + ' or more characters, so NO \\0 was written: the destination is not a terminated string until you add one.'));
+    return ptr(A(0));
+  }
+  if (name === 'strcmp' || name === 'strncmp') {
+    var a1 = cStr(st, A(0), name), a2 = cStr(st, A(1), name);
+    if (name === 'strncmp') { a1 = a1.slice(0, A(2)); a2 = a2.slice(0, A(2)); }
+    return n(a1 < a2 ? -1 : a1 > a2 ? 1 : 0);
+  }
+  if (name === 'strstr') {
+    var hay = cStr(st, A(0), name), ndl = cStr(st, A(1), name), ix = hay.indexOf(ndl);
+    note(ctx, 'strstr("' + hay + '", "' + ndl + '") ' + (ix < 0 ? 'found no match: NULL.' : 'found it at index ' + ix + ': returns ' + hex(A(0) + ix) + ', a pointer into the first string.'));
+    return ptr(ix < 0 ? 0 : A(0) + ix);
+  }
+  if (name === 'strchr' || name === 'strrchr') {
+    var hs = cStr(st, A(0), name), ch = String.fromCharCode(A(1) & 255), ci = A(1) === 0 ? hs.length : name === 'strchr' ? hs.indexOf(ch) : hs.lastIndexOf(ch);
+    return ptr(ci < 0 ? 0 : A(0) + ci);
+  }
+  if (name === 'atoi' || name === 'atol') return n(parseInt(cStr(st, A(0), name), 10) || 0, name === 'atol' ? 'long' : 'int');
+  if (name === 'fprintf' || name === 'fputs' || name === 'fputc') {
+    var fd = STD_FILES[A(name === 'fprintf' ? 0 : 1)];
+    var text;
+    if (name === 'fprintf') text = cFormat(st, cStr(st, A(1), name), args.slice(2).map(function (V) { return val(fin(V, null)); }));
+    else if (name === 'fputs') text = cStr(st, A(0), name);
+    else text = String.fromCharCode(A(0) & 255);
+    if (fd === 'stdout' || fd === 'stderr') { outWrite(text); note(ctx, name + ' prints to ' + fd + ': ' + JSON.stringify(text.replace(/\n$/, '')) + (fd === 'stderr' ? '. stderr shows up on the same terminal, unbuffered.' : '.')); }
+    else { var of = PROC.files && PROC.files[A(name === 'fprintf' ? 0 : 1)]; if (!of) throw new Error(name + ': the FILE* is not an open file'); of.bytes = of.bytes.concat(strBytes(text)); }
+    return n(text.length);
+  }
+  if (name === 'fflush') return n(0);
+  if (name === 'fopen') {
+    var fname = cStr(st, A(0), name), mode = cStr(st, A(1), name), key = fname.replace(/^\.\//, '');
+    var F = VFILES[key];
+    if (!F && !/[wa]/.test(mode)) {
+      PROC.errno = 2;
+      note(ctx, 'fopen("' + fname + '", "' + mode + '") returns NULL: there is no file named ' + fname + ' (errno = ENOENT). The files the program can open are listed in the Output tab.');
+      return ptr(0, 'struct _IO_FILE*');
+    }
+    var fb = makeBlock(st, { region: 'heap', kind: 'struct', typeName: 'struct _IO_FILE', slots: structSlots('struct _IO_FILE', 0), allocSize: 472 });
+    fb.name = '';
+    fb.fileName = fname;
+    var size = F && !/w/.test(mode) ? F.length : 0;
+    fb.slots.forEach(function (sl) { if (sl.label === '_fileno') sl.value = 3 + Object.keys(PROC.files || {}).length; if (sl.label === '_size') sl.value = size; if (sl.label === '_pos') sl.value = /a/.test(mode) ? size : 0; });
+    if (!PROC.files) PROC.files = {};
+    PROC.files[fb.addr] = { name: key, bytes: F && !/w/.test(mode) ? F.slice() : [], pos: /a/.test(mode) ? size : 0, eof: false, err: false, block: fb.id };
+    note(ctx, 'fopen("' + fname + '", "' + mode + '") opened the file. The C library malloc\u2019d a FILE struct on the heap to keep track of it (where you are in the file, the buffer, the file descriptor) and returns a pointer to it. fclose frees it, and valgrind reports it if you forget.');
+    return ptr(fb.addr, 'struct _IO_FILE*');
+  }
+  function fileOf(v, what) {
+    if (STD_FILES[v]) return null;
+    var f = PROC.files && PROC.files[v];
+    if (!f) throw new Error(what + ': ' + (v ? hex(v) + ' is not an open FILE*' : 'the FILE* is NULL (fopen failed?)'));
+    return f;
+  }
+  function syncFileBlock(addr, f) {
+    for (var k = 0; k < st.blocks.length; k++) if (st.blocks[k].addr === addr && st.blocks[k].region === 'heap') st.blocks[k].slots.forEach(function (sl) { if (sl.label === '_pos') sl.value = f.pos; if (sl.label === '_eof') sl.value = f.eof ? 1 : 0; if (sl.label === '_err') sl.value = f.err ? 1 : 0; });
+  }
+  if (name === 'fread') {
+    var size1 = A(1), nmemb = A(2), f = fileOf(A(3), name);
+    if (!f) throw new Error('fread from ' + STD_FILES[A(3)] + ' is not simulated: use fgets for stdin');
+    var want = size1 * nmemb, have = Math.max(0, f.bytes.length - f.pos), got = Math.min(want, have);
+    var items = size1 ? Math.floor(got / size1) : 0;
+    if (got) memWriteBytes(st, A(0), f.bytes.slice(f.pos, f.pos + got), name);
+    f.pos += got;
+    if (got < want) f.eof = true;
+    syncFileBlock(A(3), f);
+    note(ctx, 'fread asked for ' + nmemb + ' item' + (nmemb === 1 ? '' : 's') + ' of ' + size1 + ' bytes from ' + f.name + ' (at byte ' + (f.pos - got) + ' of ' + f.bytes.length + ') and got ' + items + '.' + (got ? ' It copied ' + got + ' raw bytes into memory at ' + hex(A(0)) + ' exactly as they are in the file.' : '') + (got < want ? ' It hit the end of the file, so the end-of-file flag is set' + (got && got % size1 ? ' (the last ' + (got % size1) + ' bytes were only part of an item)' : '') + '.' : ''));
+    return n(items, 'unsigned long');
+  }
+  if (name === 'fwrite') {
+    var fw = fileOf(A(3), name), wb = memReadBytes(st, A(0), A(1) * A(2), name);
+    if (!fw) { outWrite(String.fromCharCode.apply(null, wb.map(function (x) { return x || 0; }))); return n(A(2), 'unsigned long'); }
+    fw.bytes = fw.bytes.concat(wb.map(function (x) { return x || 0; })); fw.pos = fw.bytes.length; syncFileBlock(A(3), fw);
+    return n(A(2), 'unsigned long');
+  }
+  if (name === 'feof' || name === 'ferror') {
+    var fe = fileOf(A(0), name);
+    var r = fe ? (name === 'feof' ? fe.eof : fe.err) : (name === 'feof' ? !!STDIN_EOF && (PROC.inPos || 0) >= STDIN_TEXT.length : false);
+    return n(r ? 1 : 0);
+  }
+  if (name === 'fclose') {
+    var fc = fileOf(A(0), name);
+    if (fc) { doFree(ctx, A(0), 'fclose'); delete PROC.files[A(0)]; note(ctx, 'fclose closed ' + fc.name + ' and freed the FILE struct that fopen allocated.'); }
+    return n(0);
   }
   return null;
 }
@@ -1559,7 +1861,7 @@ function outReset() { OUT = { buf: '', mark: 0, ev: [] }; }
    the output of two recordings can be lined up the way the terminal would show it. */
 var FORK_FOLLOW = 'parent';
 var PROC = null;
-function procReset() { PROC = { pid: 4120, ppid: 4100, next: 4121, own: 0, t: 0, lastT: 0, forks: 0, kids: [], forkAt: null, path: [], pendWait: 0, errno: 0, inPos: 0 }; }
+function procReset() { PROC = { files: {}, pid: 4120, ppid: 4100, next: 4121, own: 0, t: 0, lastT: 0, forks: 0, kids: [], forkAt: null, path: [], pendWait: 0, errno: 0, inPos: 0 }; }
 procReset();
 function outWrite(s) { OUT.buf += s; OUT.ev.push({ t: PROC.t, s: s, pid: PROC.pid }); }
 function outTake() { var s = OUT.buf.slice(OUT.mark); OUT.mark = OUT.buf.length; return s; }
@@ -1726,6 +2028,7 @@ function runTokens(ctx, toks, mode, destType) {
   function fieldOf(V, name) {
     if (V.ne && V.t.struct && V.t.ptr === 0) {
       var mb = STRUCTS[V.t.base] ? aggMember(V.t.base, name) : null;
+      if (mb && mb.arr) return { t: ptrTo(mb.t), v: 0, ne: true, arrSz: mb.size };
       if (mb) return { t: mb.t, v: 0, ne: true };
       throw new Error(V.t.base + ' has no field "' + name + '"');
     }
@@ -1733,7 +2036,11 @@ function runTokens(ctx, toks, mode, destType) {
     var b = V.blk, pre = V.pre || '', want = pre + name;
     for (var k = 0; k < b.slots.length; k++) if (b.slots[k].label === want) return { t: typeInfo(b.slots[k].type), lv: { b: b, i: k } };
     var subs = blockSubs(b);
-    for (var q2 = 0; q2 < subs.length; q2++) if (subs[q2].path === want) return { t: typeInfo(subs[q2].type), blk: b, pre: subs[q2].pre, off: subs[q2].off };
+    for (var q2 = 0; q2 < subs.length; q2++) if (subs[q2].path === want) {
+      /* an array member names its first element: it decays to a pointer */
+      if (subs[q2].arr) return { t: ptrTo(typeInfo(subs[q2].type)), v: b.addr + subs[q2].off, arrSz: subs[q2].size };
+      return { t: typeInfo(subs[q2].type), blk: b, pre: subs[q2].pre, off: subs[q2].off };
+    }
     throw new Error((V.pre ? V.t.base : blockType(b)) + ' has no field "' + name + '"');
   }
   function derefV(a) {
@@ -1840,7 +2147,7 @@ function runTokens(ctx, toks, mode, destType) {
     if (NE) return F.ret === 'void' ? num(0, 'int') : num(0, F.ret);
     if (ctx.calls > 40 || (ctx.depthCalls || 0) > 30) throw new Error('too many nested calls (infinite recursion?)');
     ctx.calls++;
-    if (args.length !== F.params.length) throw new Error(F.name + '() takes ' + F.params.length + ' argument' + (F.params.length === 1 ? '' : 's') + ', but got ' + args.length);
+    if (args.length !== F.params.length && !(F.name === 'main' && ctx.traceMain && !args.length)) throw new Error(F.name + '() takes ' + F.params.length + ' argument' + (F.params.length === 1 ? '' : 's') + ', but got ' + args.length);
     var tag = F.name + '#' + ((ctx.depthCalls || 0) + 1), savedSp = st.alloc.stack;
     var vals = args.map(function (A, k) {
       var pt = typeInfo(F.params[k].type);
@@ -2044,6 +2351,7 @@ function runTokens(ctx, toks, mode, destType) {
     var c2 = makeCtx(st, 'stack', 'main', 1);
     c2.onlyFrame = 'main'; c2.depthCalls = 0; c2.calls = 0; c2.warned = ctx.warned;
     CALLSTACK.push({ fn: 'main', line: F.line });
+    if (F.params.length) setupArgv(st, F);
     var mark = 0;
     function fresh() { var m = c2.msgs.slice(mark); mark = c2.msgs.length; return m; }
     function snap(line, extra, kind) { if (REC) recSnap(st, line, fresh().concat(extra ? [{ level: 'flow', text: extra }] : []), kind); }
@@ -2219,6 +2527,8 @@ function runTokens(ctx, toks, mode, destType) {
     }
     var pb = procBuiltin(ctx, name, args, val);
     if (pb) return pb;
+    var lb = libBuiltin(ctx, name, args, val, fin);
+    if (lb) return lb;
     if (NOOP_FUNCS[name]) { note(ctx, name + '() does not change memory, so nothing changed'); return num(0, 'int'); }
     if (name === 'realloc') throw new Error('realloc is not simulated: draw the new block yourself or use malloc and free');
     throw new Error('the function ' + name + '() is not simulated. Make the change by hand on the canvas.');
@@ -2310,7 +2620,7 @@ function runTokens(ctx, toks, mode, destType) {
       NE++;
       var e;
       try { e = parseUnary(); } finally { NE--; }
-      var sz = (e.arrBlk && e.v === e.arrBlk.addr && !e.ne) ? e.arrBlk.size : e.blk ? e.blk.size : sizeOfInfo(e.t);
+      var sz = e.arrSz ? e.arrSz : (e.arrBlk && e.v === e.arrBlk.addr && !e.ne) ? e.arrBlk.size : e.blk && !e.pre ? e.blk.size : sizeOfInfo(e.t);
       return num(sz, 'unsigned long');
     }
     if (t.k === 'id' && t.s === 'new') {
@@ -2441,7 +2751,7 @@ function runTokens(ctx, toks, mode, destType) {
       else if (init) throw new Error('an array needs a { } list or a string to initialize it');
       var n = dims === -1 ? (vals ? vals.length : 0) : dims;
       if (!(n >= 1)) throw new Error('the array ' + name + ' needs a size');
-      if (n > 64) throw new Error('arrays larger than 64 elements are too big to draw');
+      if (n > 64) throw new Error('MemoryDojo draws arrays of up to 64 elements, and ' + name + ' has ' + n + '. Make it smaller for tracing, for example ' + name + '[64]');
       if (vals && vals.length > n) warn(ctx, 'too many initializers for ' + name + '[' + n + ']');
       slots = [];
       for (var k = 0; k < n; k++) slots.push({ label: '[' + k + ']', type: tstr, value: vals ? coerce(k < vals.length ? vals[k] : 0, T) : dflt });
@@ -2624,6 +2934,12 @@ var EXAMPLES = [
 '#include <stdlib.h>\n\nstruct Node {\n    void *data;\n    struct Node *next;\n};\n\nstruct List {\n    struct Node *head;\n};\n\nint main() {\n    struct List list;\n    list.head = NULL;\n    double a = 1.0;\n    double b = 2.0;\n    struct Node *n = malloc(sizeof(struct Node));   // addFront(&list, &a)\n    n->data = &a;\n    n->next = list.head;\n    list.head = n;\n    n = malloc(sizeof(struct Node));                  // addFront(&list, &b)\n    n->data = &b;\n    n->next = list.head;\n    list.head = n;\n    struct Node *old = list.head;                     // popFront(&list)\n    void *d = old->data;\n    list.head = old->next;\n    free(old);\n    return 0;\n}\n' },
   { id: 'argv', title: 'argv: a vector of strings', code:
 'int main() {\n    // argv as the OS would build it for: ./a.out hi there\n    char *argv[4] = {"./a.out", "hi", "there", NULL};\n    char **p = argv + 1;\n    char c = **p;        // first char of "hi"\n    p++;\n    char d = (*p)[1];    // second char of "there"\n    return 0;\n}\n' },
+  { id: "mdblookup", title: "mdb-lookup (lab 4): files, argv, mylist", code:
+"/*\n * mdb-lookup.c\n *\n * Usage: mdb-lookup <database_file>\n *\n * Loads every 40-byte MdbRec from the database file into a linked list\n * (mylist from lab 3), then repeatedly prompts for a search key and prints\n * every record whose name or msg contains the first 5 characters of the key.\n * Ctrl-D (EOF on stdin) ends the program.\n */\n\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\n#include \"mylist.h\"\n#include \"mdb.h\"\n\n#define KEY_MAX 5\n\nstatic void die(const char *msg)\n{\n    perror(msg);\n    exit(1);\n}\n\nint main(int argc, char **argv)\n{\n    if (argc != 2) {\n        fprintf(stderr, \"usage: %s <database_file>\\n\", argv[0]);\n        exit(1);\n    }\n\n    FILE *fp = fopen(argv[1], \"rb\");\n    if (fp == NULL)\n        die(argv[1]);\n\n    /*\n     * Load phase: read one record at a time and append it to the list.\n     */\n    struct List list;\n    initList(&list);\n\n    struct Node *last = NULL;           /* tail of the list so far */\n    struct MdbRec r;\n\n    while (fread(&r, sizeof(r), 1, fp) == 1) {\n        struct MdbRec *rec = malloc(sizeof(*rec));\n        if (rec == NULL)\n            die(\"malloc failed\");\n        memcpy(rec, &r, sizeof(r));\n\n        last = addAfter(&list, last, rec);\n        if (last == NULL)\n            die(\"addAfter failed\");\n    }\n\n    if (ferror(fp))\n        die(\"fread failed\");\n\n    /*\n     * Lookup phase: one line per search.\n     */\n    char line[64];   /* 1000 in the lab; MemoryDojo draws arrays up to 64 */\n    char key[KEY_MAX + 1];\n\n    printf(\"lookup: \");\n    fflush(stdout);\n\n    while (fgets(line, sizeof(line), stdin) != NULL) {\n\n        /* Keep at most the first 5 chars, always null-terminated. */\n        strncpy(key, line, KEY_MAX);\n        key[KEY_MAX] = '\\0';\n\n        /* If the line was shorter than 5 chars, the '\\n' may be in key. */\n        size_t n = strlen(key);\n        if (n > 0 && key[n - 1] == '\\n')\n            key[n - 1] = '\\0';\n\n        /* Walk the list; record numbers start at 1. */\n        int recNo = 1;\n        struct Node *node = list.head;\n\n        while (node != NULL) {\n            struct MdbRec *rec = node->data;\n\n            if (strstr(rec->name, key) != NULL || strstr(rec->msg, key) != NULL) {\n                printf(\"%4d: {%s} said {%s}\\n\", recNo, rec->name, rec->msg);\n            }\n\n            recNo++;\n            node = node->next;\n        }\n\n        printf(\"\\nlookup: \");\n        fflush(stdout);\n    }\n\n    /* fgets returned NULL: either EOF (Ctrl-D) or a read error. */\n    if (ferror(stdin))\n        die(\"stdin\");\n\n    /*\n     * Cleanup: free each record we malloc'ed, then the nodes, then the file.\n     */\n    struct Node *node = list.head;\n\n    while (node != NULL) {\n        free(node->data);\n        node = node->next;\n    }\n\n    removeAllNodes(&list);\n\n    fclose(fp);\n    return 0;\n}\n" },
+  { id: "apshell", title: "AP shell: fork, exec, waitpid", code:
+"#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#include <unistd.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n\nstatic void die(const char *s) { perror(s); exit(1); }\n\nint main()\n{\n    char        buf[63];\n    pid_t       pid;\n    int         status;\n\n    printf(\"AP> \");\n    while (fgets(buf, sizeof(buf), stdin) != NULL) {\n\n        if (buf[strlen(buf) - 1] == '\\n') {\n            buf[strlen(buf) - 1] = 0; // replace newline with '\\0'\n        }\n\n        pid = fork();\n\n        if (pid < 0) {\n            die(\"fork error\");\n\n        } else if (pid == 0) { // child process\n\n            char *argv[] = { buf, NULL };\n            execv(argv[0], argv);\n\n            // or alternatively:\n            // execl(buf, buf, (char *)0);\n\n            die(\"execl failed\");\n\n        } else { // parent process\n\n            if (waitpid(pid, &status, 0) != pid) {\n                die(\"waitpid failed\");\n            }\n        }\n        printf(\"AP> \");\n    }\n}\n" },
+  { id: "forktalk", title: "fork(): parent and child take turns", code:
+"#include <sys/types.h>\n#include <unistd.h>\n\nint main()\n{\n    int i;\n    pid_t p;\n\n    p = fork();\n\n    if (p > 0) {\n        for (i = 0; i < 10; i++) {\n            printf(\"Listen to me\\n\");\n            sleep(1);\n        }\n        printf(\"I give up...\\n\");\n        return 0;\n    }\n    else if (p == 0) {\n        for (i = 0; i < 10; i++) {\n            printf(\"No way\\n\");\n            sleep(1);\n        }\n        printf(\"Whatever.\\n\");\n        return 1;\n    }\n    else {\n        perror(\"fork failed\");\n        return -1;\n    }\n}\n" },
   { id: 'blank', title: 'Blank board', code: '// Paste or type your code here, then pick a line and press Run line.\n// You can also draw everything by hand with the Add buttons.\n' }
 ];
 
@@ -2638,10 +2954,10 @@ var STORE_KEY = 'memory-whiteboard-v1';
 
 function S() { return doc.steps[doc.cur].state; }
 function prevState() { return doc.cur > 0 ? doc.steps[doc.cur - 1].state : null; }
-function codeLines() { return doc.code.split('\n'); }
+function codeLines() { return withLibs(doc.code).split('\n'); }
 function regionFor(line) { return (defs.depth[line] || 0) > 0 ? 'stack' : 'global'; }
 function frameFor(line) { return (defs.fnAt && defs.fnAt[line]) || ''; }
-function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, auto: doc.autoPos || {}, tk: doc.traceKey || null, stdin: doc.stdin || '', eof: !!doc.stdinEOF, follow: doc.follow || 'parent', term: doc.terminal || null, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
+function snapshot() { return JSON.stringify({ code: doc.code, steps: doc.steps, cur: doc.cur, auto: doc.autoPos || {}, tk: doc.traceKey || null, args: doc.args == null ? null : doc.args, files: doc.files || null, stdin: doc.stdin || '', eof: !!doc.stdinEOF, follow: doc.follow || 'parent', term: doc.terminal || null, extra: EXTRA_STRUCTS, nextId: NEXT_ID }); }
 /* ---------- keep struct boxes in line with their struct definitions ---------- */
 function fieldDecl(type, name) { var m = /^(.*?)\s*(\**)$/.exec(type); return m[1] + ' ' + m[2] + name + ';'; }
 function sameFields(b, fields) {
@@ -2680,7 +2996,7 @@ function restore(json) {
   if (!d || !Array.isArray(d.steps) || !d.steps.length) throw new Error('that text is not a saved whiteboard');
   EXTRA_STRUCTS = d.extra || {};
   NEXT_ID = d.nextId || 1000;
-  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1), autoPos: d.auto || {}, traceKey: d.tk || null, stdin: d.stdin || '', stdinEOF: !!d.eof, follow: d.follow === 'child' ? 'child' : 'parent', terminal: d.term || null };
+  doc = { code: d.code || '', steps: d.steps, cur: Math.min(d.cur || 0, d.steps.length - 1), autoPos: d.auto || {}, traceKey: d.tk || null, args: d.args == null ? null : d.args, files: d.files || null, stdin: d.stdin || '', stdinEOF: !!d.eof, follow: d.follow === 'child' ? 'child' : 'parent', terminal: d.term || null };
   defs = setDefs(doc.code);
   syncAllStructs();
 }
@@ -2744,7 +3060,7 @@ function insertStep(step) {
 }
 /* Run code line L on state st. Handles the end of { } blocks, return, exit() and the end of main. */
 function execLineAt(st, L) {
-  var raw = codeLines()[L - 1];
+  var raw = FUNC_SRC[L - 1] != null ? FUNC_SRC[L - 1] : codeLines()[L - 1];
   if (st.ended) return { error: 'the program already finished on an earlier step. Go back a step to keep tracing.', finished: true };
   var t = blankComments(raw).trim(), core = t.replace(/^[}\s]+/, ''), fn = frameFor(L);
   var ns, gone;
@@ -2801,6 +3117,33 @@ function lineCallsUser(L) {
   });
 }
 function inCall() { return !!doc.steps[doc.cur].stack; }
+/* ----- the program's surroundings: command line and files ----- */
+function splitArgs(s) {
+  var out = [], re = /"([^"]*)"|'([^']*)'|(\S+)/g, m;
+  while ((m = re.exec(s))) out.push(m[1] != null ? m[1] : m[2] != null ? m[2] : m[3]);
+  return out.length ? out : ['./a.out'];
+}
+/* MdbRec records: name (16 bytes) and msg (24 bytes), each padded with \0 */
+function fileBytes(f) {
+  var b = [];
+  if (f.format === 'mdb') {
+    (f.text || '').split('\n').forEach(function (ln) {
+      if (!ln.trim()) return;
+      var k = ln.indexOf('|'), nm = (k < 0 ? ln : ln.slice(0, k)).trim(), msg = k < 0 ? '' : ln.slice(k + 1).trim();
+      [[nm, 16], [msg, 24]].forEach(function (p) { for (var c = 0; c < p[1]; c++) b.push(c < Math.min(p[0].length, p[1] - 1) ? p[0].charCodeAt(c) & 255 : 0); });
+    });
+  } else for (var c = 0; c < (f.text || '').length; c++) b.push(f.text.charCodeAt(c) & 255);
+  return b;
+}
+function usesFiles() { return /\bfopen\s*\(/.test(blankComments(doc.code || '')); }
+function mainTakesArgs() { return !!(FUNCS.main && FUNCS.main.params.length); }
+function progSetup() {
+  if (usesFiles() && !doc.files) {
+    var mdb = /mdb\.h|MdbRec/.test(doc.code);
+    doc.files = [mdb ? { name: 'mdb-cs3157', format: 'mdb', text: 'Jae|Hello, class!\nSam|MemoryDojo rocks\nAlice|pointers are fun\nBob|malloc then free\n' } : { name: 'input.txt', format: 'text', text: 'hello\nworld\n' }];
+  }
+  if (doc.args == null && mainTakesArgs()) doc.args = './a.out' + (usesFiles() && doc.files && doc.files[0] ? ' ' + doc.files[0].name : '');
+}
 function recToStep(s, L) { return { id: uid('s'), line: s.line, state: s.state, msgs: s.msgs, stack: s.stack, kind: s.kind, callLine: L, out: s.out || '', pt: s.proc || null }; }
 /* Debug: run the whole program from the top of main and record every step, following loops and branches */
 /* ================= one execution engine =================
@@ -2828,6 +3171,10 @@ function recordProgram() {
   /* one recording: the steps of one process, with its own CPU registers. path says which side of
      each fork() it follows, in the order the forks happen. */
   STDIN_TEXT = doc.stdin || ''; STDIN_EOF = !!doc.stdinEOF;
+  progSetup();
+  CMD_ARGS = splitArgs(doc.args || '');
+  VFILES = {};
+  (doc.files || []).forEach(function (f) { if (f.name) VFILES[f.name.replace(/^\.\//, '')] = fileBytes(f); });
   function record(path, known) {
     FORK_PATH = path; KNOWN_EXIT = known || {};
     var res = traceProgram(true, 2000, st0);
@@ -3055,7 +3402,7 @@ function weaveProcs(procs, capped) {
   if (capped && out.length) out[out.length - 1].msgs.push({ level: 'warn', text: 'This program creates more than 8 processes. Only the first 8 are shown.' });
   return out;
 }
-function traceKeyNow() { return doc.code + (doc.follow === 'child' ? '\u0000child' : '') + (doc.stdin ? '\u0001' + doc.stdin : '') + (doc.stdinEOF ? '\u0002' : ''); }
+function traceKeyNow() { return doc.code + '\u0003' + (doc.args || '') + '\u0003' + JSON.stringify(doc.files || []) + (doc.follow === 'child' ? '\u0000child' : '') + (doc.stdin ? '\u0001' + doc.stdin : '') + (doc.stdinEOF ? '\u0002' : ''); }
 function traceStale() { return !doc.traceKey || doc.traceKey !== traceKeyNow(); }
 function ensureTrace() {
   if (!traceStale()) return true;
@@ -3230,7 +3577,7 @@ function targetRect(st, addr) {
   var r = findAt(st, addr);
   if (!r) return null;
   /* the cell that holds the byte at this address; arrows end on its top-left corner, the first byte */
-  if (r.i >= 0 && r.b.kind === 'struct') {
+  if (r.i >= 0 && r.b.kind === 'struct' && !geom(r.b).slots[r.i].cell) {
     /* a struct field is a whole row: its field name and value together start at the row's left edge */
     var gs = geom(r.b).slots[r.i];
     return { rect: { x: r.b.x + gs.lx, y: r.b.y + gs.y, w: gs.x + gs.w - gs.lx, h: gs.h }, r: r };
@@ -3537,7 +3884,7 @@ function cardSvg(st, b, c, ghost) {
     var ssel = on && sel.slot === i;
     var scls = 'slot' + (isP ? ' ptr' : '') + (un ? ' uninit' : '') + (c[i] ? ' chg' : '') + (ssel ? ' ssel' : '');
     var dropOn = linking && linking.hover && linking.hover.bid === b.id && linking.hover.si === i;
-    h.push('<rect class="' + scls + (dropOn ? ' drop' : '') + '" data-s="' + i + '" x="' + s.x + '" y="' + s.y + '" width="' + s.w + '" height="' + s.h + '" rx="' + (b.kind === 'array' ? 1.5 : 4) + '">' +
+    h.push('<rect class="' + scls + (dropOn ? ' drop' : '') + '" data-s="' + i + '" x="' + s.x + '" y="' + s.y + '" width="' + s.w + '" height="' + s.h + '" rx="' + (b.kind === 'array' || s.cell ? 1.5 : 4) + '">' +
       '<title>' + esc(slotName(b, i) + ' (' + sl.type + ') at ' + hex(slotAddr(b, i)) + ' = ' + fmtVal(sl, false) + (isP ? ', ' + targetText(st, sl.value) : '')) + '</title></rect>');
     var compact = b.kind === 'array', txt = fmtVal(sl, compact);
     var vcls = 'vt' + (un ? ' u' : isP ? (sl.value === 0 ? ' n' : ' p') : '');
@@ -3554,8 +3901,15 @@ function cardSvg(st, b, c, ghost) {
         h.push('<text class="ad" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h + 11) + '" text-anchor="middle" pointer-events="none">' + ad + '</text>');
       }
     } else {
+      if (s.cell) {
+        /* one element of an array member: a small cell; the member's name on its first row */
+        if (s.gfirst) h.push('<text class="lb" x="' + s.lx + '" y="' + (s.y + s.h / 2 + 4) + '" pointer-events="none">' + esc(trunc(sl.grp, 9)) + '</text>');
+        var cv = sl.value === null || sl.value === undefined ? '?' : sl.value === 0 ? '\\0' : sl.value >= 32 && sl.value < 127 ? String.fromCharCode(sl.value) : String(sl.value);
+        h.push('<text class="' + vcls + ' cellv" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h / 2 + 1) + '" pointer-events="none">' + esc(trunc(cv, 3)) + '</text>');
+      } else {
       if (b.kind === 'struct') h.push('<text class="lb" x="' + (s.lx + (b.uni ? 6 : 0)) + '" y="' + (s.y + s.h / 2 + 4) + '" pointer-events="none">' + esc(trunc(sl.label, b.uni ? 8 : 9)) + '</text>');
       h.push('<text class="' + vcls + '" x="' + (s.x + s.w / 2) + '" y="' + (s.y + s.h / 2 + 1) + '" pointer-events="none">' + esc(trunc(txt, maxc)) + '</text>');
+      }
     }
   });
   if (b.kind === 'struct' && b.uni) h.push(unionMarks(b, g));
@@ -3756,7 +4110,7 @@ function renderCode() {
     var stk = doc.steps[doc.cur].stack, sites = {}, pl = doc.steps[doc.cur].plines, cproc = doc.steps[doc.cur].proc;
     if (stk) stk.slice(0, -1).forEach(function (f) { sites[f.line] = f.fn; });
     lines.forEach(function (t, k) {
-      var L = k + 1, cls = 'cl' + (L === curLine ? ' cur' : '') + (L === pendingLine ? ' pend' : '') + (isQuietLine(L) ? ' skipl' : '') + (sites[L] && L !== curLine ? ' callsite' : '') + (stk && L === curLine ? ' exec' : '');
+      var L = k + 1, cls = 'cl' + (defs && defs.userLines && L > defs.userLines ? ' libl' : '') + (L === curLine ? ' cur' : '') + (L === pendingLine ? ' pend' : '') + (isQuietLine(L) ? ' skipl' : '') + (sites[L] && L !== curLine ? ' callsite' : '') + (stk && L === curLine ? ' exec' : '');
       var ns = ls[L] ? ls[L].map(function (n) { return n; }).slice(-3).join(',') : '';
       h.push('<div class="' + cls + '" data-line="' + L + '" role="option" aria-selected="' + (L === pendingLine) + '" title="Click to make this the next line to run"><span class="mk"></span><span class="ln">' + (pl ? pmark(pl, L, cproc) : '') + L + '</span><span class="tx">' + (esc(t) || ' ') + '</span><span class="ns">' + (ns ? 's' + ns : '') + '</span></div>');
     });
@@ -4363,6 +4717,18 @@ function consoleHtml() {
   if (here) h.push('<div class="con-wait"><b>The program is waiting for input.</b> It is blocked in <span class="mono">fgets</span>. Type a line in the terminal above and press Enter. <button class="btn sm" type="button" data-a="stdineof" title="Close stdin, like pressing Ctrl+D in a terminal">End of input (Ctrl+D)</button></div>');
   else if (waiting) h.push('<div class="con-wait">The program stops at step ' + lastI + ' to wait for input. <button class="btn sm" type="button" data-a="gowait">Go to step ' + lastI + '</button></div>');
   if (forks) h.push(terminalHtml());
+  if (mainTakesArgs() || usesFiles()) {
+    var fl = doc.files || [];
+    h.push('<div class="setup"><h4 class="term-h">How the program is started</h4>' +
+      (mainTakesArgs() ? '<label class="fld"><span>Command line (argv)</span><span class="cmd"><b>$</b><input id="cmdArgs" class="mono-in" spellcheck="false" value="' + esc(doc.args || '') + '"></span></label>' : '') +
+      (usesFiles() ? fl.map(function (f, k) {
+        return '<div class="vfile"><div class="vfh"><span>File</span><input class="mono-in" data-vf="name" data-k="' + k + '" value="' + esc(f.name) + '" aria-label="File name">' +
+          '<select data-vf="format" data-k="' + k + '" aria-label="File format"><option value="text"' + (f.format !== 'mdb' ? ' selected' : '') + '>text</option><option value="mdb"' + (f.format === 'mdb' ? ' selected' : '') + '>MdbRec records (40 bytes each)</option></select></div>' +
+          '<textarea class="mono-in" data-vf="text" data-k="' + k + '" rows="5" spellcheck="false" aria-label="Contents of ' + esc(f.name) + '">' + esc(f.text || '') + '</textarea>' +
+          (f.format === 'mdb' ? '<p class="hint">One record per line: <span class="mono">name | message</span>. Each is stored as a 16-byte name and a 24-byte message, padded with \\0 (longer text is cut to 15 and 23 characters).</p>' : '') + '</div>';
+      }).join('') : '') +
+      '<div class="actions"><button class="btn sm" type="button" data-a="setsetup">Run with these</button></div></div>');
+  }
   if (/\b(stdin|fgets|getchar|scanf|getline)\b/.test(blankComments(doc.code || ''))) {
     h.push('<div class="stdin-box"><label class="term-h" for="stdinText">Everything typed so far (stdin)</label><textarea id="stdinText" class="mono-in" rows="4" spellcheck="false" placeholder="Type what you would type into the program, one line per Enter. For example:\n/bin/ls\nls\n/bin/date">' + esc(doc.stdin || '') + '</textarea>' +
       '<div class="actions"><button class="btn sm" type="button" data-a="setstdin">Run with this input</button></div>' +
@@ -4441,6 +4807,7 @@ function agLabel(key, gone) {
   if (key === 'static') return 'Static: globals + literals';
   if (key === 'code') return 'Code (text): functions';
   if (/^reg:/.test(key)) return 'CPU registers (not memory)';
+  if (key === 'stack:__argv') return 'Command line: argv (top of the stack)';
   var fn = key.slice(6).replace(/#\d+$/, ''), d = agDepth(key);
   return (fn ? 'Scope: ' + fn + '()' : 'Stack') + (d > 1 ? ' \u00b7 depth ' + d : '') + (gone ? (fn ? ', returned' : ', gone') : '');
 }
@@ -4833,11 +5200,13 @@ var ARG_REGS = ['di', 'si', 'd', 'c', 'r8', 'r9'];
 function rn(k, size) { var ix = { 1: 0, 2: 1, 4: 2, 8: 3 }[size]; return REGS[k][ix === undefined ? 2 : ix]; }
 var BUILTIN_RET = { malloc: 'void*', calloc: 'void*', realloc: 'void*', strlen: 'unsigned long', printf: 'int', puts: 'int', putchar: 'int', free: 'void', strcmp: 'int', strcpy: 'char*', memset: 'void*', memcpy: 'void*', exit: 'void', abs: 'int', atoi: 'int',
   fgets: 'char*', execv: 'int', execvp: 'int', execve: 'int', execl: 'int', execlp: 'int', execle: 'int', WEXITSTATUS: 'int', WIFEXITED: 'int',
+  fopen: 'struct _IO_FILE*', fclose: 'int', fread: 'unsigned long', fwrite: 'unsigned long', ferror: 'int', feof: 'int', fflush: 'int', fprintf: 'int', fputs: 'int', fputc: 'int',
+  strncpy: 'char*', strcat: 'char*', strstr: 'char*', strchr: 'char*', strrchr: 'char*', strncmp: 'int', memmove: 'void*', atol: 'long',
   fork: 'int', getpid: 'int', getppid: 'int', wait: 'int', waitpid: 'int', sleep: 'unsigned int', usleep: 'int', perror: 'void', _exit: 'void' };
 var BUILTIN_ARGS = { malloc: ['unsigned long'], calloc: ['unsigned long', 'unsigned long'], free: ['void*'], strlen: ['char*'], puts: ['char*'], putchar: ['int'], strcmp: ['char*', 'char*'], strcpy: ['char*', 'char*'], exit: ['int'], abs: ['int'], atoi: ['char*'],
   fgets: ['char*', 'int', 'void*'], execv: ['char*', 'char**'], execvp: ['char*', 'char**'], WEXITSTATUS: ['int'], WIFEXITED: ['int'],
   wait: ['int*'], waitpid: ['int', 'int*', 'int'], sleep: ['unsigned int'], usleep: ['unsigned int'], perror: ['char*'], _exit: ['int'] };
-var VARIADIC = { printf: 1, execl: 1, execlp: 1, execle: 1 };
+var VARIADIC = { printf: 1, fprintf: 1, execl: 1, execlp: 1, execle: 1 };
 
 function CgErr(msg) { this.message = msg; }
 
@@ -4916,7 +5285,7 @@ function compileProgram() {
       if (!STRUCTS[sname]) throw new CgErr(sname + ' is not defined');
       var mb = aggMember(sname, f);
       if (!mb) throw new CgErr(sname + ' has no field ' + f);
-      return { off: mb.off, t: mb.t };
+      return { off: mb.off, t: mb.arr ? ptrTo(mb.t) : mb.t, arr: mb.arr };
     }
     /* ----- types ----- */
     function typeOf(e) {
@@ -4976,6 +5345,10 @@ function compileProgram() {
       return '';
     }
     /* a memory operand for simple lvalues, without emitting code */
+    function arrField(e) {
+      if (e.k !== 'mem') return 0;
+      try { var stt = e.arrow ? pointee(typeOf(e.a)) : typeOfLv(e.a); var fi = fieldOf(stt.base, e.f); return fi.arr ? fi : 0; } catch (x) { return 0; }
+    }
     function memOf(e) {
       if (e.k === 'id') {
         var s = lookup(e.n);
@@ -4991,7 +5364,7 @@ function compileProgram() {
         var ss = lookup(e.a.n);
         if (ss && !ss.arr && ss.t.struct && ss.t.ptr === 0) {
           var fi = fieldOf(ss.t.base, e.f);
-          if (fi.t.struct && fi.t.ptr === 0) return null;
+          if ((fi.t.struct && fi.t.ptr === 0) || fi.arr) return null;
           return ss.glob ? M(null, fi.off, sizeOfInfo(fi.t), noteOf(e), ss.name) : M('rbp', ss.off + fi.off, sizeOfInfo(fi.t), noteOf(e));
         }
       }
@@ -5010,6 +5383,8 @@ function compileProgram() {
       var a = e.a;
       if (a.k === 'id') { var s = lookup(a.n); if (s) return s.arr ? s.size : sizeOfInfo(s.t); }
       if (a.k === 'str') return a.s.length + 1;
+      var af = arrField(a);
+      if (af) return af.arr * sizeOfInfo(pointee(af.t));
       var t = typeOfLv(a);
       return sizeOfInfo(t);
     }
@@ -5156,6 +5531,8 @@ function compileProgram() {
         case 'call': return genCall(e);
         case 'idx': case 'mem': {
           t = typeOf(e);
+          /* an array member is not loaded: its name is the address of its first element */
+          if (arrField(e)) { genAddr(e); return t; }
           var mm = memOf(e);
           if (mm) { if (t.struct && t.ptr === 0) { genAddr(e); return t; } load(mm, t); return t; }
           if (t.struct && t.ptr === 0) { genAddr(e); return t; }
@@ -5773,7 +6150,7 @@ function parseDeclToks(toks, globals, lookup) {
       if (isOp('[')) {
         i++;
         if (isOp(']')) arr = -1;
-        else { var dt = []; while (!isOp(']')) dt.push(toks[i++]); var de = cgParseExpr(dt); if (de.k !== 'num') throw new CgErr('array sizes must be constants'); arr = de.v; }
+        else { var dt = []; while (!isOp(']')) dt.push(toks[i++]); var de = cgParseExpr(dt), cv = de.k === 'num' ? de.v : constEval(dt.map(function (x) { return x.s; }).join(' ')); if (!(cv > 0)) throw new CgErr('array sizes must be constants'); arr = cv; }
         i++;
       }
     }
@@ -6997,6 +7374,18 @@ function setup() {
       else if (act2 === 'widecode') toggleWide();
       else if (act2 === 'syncstruct') mutate(function () { syncAllStructs(); });
       else if (act2 === 'stdineof') { stdinSend(null); }
+      else if (act2 === 'setsetup') {
+        pushUndo();
+        var ca = $('cmdArgs');
+        if (ca) doc.args = ca.value.trim() || './a.out';
+        document.querySelectorAll('[data-vf]').forEach(function (el) {
+          var k = +el.getAttribute('data-k'), f = doc.files && doc.files[k];
+          if (f) f[el.getAttribute('data-vf')] = el.value;
+        });
+        if (FUNCS.main && !ui.editingCode) { recordProgram(); execRun(); }
+        renderAll(); save();
+        toast('Ran: ' + (doc.args || ''));
+      }
       else if (act2 === 'gowait') { goStep(doc.steps.length - 1); ui.tab = 'out'; ui.conFocus = true; renderPane(); }
       else if (act2 === 'setstdin') {
         var tv = ($('stdinText') || {}).value || '';
